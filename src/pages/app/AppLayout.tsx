@@ -6,10 +6,14 @@ import { Button, Switch, cn } from 'cubs-components'
 import { Modal } from '@components/Modal'
 import { SearchBar } from '@components/SearchBar'
 import { Typography } from '@components/Typography'
-import { useWorkspace, type WorkspaceState } from '@/contexts/WorkspaceContext'
+import {
+  DEFAULT_WORKSPACE_ID,
+  useWorkspace,
+  type WorkspaceState,
+} from '@/contexts/WorkspaceContext'
 import { useDialog } from '@/hooks/useDialog'
 import { useTheme } from '@/hooks/useTheme'
-import { i18n } from '@/lib/i18n'
+import { DEFAULT_LANGUAGE, i18n } from '@/lib/i18n'
 import { THEME } from '@/lib/theme'
 
 /**
@@ -24,19 +28,28 @@ function workspaceLabel({ workspace, loading, failed }: WorkspaceState): string 
 }
 
 export function AppLayout() {
-  const { lang, workspaceId } = useParams({ from: '/$lang/myworkspace/$workspaceId' })
+  // `strict: false`: o layout serve TODA a área privada, e o `workspaceId` só
+  // existe na rota de workspace (em `/page/:id` e "Colaborando" não há).
+  const { lang, workspaceId } = useParams({ strict: false })
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const workspaceState = useWorkspace()
   const workspaceDialog = useDialog()
 
-  // A workspace é parte do caminho, então todo link interno carrega o id — a
-  // navegação lateral nunca sai da workspace aberta.
-  const workspaceHref = `/${lang}/myworkspace/${workspaceId}`
+  // A workspace é parte do caminho, então o link dela carrega o id. Fora da
+  // rota de workspace (ex.: uma página compartilhada) o id não está na URL —
+  // aí o destino é a workspace PADRÃO, a mesma dos redirects de login.
+  const currentLang = lang ?? DEFAULT_LANGUAGE.slug
+  const workspaceHref = `/${currentLang}/myworkspace/${workspaceId ?? DEFAULT_WORKSPACE_ID}`
 
   const navItems = [
     { name: i18n('common.navigation.home'), href: workspaceHref, icon: 'lucide:workflow' },
+    {
+      name: i18n('common.navigation.colaborando'),
+      href: `/${currentLang}/colaborando`,
+      icon: 'lucide:users',
+    },
     { name: i18n('common.navigation.chat'), href: `${workspaceHref}/mychat`, icon: 'lucide:message-circle' },
     { name: i18n('common.navigation.agenda'), href: `${workspaceHref}/schedule`, icon: 'lucide:calendar' },
   ]

@@ -24,6 +24,7 @@
     "navigation": {
       "agenda": "Agenda",
       "chat": "Chat",
+      "colaborando": "Colaborando",
       "home": "Area de Trabalho"
     }
   },
@@ -107,14 +108,38 @@
         "sem-resposta": "Nenhuma resposta ainda."
       },
       "headline": "Area de Trabalho",
+      "pagina": {
+        "sem-titulo": "Página sem título",
+        "indisponivel": "Página indisponível",
+        "espectadores": "{{count}} pessoas com esta página aberta"
+      },
+      "colaborando": {
+        "titulo": "Colaborando",
+        "descricao": "Páginas que outras pessoas compartilharam com você. Abrir uma delas coloca vocês na mesma sala: o que um editar, o outro vê na hora.",
+        "dono": "de {{owner}}",
+        "vazio": "Ninguém compartilhou uma página com você ainda.",
+        "erro": "Não foi possível carregar as páginas compartilhadas."
+      },
       "cubs-database": {
         "vazio": "Nenhum registro.",
         "em-breve": "Esta view ainda está em construção.",
         "abrir": "Abrir",
         "arrastar-linha": "Arrastar linha",
+        "arrastar-option": "Arrastar option",
+        "arrastar-coluna": "Arrastar coluna",
+        "redimensionar-coluna": "Redimensionar coluna",
         "selecionar-linha": "Selecionar linha",
+        "selecionar-todas": "Selecionar todas as linhas",
+        "renomear-coluna": "Renomear coluna",
         "coluna-titulo": "Título",
         "view-padrao": "Tabela",
+        "tipos": {
+          "text": "Texto",
+          "numeric": "Número",
+          "select": "Seleção",
+          "date": "Data",
+          "checkbox": "Checkbox"
+        },
         "erro": "Não foi possível carregar a base.",
         "menu": {
           "renomear": "Renomear view",

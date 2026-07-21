@@ -12,12 +12,13 @@ do Vite; o `dist` existe para o `npm pack` e para o build da `cubs-database`.
 
 | Componente | Dual-mode | Notas |
 |---|---|---|
-| `TextField` | sim | máscaras, `size`, `surface`, adornos |
+| `TextField` | sim | máscaras, `size`, `surface` (incl. `plain`, sem chrome), adornos |
 | `Checkbox` | sim | sobre Radix; suporta `indeterminate` (só modo state) |
 | `Select` | sim | sobre Radix; `options` por prop |
 | `Switch` | sim | — |
 | `Button` | — | `variant` × `color` (paleta ou `from-theme`) |
 | `ContextMenu` | — | painel `absolute`; posicionamento fica com o caller |
+| `Popover` | — | sobre Radix; trigger `asChild` + conteúdo LIVRE, glass |
 
 Mais `cn`, `PALETTE`/`paletteBgText`/`paletteBorderText` e
 `applyMask`/`unmask`/`formatCurrency`.
@@ -42,6 +43,7 @@ O `src/index.css` do app é a referência:
 | `foreground` | cor de texto |
 | `glass` | fundo translúcido das superfícies flutuantes |
 | `p-red`, `p-blue`, `p-purple`, `p-green` | destaque, tom cheio + escala 50–950 |
+| `p-orange`, `p-yellow`, `p-grey` | cores de option de select (`cubs-database`), mesma forma |
 
 Cada um entra em dois passos: valor em `:root` e `.dark`, depois
 `--color-<nome>: var(--<nome>)` em `@theme inline`. O dark mode é a classe
@@ -50,8 +52,9 @@ Cada um entra em dois passos: valor em `:root` e `.dark`, depois
 ## Dependências
 
 `clsx` e `tailwind-merge` são deps normais (o `cn` é do pacote). Como peer:
-`react` (>=19), `react-hook-form` (>=7.80) e `@iconify/react` para quem usar
-`ContextMenu`/`Checkbox`/`Select`.
+`react` (>=19), `react-hook-form` (>=7.80), `@iconify/react` para quem usar
+`ContextMenu`/`Checkbox`/`Select`, e os Radix por trás de cada primitiva
+(`@radix-ui/react-checkbox`, `react-select`, `react-popover`).
 
 `react-hook-form` é peer **obrigatório**, não opcional: o dual-mode importa
 `useFormContext`/`useController` estaticamente. Quem consome só o modo state

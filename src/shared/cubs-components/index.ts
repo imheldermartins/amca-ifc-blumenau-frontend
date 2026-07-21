@@ -10,6 +10,8 @@ export { Select } from './Select'
 export type { SelectOption, SelectProps } from './Select'
 export { ContextMenu } from './ContextMenu'
 export type { ContextMenuItem, ContextMenuProps } from './ContextMenu'
+export { Popover } from './Popover'
+export type { PopoverProps } from './Popover'
 
 export { cn } from './lib/utils'
 export {

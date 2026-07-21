@@ -49,6 +49,10 @@
   --p-blue: theme(--color-blue-600);
   --p-purple: theme(--color-violet-600);
   --p-green: theme(--color-emerald-600);
+  /* Cores de option de coluna select (orange→orange, yellow→amber, grey→zinc). */
+  --p-orange: theme(--color-orange-600);
+  --p-yellow: theme(--color-amber-600);
+  --p-grey: theme(--color-zinc-600);
 }
 
 .dark {
@@ -65,6 +69,9 @@
   --p-blue: theme(--color-blue-500);
   --p-purple: theme(--color-violet-500);
   --p-green: theme(--color-emerald-500);
+  --p-orange: theme(--color-orange-500);
+  --p-yellow: theme(--color-amber-500);
+  --p-grey: theme(--color-zinc-500);
 }
 
 /* Fonte padrão do projeto. Sobrescrever --font-sans faz TODO o app herdar
@@ -92,6 +99,9 @@
   --color-p-blue: var(--p-blue);
   --color-p-purple: var(--p-purple);
   --color-p-green: var(--p-green);
+  --color-p-orange: var(--p-orange);
+  --color-p-yellow: var(--p-yellow);
+  --color-p-grey: var(--p-grey);
 }
 
 /*
@@ -156,6 +166,44 @@
   --color-p-green-800: var(--color-emerald-800);
   --color-p-green-900: var(--color-emerald-900);
   --color-p-green-950: var(--color-emerald-950);
+
+  /* Cores de option de coluna select (chips da cubs-database):
+     orange→orange, yellow→amber, grey→zinc. */
+  --color-p-orange-50: var(--color-orange-50);
+  --color-p-orange-100: var(--color-orange-100);
+  --color-p-orange-200: var(--color-orange-200);
+  --color-p-orange-300: var(--color-orange-300);
+  --color-p-orange-400: var(--color-orange-400);
+  --color-p-orange-500: var(--color-orange-500);
+  --color-p-orange-600: var(--color-orange-600);
+  --color-p-orange-700: var(--color-orange-700);
+  --color-p-orange-800: var(--color-orange-800);
+  --color-p-orange-900: var(--color-orange-900);
+  --color-p-orange-950: var(--color-orange-950);
+
+  --color-p-yellow-50: var(--color-amber-50);
+  --color-p-yellow-100: var(--color-amber-100);
+  --color-p-yellow-200: var(--color-amber-200);
+  --color-p-yellow-300: var(--color-amber-300);
+  --color-p-yellow-400: var(--color-amber-400);
+  --color-p-yellow-500: var(--color-amber-500);
+  --color-p-yellow-600: var(--color-amber-600);
+  --color-p-yellow-700: var(--color-amber-700);
+  --color-p-yellow-800: var(--color-amber-800);
+  --color-p-yellow-900: var(--color-amber-900);
+  --color-p-yellow-950: var(--color-amber-950);
+
+  --color-p-grey-50: var(--color-zinc-50);
+  --color-p-grey-100: var(--color-zinc-100);
+  --color-p-grey-200: var(--color-zinc-200);
+  --color-p-grey-300: var(--color-zinc-300);
+  --color-p-grey-400: var(--color-zinc-400);
+  --color-p-grey-500: var(--color-zinc-500);
+  --color-p-grey-600: var(--color-zinc-600);
+  --color-p-grey-700: var(--color-zinc-700);
+  --color-p-grey-800: var(--color-zinc-800);
+  --color-p-grey-900: var(--color-zinc-900);
+  --color-p-grey-950: var(--color-zinc-950);
 }
 
 /* `rounded` (sem sufixo) passa a valer o raio padrão do projeto (lg).

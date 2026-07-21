@@ -33,6 +33,11 @@ export default defineConfig({
     },
   },
   server: {
+    // O dev server recusa requisições cujo Host ele não conhece (defesa contra
+    // DNS rebinding). Um túnel serve o app num hostname aleatório
+    // (`*.trycloudflare.com`), então ele precisa ser liberado — só o sufixo,
+    // nunca `true`, que aceitaria qualquer host.
+    allowedHosts: ['.trycloudflare.com'],
     proxy: {
       // Em dev o frontend chama API_BASE_PATH/... e o Vite repassa para o
       // backend Express (cubs-backend) SEM reescrever o path: o prefixo é real

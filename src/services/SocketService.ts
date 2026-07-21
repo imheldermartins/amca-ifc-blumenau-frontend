@@ -15,13 +15,76 @@ export interface EchoReply {
   at: string
 }
 
+/**
+ * Base de todo evento de SALA (a sala é a página; ver `usePageRealtime`).
+ *
+ * `updatedAt` é a guarda de ordem: evento mais VELHO que o dado em memória é
+ * descartado (chegada fora de ordem não desfaz edição mais nova).
+ * `originUserId` é a guarda de eco: quem originou ignora a volta — e é por
+ * USUÁRIO, não por socket, para duas abas da mesma conta não brigarem.
+ */
+export interface RealtimeBase {
+  pageId: string
+  updatedAt: string
+  originUserId: string
+}
+
+export interface CellUpdatedPayload extends RealtimeBase {
+  rowId: string
+  columnId: string
+  /** Já sem o envelope `{value}`; `null` = célula limpa. */
+  value: unknown
+}
+
+export interface ColumnUpdatedPayload extends RealtimeBase {
+  columnId: string
+  /** A coluna INTEIRA como ficou (o client substitui, não remenda). */
+  column: unknown
+}
+
+export interface ViewUpdatedPayload extends RealtimeBase {
+  /** O `pages.data` inteiro — snapshot é retrato completo. */
+  data: unknown
+}
+
+export interface RowPayload extends RealtimeBase {
+  rowId: string
+}
+
+/**
+ * O TÍTULO de uma linha mudou. Evento próprio porque `pages.title` não é uma
+ * `page_columns`: é campo da própria página, e do lado de cá vira a coluna
+ * sintética de título (ver `TITLE_COLUMN_ID`).
+ */
+export interface RowUpdatedPayload extends RealtimeBase {
+  rowId: string
+  title: string | null
+}
+
+export interface PresencePayload {
+  pageId: string
+  count: number
+}
+
 export interface ServerToClientEvents {
   'presence:count': (count: number) => void
   'echo:reply': (payload: EchoReply) => void
+  // --- Sala da página (espelha realtime-service.ts do cubs-backend) ---
+  'joined-page-database': (payload: { pageId: string }) => void
+  'page-database-denied': (payload: { pageId: string }) => void
+  'page-presence': (payload: PresencePayload) => void
+  'cell-updated': (payload: CellUpdatedPayload) => void
+  'row-updated': (payload: RowUpdatedPayload) => void
+  'column-updated': (payload: ColumnUpdatedPayload) => void
+  'view-updated': (payload: ViewUpdatedPayload) => void
+  'row-created': (payload: RowPayload) => void
+  'row-deleted': (payload: RowPayload) => void
 }
 
 export interface ClientToServerEvents {
   'echo:send': (message: string) => void
+  'join-page-database': (payload: { pageId: string }) => void
+  'leave-page-database': (payload: { pageId: string }) => void
 }
 
 export type CubsSocket = Socket<ServerToClientEvents, ClientToServerEvents>

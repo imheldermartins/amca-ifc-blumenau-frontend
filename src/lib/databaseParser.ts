@@ -21,10 +21,13 @@
  */
 import type {
   ColumnDataType,
+  ColumnOption,
   DataViewKind,
   DataViewSettings,
   DataViewType,
   HeaderCol,
+  NumberFormat,
+  OptionColor,
   RowData,
 } from 'cubs-database'
 
@@ -136,41 +139,35 @@ function isColumnType(value: unknown): value is ColumnDataType {
 
 // --- Colunas ---
 
-/**
- * Colunas da tabela, com a coluna sintética de TÍTULO na frente — é ela que
- * carrega o `page_title` de cada filha e serve de âncora visual da linha.
- *
- * `titleLabel` é injetado por quem chama (o texto de tela vem do i18n do app;
- * este módulo não decide idioma).
- */
-export function parseHeaderCols(columns: ApiPageColumn[], titleLabel: string): HeaderCol[] {
-  const titleColumn: HeaderCol = { id: TITLE_COLUMN_ID, title: titleLabel, type: 'text' }
+const OPTION_COLORS: readonly OptionColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'grey']
 
-  const dataColumns = columns.map((column) => ({
-    id: column.id,
-    title: column.name ?? '',
-    // O type declarado manda; um valor fora do vocabulário da lib cai na
-    // inferência dela (HeaderCol.type ausente), em vez de virar tipo inválido.
-    ...(isColumnType(column.type) && { type: column.type }),
+function isOptionColor(value: unknown): value is OptionColor {
+  return OPTION_COLORS.includes(value as OptionColor)
+}
+
+/** API → lib: `value` vira `label`; cor fora do vocabulário vira ausência. */
+function toColumnOptions(options: ApiSelectOption[]): ColumnOption[] {
+  return options.map((option) => ({
+    id: option.id,
+    label: option.value,
+    ...(isOptionColor(option.color) && { color: option.color }),
   }))
-
-  return [titleColumn, ...dataColumns]
 }
 
 /**
- * Mapa `columnId → (optionId → texto)` das colunas `select`, montado a partir
- * das definições canônicas e completado com o `column_data` que vem embutido no
- * dataset (fallback para valor de coluna que já não está mais em /columns).
+ * Mapa `columnId → options` das colunas `select`, montado a partir das
+ * definições canônicas e completado com o `column_data` que vem embutido no
+ * dataset (fallback para coluna cujo /columns veio sem options).
  */
-function buildSelectLabels(
+function buildColumnOptions(
   columns: ApiPageColumn[],
   dataset: ApiDatasetRow[],
-): Map<string, Map<string, string>> {
-  const labels = new Map<string, Map<string, string>>()
+): Map<string, ColumnOption[]> {
+  const optionsByColumn = new Map<string, ColumnOption[]>()
 
   const register = (columnId: string, options: ApiSelectOption[] | undefined) => {
-    if (!options?.length || labels.has(columnId)) return
-    labels.set(columnId, new Map(options.map((option) => [option.id, option.value])))
+    if (!options?.length || optionsByColumn.has(columnId)) return
+    optionsByColumn.set(columnId, toColumnOptions(options))
   }
 
   for (const column of columns) {
@@ -184,46 +181,68 @@ function buildSelectLabels(
     }
   }
 
-  return labels
+  return optionsByColumn
+}
+
+/**
+ * Colunas da tabela, com a coluna sintética de TÍTULO na frente — é ela que
+ * carrega o `page_title` de cada filha e serve de âncora visual da linha.
+ *
+ * As colunas `select` levam as `options` junto (id → label/cor): é a lib quem
+ * resolve o id guardado na célula na hora de renderizar — o parse NÃO traduz
+ * mais o valor. `numeric` leva o `format`, que vira a máscara do editor.
+ *
+ * `titleLabel` é injetado por quem chama (o texto de tela vem do i18n do app;
+ * este módulo não decide idioma). O `dataset` entra só como fallback de
+ * options (coluna cujo /columns veio sem elas).
+ */
+export function parseHeaderCols(
+  columns: ApiPageColumn[],
+  titleLabel: string,
+  dataset: ApiDatasetRow[] = [],
+): HeaderCol[] {
+  const titleColumn: HeaderCol = { id: TITLE_COLUMN_ID, title: titleLabel, type: 'text' }
+  const optionsByColumn = buildColumnOptions(columns, dataset)
+
+  const dataColumns = columns.map((column) => {
+    const options = optionsByColumn.get(column.id)
+    const format: NumberFormat | undefined =
+      column.data?.format === 'percentage' || column.data?.format === 'currency'
+        ? column.data.format
+        : undefined
+
+    return {
+      id: column.id,
+      title: column.name ?? '',
+      // O type declarado manda; um valor fora do vocabulário da lib cai na
+      // inferência dela (HeaderCol.type ausente), em vez de virar tipo inválido.
+      ...(isColumnType(column.type) && { type: column.type }),
+      ...(options && { options }),
+      ...(format && { format }),
+    }
+  })
+
+  return [titleColumn, ...dataColumns]
 }
 
 // --- Linhas ---
 
 /**
- * Valor final de uma célula, já legível pela tabela.
- *
- * O único tipo que exige tradução é o `select`: o banco guarda o ULID da option
- * e a tabela precisa do TEXTO, senão a célula mostra "01KXDN4B4WW…" para o
- * usuário. Option órfã (id que não existe mais na coluna) cai para `undefined`
- * — melhor a célula vazia do que um ULID cru na tela.
- *
- * Os demais passam direto: `text`/`numeric`/`checkbox` já são primitivos, e
- * `date` é mantido na string ISO como veio (inclusive o range `início@fim`) —
- * formatar data é apresentação, e é a lib quem decide como exibir.
- */
-function resolveCellValue(
-  rawValue: unknown,
-  columnType: ApiColumnType | null,
-  optionLabels: Map<string, string> | undefined,
-): unknown {
-  if (columnType !== 'select') return rawValue
-  if (typeof rawValue !== 'string') return undefined
-  return optionLabels?.get(rawValue)
-}
-
-/**
  * Linhas da tabela: uma por página-filha. O `page_title` vira a célula da
  * coluna sintética; as demais saem de `page_columns`, com o envelope desfeito.
+ *
+ * Os valores passam CRUS — inclusive o `select`, que guarda o ULID da option:
+ * a tradução id → label/cor virou responsabilidade de render da lib, que tem
+ * as `options` na coluna (ver `parseHeaderCols`). É o que permite EDITAR a
+ * célula: o editor precisa do id para saber qual option está ativa, e o commit
+ * grava id, não texto. `date` é mantido na string ISO como veio (inclusive o
+ * range `início@fim`) — formatar data é apresentação, e é a lib quem decide.
  *
  * Célula ausente é DIFERENTE de célula vazia (a lib desenha um espaço em vez de
  * um valor enganoso — um checkbox desmarcado, por exemplo), então só entra no
  * mapa a chave que realmente tem valor.
  */
-export function parseRows(dataset: ApiDatasetRow[], columns: ApiPageColumn[] = []): RowData[] {
-  const selectLabels = buildSelectLabels(columns, dataset)
-  // Type canônico da coluna: o do /columns tem prioridade sobre o do dataset.
-  const declaredTypes = new Map(columns.map((column) => [column.id, column.type]))
-
+export function parseRows(dataset: ApiDatasetRow[]): RowData[] {
   return dataset.map((row) => {
     const cells: RowData['cells'] = {}
 
@@ -234,13 +253,7 @@ export function parseRows(dataset: ApiDatasetRow[], columns: ApiPageColumn[] = [
     for (const [columnId, cell] of Object.entries(row.page_columns)) {
       if (!cell) continue
 
-      const columnType = declaredTypes.get(columnId) ?? cell.column_type
-      const value = resolveCellValue(
-        decodeEnvelope(cell.row_data),
-        columnType,
-        selectLabels.get(columnId),
-      )
-
+      const value = decodeEnvelope(cell.row_data)
       if (value !== undefined) cells[columnId] = { value }
     }
 
@@ -263,6 +276,11 @@ function parseColumnWidths(raw: unknown): Record<string, number> | undefined {
   return widths.length > 0 ? Object.fromEntries(widths) : undefined
 }
 
+/** Lista de ids (strings) vinda de um campo livre; lixo é filtrado. */
+function parseIdList(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
+}
+
 /** Uma entrada de `page.data` só vira view se tiver o formato esperado. */
 function parseView(raw: unknown): DataViewType | null {
   if (!raw || typeof raw !== 'object') return null
@@ -270,14 +288,16 @@ function parseView(raw: unknown): DataViewType | null {
   if (!isViewKind(candidate.view)) return null
 
   const columnWidths = parseColumnWidths(candidate.columnWidths)
+  const orderedRows = parseIdList(candidate.orderedRows)
 
   return {
     view: candidate.view,
     name: typeof candidate.name === 'string' ? candidate.name : '',
     filters: typeof candidate.filters === 'string' ? candidate.filters : '',
-    orderedHeaderCols: Array.isArray(candidate.orderedHeaderCols)
-      ? candidate.orderedHeaderCols.filter((id): id is string => typeof id === 'string')
-      : [],
+    orderedHeaderCols: parseIdList(candidate.orderedHeaderCols),
+    // Ausente e vazio são a MESMA coisa na leitura (ordem natural), então o
+    // campo só entra quando tem conteúdo — snapshot enxuto.
+    ...(orderedRows.length > 0 && { orderedRows }),
     ...(columnWidths && { columnWidths }),
   }
 }
@@ -344,12 +364,12 @@ export function parseDatabase({
   titleLabel,
   fallbackViewName,
 }: ParseDatabaseInput): ParsedDatabase {
-  const headerCols = parseHeaderCols(columns, titleLabel)
+  const headerCols = parseHeaderCols(columns, titleLabel, dataset)
   const settings = parseViewSettings(page.data)
 
   return {
     headerCols,
-    rows: parseRows(dataset, columns),
+    rows: parseRows(dataset),
     settings:
       Object.keys(settings).length > 0
         ? settings

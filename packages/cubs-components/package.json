@@ -1,7 +1,7 @@
 {
   "name": "cubs-components",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Primitivas de UI do Cub's — dual-mode (react-hook-form ou state), sobre o contrato de tokens do tema.",
   "main": "dist/index.js",
@@ -26,6 +26,10 @@
     "tailwind-merge": "3.6.0"
   },
   "peerDependencies": {
+    "@iconify/react": ">=6.0.0",
+    "@radix-ui/react-checkbox": ">=1.3.0",
+    "@radix-ui/react-popover": ">=1.1.0",
+    "@radix-ui/react-select": ">=2.3.0",
     "react": ">=19.0.0",
     "react-hook-form": ">=7.80.0"
   }

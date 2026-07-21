@@ -14,8 +14,13 @@ export type TextFieldSize = 'sm' | 'md'
  * `contrast` usa `divider-contrast` e NÃO `divider` de propósito: sobre
  * `bg-contrast` os dois tons são o MESMO (zinc-200/zinc-800) e a borda sumiria
  * nos dois temas. É o par que a sidebar já usa para superfície elevada.
+ *
+ * `plain` é o campo SEM cara de campo: borda transparente (o layout não pula),
+ * sem fundo e sem anel de focus — para inputs embutidos onde o chrome de
+ * formulário atrapalha (a célula editável da tabela). O caller é quem dá o
+ * affordance de edição (hover da célula, cursor).
  */
-export type TextFieldSurface = 'background' | 'contrast'
+export type TextFieldSurface = 'background' | 'contrast' | 'plain'
 
 const SIZES: Record<TextFieldSize, string> = {
   sm: 'h-9',
@@ -25,6 +30,7 @@ const SIZES: Record<TextFieldSize, string> = {
 const SURFACES: Record<TextFieldSurface, string> = {
   background: 'border-divider bg-background focus-visible:ring-divider',
   contrast: 'border-divider-contrast bg-contrast focus-visible:ring-divider-contrast',
+  plain: 'border-transparent bg-transparent focus-visible:ring-0',
 }
 
 interface TextFieldBaseProps extends Omit<ComponentProps<'input'>, 'name' | 'size'> {
@@ -82,12 +88,16 @@ function TextFieldView({
         aria-invalid={errorMessage ? true : undefined}
         className={cn(
           'w-full rounded border text-sm font-normal',
+          // O ring base vem ANTES da superfície de propósito: é o que permite
+          // ao `plain` anulá-lo com `ring-0` (o tailwind-merge fica com o
+          // ÚLTIMO conflito — se o ring-2 viesse depois, engoliria o ring-0 e
+          // a "edição discreta" ganharia anel de focus).
+          'focus-visible:outline-none focus-visible:ring-2',
           SIZES[size],
           SURFACES[surface],
           startAdornment ? 'pl-9' : 'pl-3',
           endAdornment ? 'pr-9' : 'pr-3',
           'placeholder:text-zinc-500 dark:placeholder:text-zinc-400',
-          'focus-visible:outline-none focus-visible:ring-2',
           // O "x" nativo do WebKit duplicaria um botão de limpar passado como
           // endAdornment. Só afeta type="search".
           '[&::-webkit-search-cancel-button]:hidden',

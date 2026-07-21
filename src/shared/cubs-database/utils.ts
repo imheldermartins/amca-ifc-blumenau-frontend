@@ -1,4 +1,6 @@
-import type { ColumnDataType, HeaderCol, RowData } from './types'
+import { applyMask } from 'cubs-components'
+
+import type { ColumnDataType, HeaderCol, NumberFormat, RowData } from './types'
 
 /** Formata um valor de célula para exibição na tabela. */
 export function formatCellValue(value: unknown): string {
@@ -6,6 +8,21 @@ export function formatCellValue(value: unknown): string {
   if (typeof value === 'boolean') return value ? '✓' : '✕'
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+/**
+ * Texto de um valor `numeric` segundo o `format` da coluna — o MESMO nos dois
+ * modos da célula (read-only e editor). O contrato de armazenamento:
+ *
+ *   currency   → CENTAVOS inteiros (dinheiro em float dá ruim) → "R$ 1.234,56"
+ *   percentage → inteiro → "42%"
+ *   sem format → número livre → String(n)
+ */
+export function formatNumericValue(value: unknown, format: NumberFormat | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return ''
+  if (format === 'currency') return applyMask('currency', String(Math.round(value)))
+  if (format === 'percentage') return applyMask('percentage', String(value))
   return String(value)
 }
 
@@ -71,17 +88,21 @@ export function resolveColumnTypes(
 export const DEFAULT_COLUMN_WIDTH = 176
 /** Piso do resize: abaixo disso o ícone de tipo + título não cabem. */
 export const MIN_COLUMN_WIDTH = 80
-/** Teto do resize: evita uma coluna sozinha estourar a largura da tabela. */
-export const MAX_COLUMN_WIDTH = 720
 
 /**
  * Largura final de uma coluna, em px. Header e células chamam esta MESMA
  * função com o MESMO valor da view — é o que garante que as duas grades
- * fiquem alinhadas. Ausente/inválido cai no default; fora da faixa é clampado.
+ * fiquem alinhadas. Ausente/inválido cai no default.
+ *
+ * NÃO existe teto: a tabela é `w-max` dentro de um `overflow-x-auto`, então
+ * coluna larga empurra a rolagem HORIZONTAL em vez de disputar espaço com as
+ * vizinhas. Um teto (havia 720px) truncaria silenciosamente o resize do
+ * usuário — a largura salva na view deixaria de ser a largura exibida. Só o
+ * piso continua, para o header não colapsar em cima do próprio ícone.
  */
 export function resolveColumnWidth(width: number | undefined): number {
   if (typeof width !== 'number' || !Number.isFinite(width)) return DEFAULT_COLUMN_WIDTH
-  return Math.min(MAX_COLUMN_WIDTH, Math.max(MIN_COLUMN_WIDTH, Math.round(width)))
+  return Math.max(MIN_COLUMN_WIDTH, Math.round(width))
 }
 
 /** Alfabeto Crockford base32 (sem I, L, O, U) usado pelo ULID. */

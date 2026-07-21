@@ -61,6 +61,11 @@ export const MASKS = {
   cep: '#####-###',
   /** dd/mm/aaaa */
   date: '##/##/####',
+  /**
+   * 42% — inteiro, até 3 dígitos (o teto natural é 100, mas 132% é legítimo).
+   * `Number` derruba zeros à esquerda ("042" → "42%").
+   */
+  percentage: (digits: string) => (digits === '' ? '' : `${Number(digits.slice(0, 3))}%`),
   /** R$ 1.234,56 — alias da moeda padrão do projeto (BRL). */
   currency: (digits: string) => formatCurrency('BRL', digits),
   /** Forma explícita por moeda; novas moedas entram como currency-<codigo>. */

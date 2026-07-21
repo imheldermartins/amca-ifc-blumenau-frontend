@@ -1,11 +1,18 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { cn, type ContextMenuItem } from 'cubs-components'
 
 import { ViewTabsBar } from './components/ViewTabsBar'
 import { TableView } from './components/TableView'
 import type { TableRowLabels } from './components/TableRow'
-import type { DataViewSettings, DataViewType, HeaderCol, RowData } from './types'
+import type {
+  CellChange,
+  ColumnOption,
+  DataViewSettings,
+  DataViewType,
+  HeaderCol,
+  RowData,
+} from './types'
 import { reorderByIds } from './utils'
 
 const FALLBACK_VIEW: DataViewType = {
@@ -28,6 +35,50 @@ export interface CubsDatabaseProps {
   viewMenuItems?: (viewId: string) => ContextMenuItem[]
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
   onOpenRow?: (row: RowData) => void
+  /**
+   * Uma célula foi editada e confirmada. A PRESENÇA desta prop é o que liga o
+   * modo editável (despacho pelo cellMap de `components/cells`); sem ela a
+   * tabela é read-only, como sempre foi. O payload (`CellChange`) já tem o
+   * formato do futuro evento `cell-updated` do realtime — o transporte (PUT +
+   * broadcast) é responsabilidade do app host.
+   */
+  onCellChange?: (change: CellChange) => void
+  /**
+   * As options de uma coluna select foram reordenadas (drag no editor). Chega
+   * o array COMPLETO na nova ordem — read-modify-write, como o snapshot das
+   * views: persistir é reescrever o `options` inteiro da coluna.
+   */
+  onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
+  /**
+   * As LINHAS foram reordenadas por drag. Chega o id da VIEW ativa + o array
+   * COMPLETO de ids de página na nova ordem — é o `orderedRows` pronto para
+   * entrar no snapshot da view em `page.data` (read-modify-write, como tudo
+   * no snapshot). A presença da prop é o que habilita o drag de linha.
+   */
+  onRowOrderChange?: (viewId: string, orderedRows: string[]) => void
+  /**
+   * As COLUNAS foram reordenadas por drag no header. Mesmo contrato: id da
+   * view + `orderedHeaderCols` completo (INCLUINDO a coluna sintética do
+   * título), pronto para o snapshot.
+   */
+  onColumnOrderChange?: (viewId: string, orderedHeaderCols: string[]) => void
+  /**
+   * A seleção de linhas mudou — `selectedPagesIds` completo. É o terreno do
+   * futuro batchRealtimeUpdate: agir sobre N páginas de uma vez.
+   */
+  onSelectionChange?: (selectedPagesIds: string[]) => void
+  /**
+   * Renomear coluna pelo menu do header (botão direito). Payload já no
+   * formato do futuro `column-renamed` do realtime. A presença da prop é o
+   * que habilita o menu.
+   */
+  onColumnRename?: (columnId: string, name: string) => void
+  /**
+   * Uma coluna foi redimensionada (alça na borda direita do header). Chega o
+   * id da view + o mapa COMPLETO de larguras — o `columnWidths` pronto para o
+   * snapshot. A presença da prop é o que habilita o resize.
+   */
+  onColumnWidthChange?: (viewId: string, columnWidths: Record<string, number>) => void
   /** Fetch inicial em andamento → skeleton. */
   loading?: boolean
   emptyLabel?: string
@@ -53,6 +104,13 @@ export function CubsDatabase({
   onViewChange,
   viewMenuItems,
   onOpenRow,
+  onCellChange,
+  onColumnOptionsChange,
+  onRowOrderChange,
+  onColumnOrderChange,
+  onSelectionChange,
+  onColumnRename,
+  onColumnWidthChange,
   loading,
   emptyLabel,
   placeholderLabel = 'Em breve.',
@@ -68,7 +126,17 @@ export function CubsDatabase({
     onViewChange?.(viewId)
   }
 
-  const orderedColumns = reorderByIds(headerCols, currentView.orderedHeaderCols)
+  // Memoizados de propósito: o TableView usa estes arrays como BASE do estado
+  // otimista (ordem local re-sincroniza quando a prop muda). Sem memo, cada
+  // render daqui criaria um array novo e o sync descartaria o otimismo.
+  const orderedColumns = useMemo(
+    () => reorderByIds(headerCols, currentView.orderedHeaderCols),
+    [headerCols, currentView],
+  )
+  const orderedRows = useMemo(
+    () => reorderByIds(rows, currentView.orderedRows ?? []),
+    [rows, currentView],
+  )
 
   return (
     <section className={cn('w-full', className)}>
@@ -82,12 +150,30 @@ export function CubsDatabase({
       <div className="pt-2">
         {currentView.view === 'table' ? (
           <TableView
+            // key por view: trocar de tab zera ordem otimista e seleção — são
+            // estados DA VIEW (a ordem mora no snapshot dela), não da base.
+            key={currentViewId}
             columns={orderedColumns}
-            rows={rows}
+            rows={orderedRows}
             columnWidths={currentView.columnWidths}
             loading={loading}
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
+            onCellChange={onCellChange}
+            onColumnOptionsChange={onColumnOptionsChange}
+            onRowOrderChange={
+              onRowOrderChange ? (ids) => onRowOrderChange(currentViewId, ids) : undefined
+            }
+            onColumnOrderChange={
+              onColumnOrderChange ? (ids) => onColumnOrderChange(currentViewId, ids) : undefined
+            }
+            onSelectionChange={onSelectionChange}
+            onColumnRename={onColumnRename}
+            onColumnWidthChange={
+              onColumnWidthChange
+                ? (widths) => onColumnWidthChange(currentViewId, widths)
+                : undefined
+            }
             labels={labels}
           />
         ) : (

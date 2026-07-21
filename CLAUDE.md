@@ -44,14 +44,18 @@ e o que muda é apenas o id.
 - `src/services/DatabaseService.ts` — I/O. A unidade é `loadPage(pageId)` (as 3
   leituras da página em paralelo); `loadWorkspace(workspaceId)` é o caso
   particular que resolve o id de entrada e delega. Nada assume workspace única:
-  `FIXED_WORKSPACE_ID` é TEMPORÁRIO, até existir o contexto de workspace.
+  a workspace em foco é o PARÂMETRO da rota (`/$lang/myworkspace/$workspaceId`),
+  e `DEFAULT_WORKSPACE_ID` sobrevive só como destino dos redirects de quem
+  chega sem id (sign-in/sign-up), até existir a listagem de workspaces.
 - `src/lib/databaseParser.ts` — adaptador API → modelo da lib `cubs-database`,
   puro e testável. A lib é agnóstica ao backend de propósito, então a tradução
   mora só aqui. O que ele resolve, e que não é óbvio:
   - `pages.title` não é uma coluna — vira a coluna sintética `TITLE_COLUMN_ID`
     (`page_title`), sempre a primeira;
-  - `select` guarda o **ULID da option**, não o texto: sem traduzir pelas
-    `options` da coluna, a célula mostraria o ULID cru;
+  - `select` guarda o **ULID da option**, não o texto — e o valor segue CRU até
+    a lib: o parser anexa as `options` (id → label/cor) na PRÓPRIA coluna
+    (`HeaderCol.options`) e quem resolve é o render/editor; id órfão vira
+    célula vazia, nunca um ULID cru na tela;
   - valores vêm no envelope `{"value":<T>}` **como string JSON**, e o
     `column_data` do dataset também;
   - as colunas saem de `/pages/parent/:id/columns`, NUNCA do dataset — o JOIN
@@ -72,9 +76,14 @@ render trocaria a view ativa a cada refetch):
     "name": "Docentes",
     "filters": "",                // string opaca; o backend nunca interpreta
     "orderedHeaderCols": ["page_title", "<id-da-coluna>"],
-    "columnWidths": { "page_title": 280 }   // opcional
+    "orderedRows": ["<id-de-pagina>"],      // opcional; ausente = ordem natural
+    "columnWidths": { "page_title": 280 }   // opcional; gravado pelo resize
 } }
 ```
+
+`orderedRows` segue o MESMO contrato do `orderedHeaderCols` (índice do array é
+a ordem; reordenar = array NOVO; id desconhecido ignorado na leitura) e mora na
+view pelo mesmo motivo: ordem de linha é apresentação, cada view tem a sua.
 
 Cada entrada é o **retrato completo** da view, não campos remendáveis. Daí o
 nome — e daí a armadilha:
@@ -97,13 +106,188 @@ existe hoje. É benigno na leitura: `reorderByIds` ignora id desconhecido, entã
 coluna morta vira lixo, não UI quebrada. Ao implementar a escrita, podar em vez
 de ressuscitar.
 
-**Estado:** formato e leitura prontos (`parseViewSettings`, `parseDatabase`).
-**A escrita ainda NÃO existe no app** — `apiService.put` está implementado mas
-nunca é chamado; os únicos POSTs são de auth. As views que existem na base do
-seed foram gravadas à mão pelo PUT genérico (o seed cria `data: {}`).
+**Estado:** leitura e ESCRITA prontas. Quem grava é
+`PageWriteService.saveViewSnapshot(pageId, settings, viewId, patch)` — a
+assinatura exige o `settings` ATUAL de propósito: ela faz o read-modify-write,
+e é o guard-rail contra o erro de mandar só a view editada. View desconhecida
+(o `FALLBACK_VIEW_ID`, que não existe no banco) não é gravada: criaria uma tab
+fantasma para todo mundo.
 
 Definição canônica, invariantes e pontos em aberto (incl. o que fazer com o
 `FALLBACK_VIEW_ID` ao persistir): `cubs-backend/docs/INTEGRACAO.md` §2.
+
+### Edição de células (cellMap) — terreno do realtime
+
+A tabela edita quando `onCellChange` é passado à `<CubsDatabase />`; sem a
+prop, tudo segue read-only. O despacho é o **cellMap**
+(`src/shared/cubs-database/components/cells`): `CELL_EDITORS: Record<tipo,
+editor | null>` — um editor `React.memo` por tipo de `page_columns` (`date` é
+`null` por ora e cai no render read-only). Para criar um editor novo:
+implemente `CellEditorProps` (`types.ts` da lib) e registre no map.
+
+- **Ciclo de commit**: text/numeric commitam no **blur** (Enter → blur; Escape
+  reverte e NÃO commita); checkbox e select commitam no clique. `onCommit` só
+  dispara se o valor MUDOU — é o que mantém o transporte livre de eco.
+- **Payload**: `CellChange { rowId, columnId, value, previousValue }` — já no
+  formato do futuro evento `cell-updated`; o `pageId`/room entra do lado do
+  app. A arquitetura inteira (store por célula via TanStack Query, um listener
+  por página, escrita SEMPRE via HTTP e socket só para broadcast pós-commit)
+  está em `docs/cubs-database-realtime-arquitetura.md` — esta leva implementa
+  o §9 (componentes de escrita primeiro, socket depois).
+- **Select**: a célula guarda o **id** da option (`{"value":"<option.id>"}`,
+  como o backend); label/cor saem de `HeaderCol.options`. O editor é um
+  `Popover` com as options arrastáveis (dnd-kit, Pointer + Keyboard sensor):
+  soltar emite `onColumnOptionsChange(columnId, arrayCompleto)` —
+  read-modify-write, como o snapshot. Cores de option = `OptionColor`
+  (`red|orange|yellow|green|blue|grey`, espelho do backend) via classes
+  escritas por extenso em `cells/optionColors.ts`.
+- **Numeric**: `HeaderCol.format` É a máscara do editor e a formatação do
+  read-only (`formatNumericValue`): `currency` armazena **CENTAVOS inteiros**;
+  `percentage` armazena o inteiro (42 → "42%"); sem format, campo livre que
+  valida no commit (lixo reverte).
+- **Reordenação (linhas E colunas)**: drag pelo handle (dnd-kit; sensores
+  compartilhados em `components/dndSensors.ts` — Pointer + Keyboard). O handle
+  de LINHA é o da célula de controles; o de COLUNA fica centralizado no topo
+  do header, visível no hover. Drop emite `onRowOrderChange(viewId,
+  orderedRows)` / `onColumnOrderChange(viewId, orderedHeaderCols)` — array
+  COMPLETO de ids, pronto para o read-modify-write do snapshot da view. A
+  ordem local é otimista e re-sincroniza quando as props mudarem. A PRESENÇA
+  do callback habilita o drag; sem ele, handle decorativo/ausente.
+- **Seleção (`selectedPagesIds`)**: checkbox de linha com intervalo por
+  Shift — a âncora é o último clique; com Shift pressionado
+  (`useShiftKey`, o shiftContext) a área [âncora, hover] ganha wash roxo, e
+  shift+click aplica o estado ao intervalo inteiro. Toda mudança sobe
+  completa por `onSelectionChange` — o terreno do futuro
+  `batchRealtimeUpdate`.
+- **Menu da coluna** (`ColumnHeaderMenu`): botão DIREITO no header abre o
+  painel (mesmo padrão do ContextMenu das tabs) com o TIPO readonly + campo
+  de renomear → `onColumnRename(columnId, name)`, o payload do
+  `column-renamed`. Habilitado pela presença de `onColumnRename`.
+- **Seleção em massa**: com pelo menos uma linha marcada, a célula de controles
+  do HEADER exibe o "selecionar todas" (`indeterminate` quando é parcial), que
+  também limpa tudo. É o terreno do `batchRealtimeUpdate`.
+- **Largura e resize**: alça na borda direita do header (pointer capture, NÃO
+  dnd-kit — não há reordenação), otimista durante o arrasto, e no soltar
+  `onColumnWidthChange(viewId, columnWidths)` com o mapa COMPLETO. **Não existe
+  teto de largura**: a tabela é `w-max` dentro de `overflow-x-auto`, então
+  coluna larga empurra a rolagem horizontal em vez de ser truncada (um teto
+  faria a largura salva divergir da exibida). Só o piso `MIN_COLUMN_WIDTH`
+  continua. A borda direita da ÚLTIMA coluna vem por PROP (`isLast`), não por
+  `last:border-r`: o `DndContext` injeta uma live-region de a11y como último
+  irmão, e o seletor pegaria ela.
+- **Escrita**: ligada — `src/services/PageWriteService.ts`. Ver a seção
+  "Colaboração e realtime" abaixo.
+
+## Colaboração e realtime
+
+**A SALA É A PÁGINA** (`page-database:{pageId}`), nunca a workspace. É o que
+faz dono e colaborador se enxergarem: o dono chega pela workspace (que só
+resolve o id da página de entrada) e o colaborador pela url `/page/:id` — os
+dois acabam no MESMO id, logo na mesma sala. Sala por workspace separaria
+justamente quem está olhando a mesma tabela.
+
+**Escrita SEMPRE por HTTP; o socket só propaga depois do commit.** A base é
+rqlite/Raft: quem grava é a API (que fala com o líder), e o socket notifica.
+Isso evita escrita duplicada, fora de ordem ou num nó que não é líder.
+
+### As duas portas de entrada
+
+Ambas caem na mesma view (`PageDatabaseView`) sobre o mesmo `pageId`:
+
+- `/$lang/myworkspace/$workspaceId` → `WorkspaceEntryPage` resolve o
+  `page_root` e passa o id adiante;
+- `/$lang/page/$pageId` → id direto da URL (é para cá que os cards de
+  **Colaborando** apontam, e para onde "Abrir ›" desce na árvore).
+
+Tudo vive sob o layout pathless `_private` (guard de auth + `AppLayout` +
+`WorkspaceProvider`). Como `workspaceId` só existe numa das rotas, o layout lê
+params com `useParams({ strict: false })` e cai em `DEFAULT_WORKSPACE_ID`.
+
+**`PageShell`** (`src/components/PageShell.tsx`) é a moldura padrão da página
+(título + `children`) e o ÚNICO lugar que entra na sala (`usePageRealtime`):
+entrar vira consequência de ABRIR a página, não um passo que cada tela lembra
+de dar. Ele mostra a presença (quantos com a página aberta) quando há
+companhia.
+
+### Eventos (espelhados nos DOIS repos)
+
+| Evento | Quando | Sala |
+|---|---|---|
+| `cell-updated` | POST/PUT/DELETE do valor de célula | parent da linha |
+| `row-updated` | PUT da página com `title` (o TÍTULO da linha) | parent da linha |
+| `column-updated` | PUT da coluna (rename e options) | a própria parent |
+| `view-updated` | PUT da página com `data` (o snapshot) | a própria página |
+| `row-created` / `row-deleted` | filha criada/removida | parent |
+| `page-presence` | entrou/saiu da sala | a própria página |
+
+`PUT /pages/:id` emite para DUAS salas diferentes porque carrega duas coisas
+diferentes: `data` é o snapshot DAQUELA página (sala dela), enquanto `title` é
+o rótulo dela enquanto LINHA de outra (sala da parent, que é a tabela onde ela
+aparece). O título não é `page_columns` — por isso evento próprio, que o
+frontend deposita na coluna sintética `TITLE_COLUMN_ID`.
+
+Comandos do client são IMPERATIVOS (`join-page-database`), eventos do servidor
+são PARTICÍPIO (`joined-page-database`) — event sourcing como vocabulário.
+
+Contrato: `cubs-backend/src/core/socket/realtime-service.ts` ×
+`src/services/SocketService.ts`. **Ao criar um evento novo, atualize os dois.**
+
+Todo payload leva `updatedAt` e `originUserId`, e são as duas guardas do merge
+(`src/lib/databaseRealtime.ts`, redutor PURO sobre `ParsedDatabase`):
+
+- **ordem**: evento mais VELHO que o dado é descartado — a rede não garante
+  ordem, e sem isso uma edição nova "voltaria no tempo";
+- **eco**: o servidor emite para a sala INTEIRA, inclusive quem escreveu; o
+  filtro é por USUÁRIO (não por socket) para que duas abas da mesma conta não
+  briguem entre si.
+
+Linha criada/removida e RECONEXÃO caem no mesmo remédio: reler a base. O
+socket.io não reenvia o que passou durante a queda, e recarregar é mais barato
+que reconstruir um replay.
+
+**A edição própria é aplicada LOCALMENTE** (`applyLocalCellChange`), antes da
+escrita HTTP. Não é enfeite: como o autor ignora o próprio eco, sem isso ele é
+o ÚNICO que não vê a mudança — os editores leem o valor das props, e as props
+só mudariam pelo evento que ele mesmo descarta. O caminho otimista NÃO mexe no
+relógio: o carimbo é do servidor, e adiantá-lo com a hora local faria eventos
+legítimos de outras pessoas parecerem velhos.
+
+**Célula vazia é POST, não PUT**: `PUT .../value` exige que a linha já exista
+em `page_columns_values` (404 quando não). O `previousValue` do `CellChange` é
+o que distingue os dois casos — preencher célula em branco falhava calado.
+
+### Acesso (backend)
+
+`canAccessPage(userId, pageId)` = dono **ou** colaborador
+(`page_collaborators`), e o acesso é **HERDADO pela árvore** (CTE recursivo
+subindo `page_edges`): é o que permite ao colaborador editar as LINHAS, que são
+páginas filhas que ninguém compartilhou explicitamente. Aplicado via
+`requirePageAccess` nas leituras e escritas de página/dataset/colunas/valores —
+antes disso `GET /pages/:id` filtrava por `owner_id` (bloqueando o colaborador)
+enquanto dataset e colunas não checavam nada. DELETE da página segue exclusivo
+do dono.
+
+O vínculo se chama **colaborador** (`page_collaborators`, rotas
+`/pages/:id/collaborators`) e não "membro": é o nome que o produto usa (a aba
+"Colaborando") e evita a confusão com membro de workspace/turma.
+
+`GET /pages/shared` lista as páginas onde sou colaborador e não dono — a aba
+**Colaborando**. Ela é caminho FIXO e por isso é registrada pelo
+`staticRoutes()` do `BaseRouter`, ANTES do `/:id` do CRUD: o express casa na
+ordem de registro, e o `super()` (que registra o CRUD) roda antes do corpo do
+construtor — `/pages/shared` chegava a virar `id="shared"` e dar 404.
+
+### Estado (e o próximo passo)
+
+`usePageDatabase` guarda UM `ParsedDatabase` por página, não um cache por
+célula como o doc de arquitetura descreve (§6). É consciente: na escala do
+protótipo o re-render é irrelevante, e com a regra de merge isolada num redutor
+puro, migrar para chaves por célula (`["cell", cellId]`) é um passo mecânico
+sem tocar em componente. **Ainda não existe rollback visual** se a escrita HTTP
+falhar — a UI é otimista e o `ApiService` só loga.
+
+Arquitetura completa e pontos em aberto:
+`docs/cubs-database-realtime-arquitetura.md`.
 
 ## Convenções
 
@@ -129,8 +313,9 @@ Definição canônica, invariantes e pontos em aberto (incl. o que fazer com o
   `--color-x: var(--x)` em `@theme inline` (é isso que gera `bg-x`, `text-x`, ...).
 - **Cores de destaque = utilitários nativos `p-*`** (definidos em `index.css`):
   os nomes semânticos mapeiam para hues (`red→rose`, `blue→blue`,
-  `purple→violet`, `green→emerald`). Use direto no `className`, sem importar
-  nada:
+  `purple→violet`, `green→emerald`; para as cores de option de select também
+  `orange→orange`, `yellow→amber`, `grey→zinc`). Use direto no `className`,
+  sem importar nada:
   - Tom cheio, theme-aware: `bg-p-red`, `text-p-red`, `border-p-red`,
     `shadow-p-red` (600 no light / 500 no dark). `shadow-p-red` só dá a COR —
     combine com um tamanho (`shadow-xl shadow-p-red`).
@@ -147,9 +332,9 @@ Definição canônica, invariantes e pontos em aberto (incl. o que fazer com o
 Duas casas, e a regra é o acoplamento:
 
 - **`src/shared/cubs-components/`** — primitiva que não sabe nada do app:
-  `Button`, `TextField`, `Checkbox`, `Select`, `Switch`, `ContextMenu`, mais
-  `cn`/`PALETTE`/`applyMask`. É pacote versionável (mesmo esquema da
-  `cubs-database`: FONTE em `src/shared`, `packages/` é o artefato).
+  `Button`, `TextField`, `Checkbox`, `Select`, `Switch`, `ContextMenu`,
+  `Popover`, mais `cn`/`PALETTE`/`applyMask`. É pacote versionável (mesmo
+  esquema da `cubs-database`: FONTE em `src/shared`, `packages/` é o artefato).
 - **`src/components/`** — componente que FALA com o app: router, contexto,
   i18n. Hoje: `SearchBar` (query params), `Modal` (i18n), `ThemeToggle`
   (contexto de tema), `Typography`.
