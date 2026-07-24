@@ -1,10 +1,11 @@
-import { useRef } from 'react'
+import { memo, useRef } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
 import { Checkbox, cn } from 'cubs-components'
 
 import type { CellChange, ColumnDataType, ColumnOption, HeaderCol, RowData } from '../types'
+import { cellErrorKey } from '../utils'
 import type { ColumnHeaderMenuLabels } from './ColumnHeaderMenu'
 import { TableCell } from './TableCell'
 
@@ -28,22 +29,31 @@ export interface TableRowLabels extends ColumnHeaderMenuLabels {
 
 export interface TableRowProps {
   row: RowData
+  /**
+   * Posição da linha na view. Vem por prop para que os callbacks do
+   * `TableView` possam ser ESTÁVEIS (`useCallback` sem dependência de linha):
+   * a closure com o índice é montada aqui dentro, onde não cruza fronteira de
+   * `memo` e portanto não custa nada.
+   */
+  rowIndex: number
   columns: HeaderCol[]
   /** `columnWidths` da view (px por ID de coluna) — o header usa o MESMO mapa. */
   columnWidths?: Record<string, number>
   /** Tipos resolvidos por ID de coluna — o header usa o MESMO mapa. */
   columnTypes?: Record<string, ColumnDataType>
+  /** Células cuja escrita falhou (chave `cellErrorKey`) — a linha lê as suas. */
+  cellErrors?: Set<string>
   /** true = linha "listrada" (bg-contrast); false = bg-background. */
   zebra: boolean
   selected: boolean
   /** Toggle do checkbox; `shiftKey` liga a seleção em INTERVALO. */
-  onSelectedChange: (checked: boolean, shiftKey: boolean) => void
+  onSelectedChange: (rowIndex: number, checked: boolean, shiftKey: boolean) => void
   /** true = drag de LINHA habilitado (o handle vira activator do sortable). */
   sortable?: boolean
   /** true = a linha está na área coberta pelo shift → wash roxo. */
   inShiftRange?: boolean
   /** Mouse entrou na linha — o TableView rastreia o alvo do intervalo. */
-  onShiftHover?: () => void
+  onShiftHover?: (rowIndex: number) => void
   /** Clique no botão "Abrir ›" da célula de controles — recebe a row crua. */
   onOpenRow?: (row: RowData) => void
   /** Presente = células editáveis (ver o cellMap em `components/cells`). */
@@ -62,8 +72,14 @@ export interface TableRowProps {
  * A linha é um sortable do dnd-kit com o drag handle como ACTIVATOR — clicar
  * no resto da linha nunca inicia drag. `sortable` ausente = `disabled` no
  * sensor, e o handle volta a ser decorativo.
+ *
+ * `React.memo` para que editar UMA célula não redesenhe a tabela inteira. A
+ * comparação é rasa, então isto só funciona porque o `TableView` mantém todos
+ * os callbacks estáveis (`useCallback` + índice por prop) e o app host
+ * memoiza `labels` — um único literal inline em qualquer nível acima anula
+ * este memo.
  */
-export function TableRow({ row, columns, columnWidths, columnTypes, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onColumnOptionsChange, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onColumnOptionsChange, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -83,7 +99,7 @@ export function TableRow({ row, columns, columnWidths, columnTypes, zebra, selec
       role="row"
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      onMouseEnter={onShiftHover}
+      onMouseEnter={onShiftHover ? () => onShiftHover(rowIndex) : undefined}
       className={cn(
         'group/row flex w-max min-w-full items-stretch',
         zebra ? 'bg-contrast' : 'bg-background',
@@ -114,7 +130,7 @@ export function TableRow({ row, columns, columnWidths, columnTypes, zebra, selec
           <Checkbox
             aria-label={labels?.select ?? 'Selecionar linha'}
             checked={selected}
-            onCheckedChange={(checked) => onSelectedChange(checked, shiftClickRef.current)}
+            onCheckedChange={(checked) => onSelectedChange(rowIndex, checked, shiftClickRef.current)}
             className="cursor-pointer"
           />
         </span>
@@ -136,6 +152,7 @@ export function TableRow({ row, columns, columnWidths, columnTypes, zebra, selec
           columnType={columnTypes?.[column.id]}
           width={columnWidths?.[column.id]}
           isLast={columnIndex === columns.length - 1}
+          hasError={cellErrors?.has(cellErrorKey(row.id, column.id))}
           onCellChange={onCellChange}
           onColumnOptionsChange={onColumnOptionsChange}
           labels={labels}
@@ -143,4 +160,4 @@ export function TableRow({ row, columns, columnWidths, columnTypes, zebra, selec
       ))}
     </div>
   )
-}
+})

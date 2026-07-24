@@ -11,9 +11,11 @@ import { apiService } from '@/services/ApiService'
  * Isso evita escrita duplicada, fora de ordem, ou indo parar num nó que não é
  * líder. Ler `docs/cubs-database-realtime-arquitetura.md` §4.
  *
- * Os erros são engolidos de propósito neste estágio: o `ApiService` já loga o
- * `AppError`, e a UI é otimista — o rollback visual ainda não existe. Está
- * anotado como próximo passo no CLAUDE.md.
+ * Cada método RETORNA a promise crua do `ApiService` — que rejeita com
+ * `AppError` num erro. Quem chama (o `usePageDatabase`) é que trata: a célula
+ * via `useMutation` (rollback fino + marca), as demais via `.catch` (feedback
+ * + reload). Não engole nada aqui: engolir tiraria do caller a chance de
+ * reverter o otimismo.
  */
 export class PageWriteService {
   /**

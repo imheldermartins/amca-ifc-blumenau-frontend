@@ -48,6 +48,7 @@ export type {
 export type { ContextMenuItem } from 'cubs-components'
 
 export {
+  cellErrorKey,
   formatCellValue,
   formatNumericValue,
   inferColumnType,

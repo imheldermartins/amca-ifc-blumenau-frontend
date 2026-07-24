@@ -35,6 +35,19 @@
     "telefone-invalido": "Informe um telefone válido com DDD.",
     "cpf-invalido": "CPF inválido."
   },
+  "feedback": {
+    "escrita": {
+      "titulo": "Não foi possível salvar",
+      "conflito": "Outra pessoa alterou este dado. Recarregue para ver o valor atual.",
+      "invalido": "Valor inválido para esta coluna.",
+      "nao-encontrado": "Registro não encontrado. Recarregue a base.",
+      "sem-acesso": "Você não tem mais acesso a esta página.",
+      "sessao-expirada": "Sua sessão expirou. Entre novamente.",
+      "sem-conexao": "Sem conexão com o servidor. Tente de novo.",
+      "servidor": "Erro no servidor. Tente de novo em instantes.",
+      "generico": "Não foi possível salvar a alteração. Tente de novo."
+    }
+  },
   "pages": {
     "home": {
       "bem-vindo-ao-cubs": "Bem-vindo ao <green>{{appName}}</green>!",

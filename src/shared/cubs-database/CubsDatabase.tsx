@@ -28,6 +28,12 @@ export interface CubsDatabaseProps {
   /** Colunas na ordem natural de display (esq→dir); a view pode reordenar. */
   headerCols: HeaderCol[]
   rows: RowData[]
+  /**
+   * Células cuja última escrita FALHOU (chave `cellErrorKey(rowId, columnId)`).
+   * O app host preenche no `onError` da escrita e limpa na reedição — a tabela
+   * só desenha a moldura de erro. Ausente = nenhuma marca.
+   */
+  cellErrors?: Set<string>
   /** Modo controlado da view ativa; sem isso o componente controla sozinho. */
   activeViewId?: string
   onViewChange?: (viewId: string) => void
@@ -100,6 +106,7 @@ export function CubsDatabase({
   settings = {},
   headerCols = [],
   rows = [],
+  cellErrors,
   activeViewId,
   onViewChange,
   viewMenuItems,
@@ -156,6 +163,7 @@ export function CubsDatabase({
             columns={orderedColumns}
             rows={orderedRows}
             columnWidths={currentView.columnWidths}
+            cellErrors={cellErrors}
             loading={loading}
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}

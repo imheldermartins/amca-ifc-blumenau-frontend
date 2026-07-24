@@ -11,6 +11,7 @@ import '@/lib/i18n'
 import './index.css'
 
 import { AuthProvider } from '@/contexts/AuthContext'
+import { FeedbackProvider } from '@/contexts/FeedbackContext'
 import { routeTree } from './routeTree.gen'
 
 const queryClient = new QueryClient()
@@ -29,9 +30,11 @@ declare module '@tanstack/react-router' {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
+      <FeedbackProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </FeedbackProvider>
     </QueryClientProvider>
   </StrictMode>,
 )

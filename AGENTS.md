@@ -1,4 +1,4 @@
-# CLAUDE.md — Frontend do Cub's
+# AGENTS.md — Frontend do Cub's
 
 Guia de convenções para trabalhar neste repositório. Detalhes de setup e
 arquitetura estão no [README.md](README.md).

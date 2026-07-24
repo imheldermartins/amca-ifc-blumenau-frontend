@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { Icon } from '@iconify/react'
 import { TextField, cn } from 'cubs-components'
 
 import type { ColumnDataType, HeaderCol } from '../types'
+import { useExternalDraft } from './cells/useExternalDraft'
 
 export interface ColumnHeaderMenuLabels {
   /** Rótulo do campo de renomear (aria-label; sem label visível). */
@@ -47,8 +48,12 @@ export function ColumnHeaderMenu({
   className,
   style,
 }: ColumnHeaderMenuProps) {
-  const [draft, setDraft] = useState(column.title)
-  const skipCommitRef = useRef(false)
+  // O rascunho segue o título que vem por props — o painel pode estar ABERTO
+  // quando outra pessoa renomeia a coluna. Sem isto o campo continuaria com o
+  // texto velho e, pior, o commit no blur o gravaria de volta, desfazendo a
+  // edição alheia. `useExternalDraft` também segura a sincronização enquanto o
+  // campo está em foco e só deixa commitar o que o usuário de fato editou.
+  const field = useExternalDraft(column.title)
 
   // Clique fora / Escape fecham (padrão do ContextMenu). O pointerdown DENTRO
   // do painel não pode fechar — o stopPropagation no root cuida disso.
@@ -66,11 +71,8 @@ export function ColumnHeaderMenu({
   }, [onClose])
 
   const commit = () => {
-    if (skipCommitRef.current) {
-      skipCommitRef.current = false
-      return
-    }
-    const next = draft.trim()
+    if (!field.settle()) return
+    const next = field.draft.trim()
     if (next === '' || next === column.title) return
     onRename?.(next)
     onClose()
@@ -102,8 +104,9 @@ export function ColumnHeaderMenu({
             aria-label={labels?.renameColumn ?? 'Renomear coluna'}
             surface="background"
             size="sm"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            value={field.draft}
+            onFocus={field.focus}
+            onChange={(event) => field.change(event.target.value)}
             onBlur={commit}
             onKeyDown={(event) => {
               if (event.key === 'Enter') event.currentTarget.blur()
@@ -111,8 +114,7 @@ export function ColumnHeaderMenu({
                 // Primeiro Escape só reverte o campo; o stopPropagation impede
                 // o listener do documento de fechar o menu junto.
                 event.stopPropagation()
-                skipCommitRef.current = true
-                setDraft(column.title)
+                field.revert()
                 event.currentTarget.blur()
               }
             }}

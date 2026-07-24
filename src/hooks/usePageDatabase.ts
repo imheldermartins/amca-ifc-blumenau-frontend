@@ -1,17 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CellChange, ColumnOption, DataViewSettings } from 'cubs-database'
+import { useMutation } from '@tanstack/react-query'
+import { cellErrorKey, type CellChange, type ColumnOption, type DataViewSettings } from 'cubs-database'
 
-import { useAuth } from '@contexts/AuthContext'
+import { useFeedback } from '@/contexts/FeedbackContext'
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import {
   applyLocalCellChange,
+  applyLocalColumnRename,
   applyRealtimeEvent,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
 import type { ParsedDatabase } from '@/lib/databaseParser'
+import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
 import { pageWriteService } from '@/services/PageWriteService'
+
+/**
+ * Set imutável: devolve a MESMA referência quando nada muda (para não custar
+ * um re-render à toa) e um Set novo quando muda.
+ */
+function toggleKey(set: Set<string>, key: string, present: boolean): Set<string> {
+  if (present === set.has(key)) return set
+  const next = new Set(set)
+  if (present) next.add(key)
+  else next.delete(key)
+  return next
+}
 
 export interface UsePageDatabaseResult {
   database: ParsedDatabase | null
@@ -19,6 +34,11 @@ export interface UsePageDatabaseResult {
   failed: boolean
   /** Repasse para o `<PageShell>`: é ele quem assina a sala. */
   realtimeOptions: UsePageRealtimeOptions
+  /**
+   * Células cuja última escrita FALHOU (chave `cellErrorKey`). A UI otimista
+   * já reverteu o valor; isto é só a marca visual, que some na reedição.
+   */
+  cellErrors: Set<string>
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
     onCellChange: (change: CellChange) => void
@@ -49,10 +69,12 @@ export interface UsePageDatabaseResult {
  * um passo mecânico, sem tocar em componente.
  */
 export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResult {
-  const auth = useAuth()
+  const feedback = useFeedback()
   const [database, setDatabase] = useState<ParsedDatabase | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  // Células cuja escrita falhou — só a MARCA (o valor já foi revertido).
+  const [cellErrors, setCellErrors] = useState<Set<string>>(() => new Set())
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
@@ -95,11 +117,15 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     (event) => {
       setDatabase((current) => {
         if (!current) return current
+        // Sem filtro de autoria: o eco da PRÓPRIA edição também entra, e é ele
+        // que traz o `updatedAt` do servidor para o relógio (ver
+        // `databaseRealtime.ts`). Como o valor já é o que está na tela, o
+        // efeito visível é nenhum — o ganho é a guarda de ordem passar a
+        // valer para as edições deste usuário também.
         const result = applyRealtimeEvent(
           current,
           clockRef.current,
           event,
-          auth.user?.id,
           i18n('pages.app.cubs-database.coluna-titulo'),
         )
         if (!result.applied) return current
@@ -108,7 +134,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         return result.database
       })
     },
-    [auth.user?.id],
+    [],
   )
 
   // Linha criada/removida e reconexão caem no mesmo remédio: reler a base. É
@@ -118,57 +144,115 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     load()
   }, [load])
 
+  // Traduz o erro HTTP numa notificação. A CLASSE do erro (`classifyWriteError`,
+  // puro) vira o sufixo da chave i18n; o texto sai do locale.
+  const notifyWriteError = useCallback(
+    (error: unknown) => {
+      feedback({
+        title: i18n('feedback.escrita.titulo'),
+        description: i18n(`feedback.escrita.${classifyWriteError(error)}`),
+        variant: 'error',
+      })
+    },
+    [feedback],
+  )
+
+  // As escritas SEM rollback fino (rename, options, snapshot) revertem o
+  // otimismo pelo remédio grosso: reler a base. O reload re-sincroniza a UI
+  // com o que o servidor de fato gravou, desfazendo a mudança que falhou.
+  const handleWriteError = useCallback(
+    (error: unknown) => {
+      notifyWriteError(error)
+      reload()
+    },
+    [notifyWriteError, reload],
+  )
+
+  /**
+   * A CÉLULA é a escrita de maior frequência e a única com rollback FINO — daí
+   * o `useMutation` (o padrão que SignIn/SignUp já usam), que dá o ciclo
+   * onMutate/onError com contexto sem gerência manual:
+   *
+   *  - `onMutate`: aplica o otimismo e LIMPA a marca de erro anterior (é uma
+   *    nova tentativa);
+   *  - `onError`: desfaz o otimismo voltando ao `previousValue` — "se deu erro,
+   *    não era para atualizar" — MARCA a célula e notifica;
+   *  - sucesso: a marca já saiu no onMutate e o eco do servidor confirma o
+   *    valor, então não há o que fazer.
+   */
+  const cellMutation = useMutation({
+    mutationFn: (change: CellChange) => pageWriteService.saveCell(change),
+    onMutate: (change: CellChange) => {
+      const key = cellErrorKey(change.rowId, change.columnId)
+      setCellErrors((prev) => toggleKey(prev, key, false))
+      setDatabase((current) => (current ? applyLocalCellChange(current, change) : current))
+      return { key }
+    },
+    onError: (_error, change, context) => {
+      setDatabase((current) =>
+        current
+          ? applyLocalCellChange(current, {
+              rowId: change.rowId,
+              columnId: change.columnId,
+              value: change.previousValue,
+            })
+          : current,
+      )
+      if (context) setCellErrors((prev) => toggleKey(prev, context.key, true))
+      notifyWriteError(_error)
+    },
+  })
+
   const handlers = {
-    onCellChange: useCallback(
-      (change: CellChange) => {
-        // OTIMISTA primeiro: quem edita ignora o próprio eco do servidor
-        // (senão a resposta brigaria com o que está sendo digitado), então sem
-        // aplicar aqui o autor seria o único a NÃO ver a própria mudança — o
-        // chip do select ficava na option antiga enquanto todo mundo já via a
-        // nova. A escrita HTTP segue logo atrás.
-        setDatabase((current) => (current ? applyLocalCellChange(current, change) : current))
-        void pageWriteService.saveCell(change)
-      },
-      [],
-    ),
+    // `.mutate` tem identidade estável (React Query garante), então serve
+    // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
+    onCellChange: cellMutation.mutate,
     onColumnOptionsChange: useCallback(
       (columnId: string, options: ColumnOption[]) => {
         if (!pageId) return
-        void pageWriteService.saveColumnOptions(pageId, columnId, options)
+        pageWriteService.saveColumnOptions(pageId, columnId, options).catch(handleWriteError)
       },
-      [pageId],
+      [pageId, handleWriteError],
     ),
     onColumnRename: useCallback(
       (columnId: string, name: string) => {
         if (!pageId) return
-        void pageWriteService.renameColumn(pageId, columnId, name)
+        // Otimista, como a célula: o header mostra o nome novo sem esperar a
+        // volta da rede. O eco confirma logo atrás; se a escrita falhar, o
+        // reload do `handleWriteError` desfaz o otimismo.
+        setDatabase((current) =>
+          current ? applyLocalColumnRename(current, columnId, name) : current,
+        )
+        pageWriteService.renameColumn(pageId, columnId, name).catch(handleWriteError)
       },
-      [pageId],
+      [pageId, handleWriteError],
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {
         if (!pageId) return
-        void pageWriteService.saveViewSnapshot(pageId, settingsRef.current, viewId, { orderedRows })
+        pageWriteService
+          .saveViewSnapshot(pageId, settingsRef.current, viewId, { orderedRows })
+          .catch(handleWriteError)
       },
-      [pageId],
+      [pageId, handleWriteError],
     ),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
         if (!pageId) return
-        void pageWriteService.saveViewSnapshot(pageId, settingsRef.current, viewId, {
-          orderedHeaderCols,
-        })
+        pageWriteService
+          .saveViewSnapshot(pageId, settingsRef.current, viewId, { orderedHeaderCols })
+          .catch(handleWriteError)
       },
-      [pageId],
+      [pageId, handleWriteError],
     ),
     onColumnWidthChange: useCallback(
       (viewId: string, columnWidths: Record<string, number>) => {
         if (!pageId) return
-        void pageWriteService.saveViewSnapshot(pageId, settingsRef.current, viewId, {
-          columnWidths,
-        })
+        pageWriteService
+          .saveViewSnapshot(pageId, settingsRef.current, viewId, { columnWidths })
+          .catch(handleWriteError)
       },
-      [pageId],
+      [pageId, handleWriteError],
     ),
   }
 
@@ -176,6 +260,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     database,
     loading,
     failed,
+    cellErrors,
     realtimeOptions: {
       onEvent: handleRealtimeEvent,
       onRowsChanged: reload,

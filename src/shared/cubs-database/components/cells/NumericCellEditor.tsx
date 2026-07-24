@@ -1,8 +1,9 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo } from 'react'
 import { TextField, unmask, unmaskCurrencyCents } from 'cubs-components'
 
 import type { CellEditorProps, NumberFormat } from '../../types'
 import { formatNumericValue } from '../../utils'
+import { useExternalDraft } from './useExternalDraft'
 
 /** Caminho de volta: texto do campo → valor numérico cru. `null` = ilegível. */
 function parseDraft(draft: string, format: NumberFormat | undefined): number | null {
@@ -27,25 +28,23 @@ export const NumericCellEditor = memo(function NumericCellEditor({
   column,
   value,
   onCommit,
+  hasError,
 }: CellEditorProps) {
   const initial = formatNumericValue(value, column.format)
-  const [draft, setDraft] = useState(initial)
-  const skipCommitRef = useRef(false)
-
-  useEffect(() => setDraft(initial), [initial])
+  const field = useExternalDraft(initial)
 
   const commit = () => {
-    if (skipCommitRef.current) {
-      skipCommitRef.current = false
-      return
-    }
-    if (draft.trim() === '') {
+    // `settle()` false = o usuário não editou (e o rascunho já se realinhou ao
+    // valor externo). Commitar aqui reverteria a edição de outra pessoa.
+    if (!field.settle()) return
+
+    if (field.draft.trim() === '') {
       if (value != null) onCommit(null)
       return
     }
-    const next = parseDraft(draft, column.format)
+    const next = parseDraft(field.draft, column.format)
     if (next === null) {
-      setDraft(initial) // ilegível → reverte
+      field.revert() // ilegível → reverte
       return
     }
     if (next !== value) onCommit(next)
@@ -54,20 +53,22 @@ export const NumericCellEditor = memo(function NumericCellEditor({
   return (
     <TextField
       aria-label={column.title}
+      aria-invalid={hasError || undefined}
       surface="plain"
       size="sm"
       className="w-full"
       inputClassName="tabular-nums"
       inputMode={column.format ? 'numeric' : 'decimal'}
       mask={column.format}
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      value={field.draft}
+      onFocus={field.focus}
+      onChange={(event) => field.change(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
-          skipCommitRef.current = true
-          setDraft(initial)
+          // `revert` limpa o "editado", então o blur seguinte não commita.
+          field.revert()
           event.currentTarget.blur()
         }
       }}

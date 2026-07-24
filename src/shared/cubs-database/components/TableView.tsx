@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
@@ -20,6 +20,11 @@ import type { TableRowLabels } from './TableRow'
 import { TYPE_ICON } from './columnTypeIcons'
 import { useSortableSensors } from './dndSensors'
 import { useShiftKey } from './useShiftKey'
+import {
+  EMPTY_SELECTION,
+  inShiftRange,
+  selectionReducer,
+} from './selectionReducer'
 
 export interface TableViewProps {
   columns: HeaderCol[]
@@ -29,6 +34,8 @@ export interface TableViewProps {
    * para header e células — sem isso as duas grades divergem.
    */
   columnWidths?: Record<string, number>
+  /** Células cuja escrita falhou (chave `cellErrorKey`) — moldura de erro. */
+  cellErrors?: Set<string>
   loading?: boolean
   emptyLabel?: string
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
@@ -55,7 +62,7 @@ export interface TableViewProps {
  * hover — o header continua limpo, e o drag nunca disputa com o clique (o
  * activator é só o handle). Botão direito abre o menu da coluna.
  */
-function SortableHeaderCell({
+const SortableHeaderCell = memo(function SortableHeaderCell({
   column,
   columnType,
   width,
@@ -78,10 +85,10 @@ function SortableHeaderCell({
   dragLabel: string
   resizeLabel: string
   /** Largura durante o arrasto (otimista, a cada movimento). */
-  onResize: (width: number) => void
+  onResize: (columnId: string, width: number) => void
   /** Soltou: hora de persistir. */
   onResizeEnd: () => void
-  onContextMenu?: (event: MouseEvent<HTMLDivElement>) => void
+  onContextMenu?: (columnId: string, event: MouseEvent<HTMLDivElement>) => void
 }) {
   const {
     attributes,
@@ -108,7 +115,7 @@ function SortableHeaderCell({
   const handleResizePointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const start = resizeStartRef.current
     if (!start) return
-    onResize(start.width + (event.clientX - start.x))
+    onResize(column.id, start.width + (event.clientX - start.x))
   }
 
   const handleResizePointerUp = (event: ReactPointerEvent<HTMLSpanElement>) => {
@@ -127,7 +134,7 @@ function SortableHeaderCell({
         transform: CSS.Transform.toString(transform),
         transition,
       }}
-      onContextMenu={onContextMenu}
+      onContextMenu={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
       className={cn(
         'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-3 py-2 text-sm font-medium opacity-60',
         // A ÚLTIMA coluna fecha a grade à direita: sem esta borda a tabela
@@ -175,7 +182,7 @@ function SortableHeaderCell({
       )}
     </div>
   )
-}
+})
 
 /**
  * View 'table': linhas contíguas em zebra striping (background × contrast)
@@ -195,36 +202,56 @@ function SortableHeaderCell({
  * view em `page.data`, read-modify-write). Quando as props mudarem por fora
  * (persistência/realtime), o estado local re-sincroniza.
  *
- * SELEÇÃO: `selectedPagesIds` (array de ids) com intervalo por Shift — a
- * âncora é o último checkbox clicado; com Shift pressionado a área até a
- * linha sob o mouse ganha wash roxo, e o shift+click aplica o estado ao
- * intervalo inteiro. Toda mudança sobe por `onSelectionChange` (o terreno do
- * futuro batchRealtimeUpdate).
+ * SELEÇÃO: um `useReducer` (`selectionReducer`) com os ids num `Set` e a
+ * âncora/hover do intervalo com Shift no mesmo estado. `dispatch` é estável,
+ * o que mantém os handlers das linhas com identidade fixa — condição para o
+ * `memo` do `TableRow` valer alguma coisa.
+ *
+ * **Sobre a memoização em geral:** os componentes abaixo (`TableRow`,
+ * `TableCell`, os editores do cellMap) são `React.memo`, e comparação rasa
+ * morre com função recriada a cada render. Por isso todo handler que desce
+ * daqui é `useCallback`, e o que precisaria de closure por linha (o índice)
+ * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
+ * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnWidthChange, labels }: TableViewProps) {
+export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnWidthChange, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
 
-  // Ordem otimista local (linhas e colunas), re-sincronizada quando a prop
-  // muda — o mesmo padrão das options no SelectCellEditor.
+  // Ordem otimista local (linhas, colunas e larguras), re-sincronizada quando
+  // a prop muda.
+  //
+  // A sincronização acontece DURANTE O RENDER, comparando com a prop já vista
+  // — não num `useEffect`. O efeito custava DOIS renders por mudança de prop
+  // (um com o estado velho, outro depois do efeito); o ajuste em render faz o
+  // React reexecutar o componente na hora, sem commitar o intermediário. É o
+  // padrão documentado para "estado derivado de prop".
   const [localRows, setLocalRows] = useState(rows)
   const [localColumns, setLocalColumns] = useState(columns)
   const [localWidths, setLocalWidths] = useState(columnWidths ?? {})
-  useEffect(() => setLocalRows(rows), [rows])
-  useEffect(() => setLocalColumns(columns), [columns])
-  useEffect(() => {
-    const incoming = columnWidths ?? {}
-    latestWidthsRef.current = incoming
-    setLocalWidths(incoming)
-  }, [columnWidths])
+  const [seenProps, setSeenProps] = useState({ rows, columns, columnWidths })
 
-  // Seleção: array exposto + âncora/hover do intervalo com Shift.
-  const [selectedPagesIds, setSelectedPagesIds] = useState<string[]>([])
-  const anchorIndexRef = useRef<number | null>(null)
-  const [shiftHoverIndex, setShiftHoverIndex] = useState<number | null>(null)
+  // O ref espelha o estado porque o `onResizeEnd` precisa do valor MAIS NOVO:
+  // ler `localWidths` da closure do render entrega a largura de um movimento
+  // atrás, e é justamente a última que o usuário quer salvar.
+  const latestWidthsRef = useRef(localWidths)
 
+  if (seenProps.rows !== rows || seenProps.columns !== columns || seenProps.columnWidths !== columnWidths) {
+    setSeenProps({ rows, columns, columnWidths })
+    if (seenProps.rows !== rows) setLocalRows(rows)
+    if (seenProps.columns !== columns) setLocalColumns(columns)
+    if (seenProps.columnWidths !== columnWidths) {
+      const incoming = columnWidths ?? {}
+      latestWidthsRef.current = incoming
+      setLocalWidths(incoming)
+    }
+  }
+
+  const [selection, dispatch] = useReducer(selectionReducer, EMPTY_SELECTION)
   const [columnMenu, setColumnMenu] = useState<{ columnId: string; left: number } | null>(null)
+
+  const rowIds = useMemo(() => localRows.map((row) => row.id), [localRows])
 
   const columnTypes = useMemo(
     () => resolveColumnTypes(localColumns, localRows),
@@ -235,10 +262,18 @@ export function TableView({ columns, rows, columnWidths, loading, emptyLabel = '
   const columnsSortable = Boolean(onColumnOrderChange)
   const columnsResizable = Boolean(onColumnWidthChange)
 
-  const applySelection = (next: string[]) => {
-    setSelectedPagesIds(next)
-    onSelectionChange?.(next)
-  }
+  // A seleção sobe por efeito, e não de dentro do redutor: chamar callback do
+  // host numa função que precisa ser pura quebraria o StrictMode (que a
+  // executa duas vezes). O ref pula o disparo do mount — montar a tabela não
+  // é "a seleção mudou".
+  const mountedRef = useRef(false)
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true
+      return
+    }
+    onSelectionChange?.([...selection.ids])
+  }, [selection.ids, onSelectionChange])
 
   /**
    * Estado do "selecionar todas" — só existe quando JÁ há seleção: a caixa
@@ -246,98 +281,106 @@ export function TableView({ columns, rows, columnWidths, loading, emptyLabel = '
    * última. `indeterminate` é o caso "algumas" (estado de apresentação de um
    * agregado, exatamente o que o Checkbox do pacote reserva ao modo state).
    */
-  const allSelected = localRows.length > 0 && selectedPagesIds.length === localRows.length
+  const allSelected = localRows.length > 0 && selection.ids.size === localRows.length
   const headerCheckedState: CheckedState = allSelected ? true : 'indeterminate'
 
-  const toggleSelectAll = (checked: boolean) => {
-    // Clicar no indeterminado resolve para MARCADO (regra do Radix), então
-    // "limpar tudo" acontece no clique seguinte, com todas já marcadas.
-    applySelection(checked ? localRows.map((row) => row.id) : [])
-    anchorIndexRef.current = null
-  }
+  const toggleSelectAll = useCallback(
+    (checked: boolean) => dispatch({ type: 'select-all', checked, rowIds }),
+    [rowIds],
+  )
 
-  const setRowSelected = (rowIndex: number, checked: boolean, shiftKey: boolean) => {
-    const anchor = anchorIndexRef.current
-    // Shift+click com âncora: o estado clicado vale para o INTERVALO inteiro
-    // [âncora, linha]. Sem shift (ou sem âncora), toggle da linha só.
-    const range =
-      shiftKey && anchor !== null
-        ? localRows.slice(Math.min(anchor, rowIndex), Math.max(anchor, rowIndex) + 1)
-        : [localRows[rowIndex]]
+  const handleRowSelectedChange = useCallback(
+    (rowIndex: number, checked: boolean, shiftKey: boolean) =>
+      dispatch({ type: 'set-row', rowIndex, checked, shiftKey, rowIds }),
+    [rowIds],
+  )
 
-    const rangeIds = new Set(range.map((row) => row.id))
-    const kept = selectedPagesIds.filter((id) => !rangeIds.has(id))
-    applySelection(checked ? [...kept, ...range.map((row) => row.id)] : kept)
-    anchorIndexRef.current = rowIndex
-  }
+  const handleRowHover = useCallback(
+    (rowIndex: number) => dispatch({ type: 'hover', rowIndex }),
+    [],
+  )
 
-  /** A linha está na área coberta pela seleção com Shift? */
-  const inShiftRange = (rowIndex: number): boolean => {
-    const anchor = anchorIndexRef.current
-    if (!shiftHeld || anchor === null || shiftHoverIndex === null) return false
-    return (
-      rowIndex >= Math.min(anchor, shiftHoverIndex) &&
-      rowIndex <= Math.max(anchor, shiftHoverIndex)
-    )
-  }
+  const handleMouseLeave = useCallback(() => dispatch({ type: 'hover', rowIndex: null }), [])
 
-  const handleRowDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return
-    const from = localRows.findIndex((row) => row.id === active.id)
-    const to = localRows.findIndex((row) => row.id === over.id)
-    if (from < 0 || to < 0) return
-    const next = arrayMove(localRows, from, to)
-    setLocalRows(next)
-    onRowOrderChange?.(next.map((row) => row.id))
-  }
+  const handleRowDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (!over || active.id === over.id) return
+      setLocalRows((current) => {
+        const from = current.findIndex((row) => row.id === active.id)
+        const to = current.findIndex((row) => row.id === over.id)
+        if (from < 0 || to < 0) return current
+        const next = arrayMove(current, from, to)
+        onRowOrderChange?.(next.map((row) => row.id))
+        return next
+      })
+    },
+    [onRowOrderChange],
+  )
 
-  const handleColumnDragEnd = ({ active, over }: DragEndEvent) => {
-    if (!over || active.id === over.id) return
-    const from = localColumns.findIndex((column) => column.id === active.id)
-    const to = localColumns.findIndex((column) => column.id === over.id)
-    if (from < 0 || to < 0) return
-    const next = arrayMove(localColumns, from, to)
-    setLocalColumns(next)
-    onColumnOrderChange?.(next.map((column) => column.id))
-  }
+  const handleColumnDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (!over || active.id === over.id) return
+      setLocalColumns((current) => {
+        const from = current.findIndex((column) => column.id === active.id)
+        const to = current.findIndex((column) => column.id === over.id)
+        if (from < 0 || to < 0) return current
+        const next = arrayMove(current, from, to)
+        onColumnOrderChange?.(next.map((column) => column.id))
+        return next
+      })
+    },
+    [onColumnOrderChange],
+  )
 
-  // O ref espelha o estado porque o `onResizeEnd` precisa do valor MAIS NOVO:
-  // ler `localWidths` da closure do render entrega a largura de um movimento
-  // atrás, e é justamente a última que o usuário quer salvar.
-  const latestWidthsRef = useRef(localWidths)
-
-  const handleColumnResize = (columnId: string, width: number) => {
+  const handleColumnResize = useCallback((columnId: string, width: number) => {
     const next = { ...latestWidthsRef.current, [columnId]: resolveColumnWidth(width) }
     latestWidthsRef.current = next
     setLocalWidths(next)
-  }
+  }, [])
 
-  const handleHeaderContextMenu = (columnId: string, event: MouseEvent<HTMLDivElement>) => {
-    // O menu só existe com rename habilitado — sem callback, botão direito
-    // segue com o menu nativo do browser (tabela "burra" continua burra).
-    if (!onColumnRename) return
-    event.preventDefault()
-    const containerRect = containerRef.current?.getBoundingClientRect()
-    const cellRect = event.currentTarget.getBoundingClientRect()
-    setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
-  }
+  const handleColumnResizeEnd = useCallback(
+    () => onColumnWidthChange?.(latestWidthsRef.current),
+    [onColumnWidthChange],
+  )
+
+  const handleHeaderContextMenu = useCallback(
+    (columnId: string, event: MouseEvent<HTMLDivElement>) => {
+      // O menu só existe com rename habilitado — sem callback, botão direito
+      // segue com o menu nativo do browser (tabela "burra" continua burra).
+      if (!onColumnRename) return
+      event.preventDefault()
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const cellRect = event.currentTarget.getBoundingClientRect()
+      setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
+    },
+    [onColumnRename],
+  )
+
+  const closeColumnMenu = useCallback(() => setColumnMenu(null), [])
 
   const menuColumn = columnMenu
     ? localColumns.find((column) => column.id === columnMenu.columnId)
     : undefined
 
+  const handleMenuRename = useCallback(
+    (name: string) => {
+      if (columnMenu) onColumnRename?.(columnMenu.columnId, name)
+    },
+    [columnMenu, onColumnRename],
+  )
+
   return (
     <div ref={containerRef} className="relative">
-      <div role="table" className="overflow-x-auto" onMouseLeave={() => setShiftHoverIndex(null)}>
+      <div role="table" className="overflow-x-auto" onMouseLeave={handleMouseLeave}>
         <div role="row" className="flex w-max min-w-full border-b border-divider">
           {/* Célula de controles do header: espaçador enquanto não há seleção
               (o alinhamento com as linhas depende da MESMA largura) e caixa de
               "selecionar todas" a partir da primeira linha marcada. */}
           <div
             className={cn('flex shrink-0 items-center px-2', CONTROL_CELL_WIDTH)}
-            aria-hidden={selectedPagesIds.length === 0}
+            aria-hidden={selection.ids.size === 0}
           >
-            {selectedPagesIds.length > 0 && (
+            {selection.ids.size > 0 && (
               <Checkbox
                 aria-label={labels?.selectAll ?? 'Selecionar todas'}
                 checked={headerCheckedState}
@@ -362,9 +405,9 @@ export function TableView({ columns, rows, columnWidths, loading, emptyLabel = '
                   isLast={columnIndex === localColumns.length - 1}
                   dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
                   resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
-                  onResize={(width) => handleColumnResize(column.id, width)}
-                  onResizeEnd={() => onColumnWidthChange?.(latestWidthsRef.current)}
-                  onContextMenu={(event) => handleHeaderContextMenu(column.id, event)}
+                  onResize={handleColumnResize}
+                  onResizeEnd={handleColumnResizeEnd}
+                  onContextMenu={handleHeaderContextMenu}
                 />
               ))}
             </SortableContext>
@@ -394,25 +437,22 @@ export function TableView({ columns, rows, columnWidths, loading, emptyLabel = '
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRowDragEnd}>
-            <SortableContext
-              items={localRows.map((row) => row.id)}
-              strategy={verticalListSortingStrategy}
-            >
+            <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
               {localRows.map((row, rowIndex) => (
                 <TableRow
                   key={row.id}
                   row={row}
+                  rowIndex={rowIndex}
                   columns={localColumns}
                   columnWidths={localWidths}
                   columnTypes={columnTypes}
+                  cellErrors={cellErrors}
                   zebra={rowIndex % 2 === 1}
-                  selected={selectedPagesIds.includes(row.id)}
-                  onSelectedChange={(checked, shiftKey) =>
-                    setRowSelected(rowIndex, checked, shiftKey)
-                  }
+                  selected={selection.ids.has(row.id)}
+                  onSelectedChange={handleRowSelectedChange}
                   sortable={rowsSortable}
-                  inShiftRange={inShiftRange(rowIndex)}
-                  onShiftHover={() => setShiftHoverIndex(rowIndex)}
+                  inShiftRange={inShiftRange(selection, rowIndex, shiftHeld)}
+                  onShiftHover={handleRowHover}
                   onOpenRow={onOpenRow}
                   onCellChange={onCellChange}
                   onColumnOptionsChange={onColumnOptionsChange}
@@ -429,10 +469,8 @@ export function TableView({ columns, rows, columnWidths, loading, emptyLabel = '
           column={menuColumn}
           columnType={columnTypes[menuColumn.id]}
           typeIcon={TYPE_ICON[columnTypes[menuColumn.id]]}
-          onClose={() => setColumnMenu(null)}
-          onRename={
-            onColumnRename ? (name) => onColumnRename(menuColumn.id, name) : undefined
-          }
+          onClose={closeColumnMenu}
+          onRename={onColumnRename ? handleMenuRename : undefined}
           labels={labels}
           className="top-9"
           style={{ left: columnMenu.left }}

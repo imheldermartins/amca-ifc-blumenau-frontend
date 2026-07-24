@@ -1,7 +1,8 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo } from 'react'
 import { TextField } from 'cubs-components'
 
 import type { CellEditorProps } from '../../types'
+import { useExternalDraft } from './useExternalDraft'
 
 /**
  * Editor de célula `text`: um TextField `plain` (sem borda/ring/fundo — a
@@ -11,29 +12,24 @@ import type { CellEditorProps } from '../../types'
  *   Enter  → blur (que confirma)
  *   Escape → reverte para o valor externo e faz blur SEM confirmar
  *
- * O rascunho é estado local sincronizado com `value` — quando o valor externo
- * mudar por fora (o futuro broadcast do realtime), a célula acompanha sem
- * precisar remontar.
+ * O rascunho acompanha o valor externo (broadcast do realtime) por
+ * `useExternalDraft`, que segura a sincronização enquanto o campo está em
+ * foco — digitação em andamento não é atropelada por edição alheia.
  */
 export const TextCellEditor = memo(function TextCellEditor({
   column,
   value,
   onCommit,
+  hasError,
 }: CellEditorProps) {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value)
-  const [draft, setDraft] = useState(text)
-  // Escape marca o flag e dispara blur: o handler de blur lê o flag (e não o
-  // state, que ainda seria o do render antigo) para saber que NÃO deve commitar.
-  const skipCommitRef = useRef(false)
-
-  useEffect(() => setDraft(text), [text])
+  const field = useExternalDraft(text)
 
   const commit = () => {
-    if (skipCommitRef.current) {
-      skipCommitRef.current = false
-      return
-    }
-    const next = draft.trim()
+    // `settle()` false = o usuário não editou (e o rascunho já se realinhou ao
+    // valor externo). Commitar aqui reverteria a edição de outra pessoa.
+    if (!field.settle()) return
+    const next = field.draft.trim()
     if (next === text) return
     onCommit(next === '' ? null : next)
   }
@@ -41,17 +37,19 @@ export const TextCellEditor = memo(function TextCellEditor({
   return (
     <TextField
       aria-label={column.title}
+      aria-invalid={hasError || undefined}
       surface="plain"
       size="sm"
       className="w-full"
-      value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      value={field.draft}
+      onFocus={field.focus}
+      onChange={(event) => field.change(event.target.value)}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
-          skipCommitRef.current = true
-          setDraft(text)
+          // `revert` limpa o "editado", então o blur seguinte não commita.
+          field.revert()
           event.currentTarget.blur()
         }
       }}

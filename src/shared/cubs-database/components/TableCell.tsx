@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 
@@ -60,6 +61,8 @@ export interface TableCellProps {
   width?: number
   /** Última coluna da linha: fecha a grade com a borda direita (como o header). */
   isLast?: boolean
+  /** A última escrita desta célula falhou — moldura de erro + `aria-invalid`. */
+  hasError?: boolean
   /** Presente = célula EDITÁVEL (despacha para o editor do cellMap). */
   onCellChange?: (change: CellChange) => void
   /** Reordenação das options de uma coluna select (array completo). */
@@ -83,13 +86,20 @@ export interface TableCellProps {
  * A largura é FIXA (`shrink-0` + width em px), nunca elástica: com `flex-1` a
  * coluna dependeria de quantas células a linha tem, e uma linha sem valor para
  * a última coluna desalinhava da grade do header.
+ *
+ * `React.memo` + os dois `useCallback` abaixo são o que faz o `memo` dos
+ * editores (o cellMap) valer alguma coisa. Antes o `onCommit` era uma arrow
+ * inline recriada a cada render: o editor era `React.memo`, comparava props,
+ * via uma função com identidade nova e re-renderizava assim mesmo. O memo
+ * existia e não fazia nada.
  */
-export function TableCell({
+export const TableCell = memo(function TableCell({
   column,
   row,
   columnType,
   width,
   isLast,
+  hasError,
   onCellChange,
   onColumnOptionsChange,
   labels,
@@ -98,6 +108,19 @@ export function TableCell({
   const type = columnType ?? column.type ?? inferColumnType([cell?.value])
   const Editor = onCellChange ? CELL_EDITORS[type] : null
 
+  const previousValue = cell?.value
+
+  const handleCommit = useCallback(
+    (value: unknown) =>
+      onCellChange?.({ rowId: row.id, columnId: column.id, value, previousValue }),
+    [onCellChange, row.id, column.id, previousValue],
+  )
+
+  const handleOptionsChange = useCallback(
+    (options: ColumnOption[]) => onColumnOptionsChange?.(column.id, options),
+    [onColumnOptionsChange, column.id],
+  )
+
   if (Editor && onCellChange) {
     return (
       <div
@@ -105,29 +128,24 @@ export function TableCell({
         // Sem padding próprio: cada editor preenche a célula inteira e traz o
         // seu (o TextField `plain` tem px-3; checkbox/select idem) — assim a
         // área clicável/focável é a célula toda, não uma ilha no meio.
+        //
+        // A moldura de erro fica no CONTAINER (um lugar, cobre os 4 tipos de
+        // editor) em vez de em cada editor: um anel interno p-red que não
+        // desloca o layout (`ring-inset`). O `aria-invalid` vai no editor.
         className={cn(
           'flex shrink-0 items-stretch border-l border-divider',
           isLast && 'border-r',
+          hasError && 'ring-1 ring-inset ring-p-red',
         )}
         style={{ width: resolveColumnWidth(width) }}
       >
         <Editor
           column={column}
           rowId={row.id}
-          value={cell?.value}
-          onCommit={(value) =>
-            onCellChange({
-              rowId: row.id,
-              columnId: column.id,
-              value,
-              previousValue: cell?.value,
-            })
-          }
-          onOptionsChange={
-            onColumnOptionsChange
-              ? (options) => onColumnOptionsChange(column.id, options)
-              : undefined
-          }
+          value={previousValue}
+          onCommit={handleCommit}
+          onOptionsChange={onColumnOptionsChange ? handleOptionsChange : undefined}
+          hasError={hasError}
           labels={labels}
         />
       </div>
@@ -153,4 +171,4 @@ export function TableCell({
       )}
     </div>
   )
-}
+})

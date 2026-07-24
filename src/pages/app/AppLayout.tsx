@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, Outlet, useLocation, useParams } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { Button, Switch, cn } from 'cubs-components'
@@ -12,6 +11,7 @@ import {
   type WorkspaceState,
 } from '@/contexts/WorkspaceContext'
 import { useDialog } from '@/hooks/useDialog'
+import { useLocalStorageState } from '@/hooks/useClientStorage'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_LANGUAGE, i18n } from '@/lib/i18n'
 import { THEME } from '@/lib/theme'
@@ -32,7 +32,10 @@ export function AppLayout() {
   // existe na rota de workspace (em `/page/:id` e "Colaborando" não há).
   const { lang, workspaceId } = useParams({ strict: false })
   const location = useLocation()
-  const [collapsed, setCollapsed] = useState(false)
+  // Persistida: recolher a sidebar é preferência, e o usuário espera que ela
+  // continue recolhida no próximo acesso. Antes era `useState(false)`, que
+  // esquecia a cada navegação/reload.
+  const [collapsed, setCollapsed] = useLocalStorageState('sidebarCollapsed', false)
   const { theme, toggleTheme } = useTheme()
   const workspaceState = useWorkspace()
   const workspaceDialog = useDialog()

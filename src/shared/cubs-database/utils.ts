@@ -78,11 +78,35 @@ export function resolveColumnTypes(
 ): Record<string, ColumnDataType> {
   const types: Record<string, ColumnDataType> = {}
   for (const column of columns) {
-    types[column.id] =
-      column.type ?? inferColumnType(rows.map((row) => row.cells[column.id]?.value))
+    // Caminho curto: coluna que DECLARA o tipo não olha uma linha sequer.
+    // Importa porque isto é recalculado a cada mudança em `rows` — ou seja, a
+    // cada célula editada — e no uso real do app o tipo vem sempre declarado
+    // (o parser o lê de `page_columns`). Sem o atalho, cada tecla confirmada
+    // custava uma varredura de colunas × linhas.
+    if (column.type) {
+      types[column.id] = column.type
+      continue
+    }
+    // Sem `rows.map()`: o array intermediário era alocado uma vez POR COLUNA
+    // só para ser consumido e descartado. O generator percorre igual, sem
+    // materializar nada.
+    types[column.id] = inferColumnType(cellValues(rows, column.id))
   }
   return types
 }
+
+/** Valores de uma coluna em todas as linhas, sem materializar array. */
+function* cellValues(rows: RowData[], columnId: string): Generator<unknown> {
+  for (const row of rows) yield row.cells[columnId]?.value
+}
+
+/**
+ * Chave de uma célula em `cellErrors` — o par (linha, coluna) que identifica a
+ * célula que falhou ao salvar. Exportada para o app HOST montar o Set com o
+ * MESMO formato que a lib lê (o contrato entre os dois lados). Espelha o
+ * `cellKey` interno do realtime do app.
+ */
+export const cellErrorKey = (rowId: string, columnId: string): string => `${rowId}:${columnId}`
 
 /** Largura (px) de uma coluna sem entrada em `columnWidths` da view. */
 export const DEFAULT_COLUMN_WIDTH = 176
@@ -136,6 +160,11 @@ export function reorderByIds<T extends { id: string }>(items: T[], orderedIds: s
   const ordered = orderedIds
     .map((id) => byId.get(id))
     .filter((item): item is T => item !== undefined)
-  const rest = items.filter((item) => !orderedIds.includes(item.id))
+  // `Set` e não `orderedIds.includes(...)`: o includes rodava DENTRO do
+  // filter, varrendo a lista de ids uma vez por item — quadrático numa função
+  // que roda a cada render da tabela. A expressão continua sendo uma
+  // pergunta de pertencimento; só o container mudou.
+  const orderedSet = new Set(orderedIds)
+  const rest = items.filter((item) => !orderedSet.has(item.id))
   return [...ordered, ...rest]
 }

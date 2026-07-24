@@ -5,18 +5,29 @@
  * decide QUANDO aplicar é o hook; aqui mora só o COMO. Isso é o que torna a
  * regra de merge testável sem socket, sem render e sem backend.
  *
- * Duas guardas, e as duas existem por um motivo concreto:
+ * **O autor RECEBE o próprio eco.** O servidor emite para a sala inteira,
+ * inclusive para quem escreveu, e aqui isso é tratado como confirmação — não
+ * como ruído a filtrar. Antes havia um descarte por `originUserId`, e ele
+ * deixava um buraco real: o caminho otimista (`applyLocalCellChange`) não
+ * carimba o relógio de propósito (o tempo é do SERVIDOR), então uma edição
+ * sua não deixava marca temporal nenhuma — e um evento mais VELHO de outra
+ * pessoa passava pela guarda de ordem e sobrescrevia o que você acabou de
+ * escrever. Aceitar o eco fecha isso sem inventar relógio local:
+ *
+ *   1. a edição própria aparece na hora (otimista, sem esperar a rede);
+ *   2. o eco chega com o `updatedAt` do commit e SELA aquela chave no
+ *      relógio, deixando o estado local defensável contra evento atrasado.
+ *
+ * Sobra UMA guarda:
  *
  *  - **ordem** (`updatedAt`): a rede não garante ordem de chegada. Sem o
  *    carimbo, um evento atrasado sobrescreveria uma edição mais nova — o
  *    usuário veria o próprio texto "voltar no tempo".
- *  - **eco** (`originUserId`): o servidor emite para a sala INTEIRA, inclusive
- *    quem escreveu. Sem o filtro, a resposta do próprio PUT chegaria de volta
- *    e brigaria com o estado local (pior: no meio de uma digitação).
  *
- * O filtro de eco é por USUÁRIO e não por socket porque a mesma conta pode ter
- * duas abas abertas: excluir só o socket que escreveu deixaria a outra aba
- * desatualizada.
+ * `originUserId` continua viajando no payload, mas como AUDITORIA (quem
+ * originou), não como regra de merge. Quem protege a digitação em andamento é
+ * o editor, via `useExternalDraft` — o lugar certo, porque só ele sabe se o
+ * campo está em foco.
  */
 import type {
   CellUpdatedPayload,
@@ -89,6 +100,31 @@ export function applyLocalCellChange(
   return writeCell(database, change.rowId, change.columnId, change.value) ?? database
 }
 
+/**
+ * Mesma ideia para o RENAME de coluna: mostra o nome novo imediatamente, sem
+ * esperar a ida e volta do HTTP + socket. O eco chega logo atrás com a coluna
+ * inteira como o servidor a gravou (e aí sim carimba o relógio).
+ *
+ * Também não toca no relógio, pelo mesmo motivo do de célula: o carimbo é do
+ * servidor, e adiantá-lo com a hora local faria evento legítimo de outra
+ * pessoa parecer velho se os relógios divergirem.
+ */
+export function applyLocalColumnRename(
+  database: ParsedDatabase,
+  columnId: string,
+  name: string,
+): ParsedDatabase {
+  const index = database.headerCols.findIndex((header) => header.id === columnId)
+  if (index < 0) return database
+
+  const column = database.headerCols[index]
+  if (column.title === name) return database
+
+  const headerCols = database.headerCols.slice()
+  headerCols[index] = { ...column, title: name }
+  return { ...database, headerCols }
+}
+
 /** O evento é mais NOVO que o último aplicado nessa chave? */
 function isFresh(clock: RealtimeClock, key: string, updatedAt: string): boolean {
   const applied = clock[key]
@@ -107,20 +143,18 @@ export interface ApplyResult {
  * para o React perceber) e o MESMO objeto quando não muda — descartar o evento
  * não pode custar um re-render.
  *
- * `currentUserId` identifica o eco; passe o id do usuário logado.
+ * Não recebe o id do usuário atual: o eco do próprio autor é aplicado como
+ * qualquer outro evento (ver o cabeçalho do arquivo). Para a edição própria o
+ * valor já é o mesmo que está na tela, então o efeito visível é nenhum — o que
+ * o eco entrega é o `updatedAt` do servidor para o relógio.
  */
 export function applyRealtimeEvent(
   database: ParsedDatabase,
   clock: RealtimeClock,
   event: DatabaseRealtimeEvent,
-  currentUserId: string | undefined,
   titleLabel: string,
 ): ApplyResult {
   const unchanged: ApplyResult = { database, clock, applied: false }
-  const { payload } = event
-
-  // Eco do próprio usuário: o estado local já está à frente.
-  if (currentUserId && payload.originUserId === currentUserId) return unchanged
 
   switch (event.type) {
     case 'cell-updated': {

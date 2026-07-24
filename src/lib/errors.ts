@@ -64,3 +64,51 @@ export function reportError(scope: ErrorScope, error: unknown): AppError {
   logError(appError)
   return appError
 }
+
+/**
+ * Classe de uma escrita que falhou — vira o SUFIXO da chave i18n
+ * (`feedback.escrita.<kind>`) que o feedback ao usuário exibe. PURA de
+ * propósito: devolve a categoria, não a string traduzida, para o caller (que
+ * tem o i18n) montar a mensagem e para o teste afirmar a categoria, não o
+ * texto PT.
+ *
+ * O mapa cobre os erros REAIS do write de célula/coluna (ver a tabela em
+ * `docs/demanda-backend.md` e no plano): 409 é o conflito de concorrência (dois
+ * preenchendo a mesma célula), o resto são acesso/validação/rede.
+ */
+export type WriteErrorKind =
+  | 'conflito'
+  | 'invalido'
+  | 'nao-encontrado'
+  | 'sem-acesso'
+  | 'sessao-expirada'
+  | 'sem-conexao'
+  | 'servidor'
+  | 'generico'
+
+export function classifyWriteError(error: unknown): WriteErrorKind {
+  // Não é AppError: não passou pelo ApiService (bug de código, erro síncrono).
+  if (!(error instanceof AppError)) return 'generico'
+
+  switch (error.status) {
+    case 409:
+      return 'conflito'
+    case 400:
+      return 'invalido'
+    case 404:
+      return 'nao-encontrado'
+    case 403:
+      return 'sem-acesso'
+    case 401:
+      return 'sessao-expirada'
+    case 500:
+    case 502:
+    case 503:
+      return 'servidor'
+    // Sem status = o axios não teve resposta (timeout, offline, DNS): rede.
+    case undefined:
+      return 'sem-conexao'
+    default:
+      return 'generico'
+  }
+}

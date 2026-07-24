@@ -5,17 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cub's</title>
-    <script>
-      // Aplica o tema salvo ANTES do React montar, evitando flash de tema
-      // errado. Espelha a chave/lógica de src/lib/theme.ts.
-      try {
-        var cubsTheme = localStorage.getItem('cubs.theme')
-        if (cubsTheme !== 'light' && cubsTheme !== 'dark') {
-          cubsTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        }
-        document.documentElement.classList.toggle('dark', cubsTheme === 'dark')
-      } catch (error) {}
-    </script>
+    <!--
+      Anti-flash de tema. É um ARQUIVO e não um script inline por causa da CSP
+      de produção (`script-src 'self'`, ver nginx/nginx.conf) — inline exigiria
+      um hash sha256 que muda a cada edição do script.
+      Sem `defer`/`async` de propósito: precisa rodar antes da primeira pintura.
+    -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

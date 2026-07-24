@@ -64,6 +64,12 @@ export interface CellEditorProps {
   onCommit: (value: unknown) => void
   /** Só o select usa: a coluna teve as options reordenadas (array COMPLETO). */
   onOptionsChange?: (options: ColumnOption[]) => void
+  /**
+   * A última escrita desta célula FALHOU (o app reverteu o valor otimista).
+   * O editor marca o campo como inválido (`aria-invalid`); a moldura visual
+   * fica no container da célula. Some quando o valor é reeditado.
+   */
+  hasError?: boolean
   /** Rótulos de a11y injetados pelo app host (i18n mora lá, nunca aqui). */
   labels?: { dragOption?: string }
 }

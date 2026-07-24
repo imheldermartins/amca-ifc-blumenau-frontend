@@ -1,3 +1,5 @@
+import { clientLocalStorage } from '@/lib/clientStorage'
+
 /**
  * Aliases de classe prontos para compor com `cn`, apontando para os tokens
  * de cor registrados em `src/index.css`.
@@ -24,18 +26,24 @@ export const THEME = {
 
 export type ThemeToken = keyof typeof THEME
 
-/* ─── Preferência light/dark (persistida em localStorage) ─────────────────
+/* ─── Preferência light/dark (persistida via clientLocalStorage) ──────────
  * O dark mode é a classe `.dark` no <html> (ver @custom-variant no
- * index.css). Um script inline no index.html aplica o tema salvo ANTES do
- * React montar (evita flash); aqui ficam a leitura/gravação usadas pelo
- * hook useTheme.
+ * index.css). O script `/theme-init.js` aplica o tema salvo ANTES do React
+ * montar (evita flash); aqui ficam a leitura/gravação usadas pelo hook
+ * useTheme.
+ *
+ * A chave `theme` passa pelo `clientLocalStorage` (namespace `cubs.`, então a
+ * chave real continua sendo `cubs.theme`), com a tolerância a JSON quebrado e
+ * storage indisponível vinda de graça. O `theme-init.js` lê a chave crua
+ * porque roda antes de qualquer módulo — e por isso tolera os dois formatos
+ * (a string JSON `"dark"` e o valor cru legado), como está comentado lá.
  */
 export type ThemePreference = 'light' | 'dark'
 
-const THEME_STORAGE_KEY = 'cubs.theme'
+const THEME_KEY = 'theme'
 
 export function getStoredTheme(): ThemePreference | null {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY)
+  const stored = clientLocalStorage.get<ThemePreference>(THEME_KEY)
   return stored === 'light' || stored === 'dark' ? stored : null
 }
 
@@ -50,5 +58,5 @@ export function resolveInitialTheme(): ThemePreference {
 /** Aplica no <html> e persiste. */
 export function setTheme(theme: ThemePreference): void {
   document.documentElement.classList.toggle('dark', theme === 'dark')
-  localStorage.setItem(THEME_STORAGE_KEY, theme)
+  clientLocalStorage.set(THEME_KEY, theme)
 }

@@ -85,7 +85,10 @@ function TextFieldView({
           }
           onChange?.(event)
         }}
-        aria-invalid={errorMessage ? true : undefined}
+        // `errorMessage` (modo form/state) força inválido; na ausência dele,
+        // respeita um `aria-invalid` explícito das props (ex.: a célula da
+        // tabela marca erro sem uma mensagem inline).
+        aria-invalid={errorMessage ? true : props['aria-invalid']}
         className={cn(
           'w-full rounded border text-sm font-normal',
           // O ring base vem ANTES da superfície de propósito: é o que permite
