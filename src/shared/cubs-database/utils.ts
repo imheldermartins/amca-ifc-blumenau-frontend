@@ -168,3 +168,42 @@ export function reorderByIds<T extends { id: string }>(items: T[], orderedIds: s
   const rest = items.filter((item) => !orderedSet.has(item.id))
   return [...ordered, ...rest]
 }
+
+/** Um valor CASA com o tipo atual da coluna? (espelha o codec do backend.) */
+function valueFitsType(value: unknown, column: HeaderCol): boolean {
+  switch (column.type) {
+    case 'text':
+      return typeof value === 'string'
+    case 'numeric':
+      return typeof value === 'number' && Number.isFinite(value)
+    case 'checkbox':
+      return typeof value === 'boolean'
+    case 'select':
+      return typeof value === 'string' && (column.options ?? []).some((o) => o.id === value)
+    case 'date':
+      return typeof value === 'string' && DATE_LIKE.test(value)
+    default:
+      // Type inferido (ausente): a coluna se molda aos valores, nunca diverge.
+      return true
+  }
+}
+
+/**
+ * IDs das linhas cuja célula desta coluna tem um valor que NÃO casa com o tipo
+ * ATUAL — a "divergência" da troca de tipo não-destrutiva: um valor herdado de
+ * um tipo anterior (texto virou número), ou um id de option órfã. É o que
+ * pinta o header de vermelho e habilita o "reset de tipos".
+ *
+ * Célula AUSENTE/vazia não diverge (é só falta de valor). Coluna de type
+ * INFERIDO nunca diverge (o tipo vem dos próprios valores).
+ */
+export function columnDivergence(column: HeaderCol, rows: RowData[]): string[] {
+  if (!column.type) return []
+  const diverging: string[] = []
+  for (const row of rows) {
+    const value = row.cells[column.id]?.value
+    if (value === undefined || value === null) continue
+    if (!valueFitsType(value, column)) diverging.push(row.id)
+  }
+  return diverging
+}

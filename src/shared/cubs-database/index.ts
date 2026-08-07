@@ -29,8 +29,11 @@ export type {
   CellChange,
   CellData,
   CellEditorProps,
+  ColumnConfigPatch,
   ColumnDataType,
+  ColumnMask,
   ColumnOption,
+  CurrencyCode,
   DataViewKind,
   DataViewSettings,
   DataViewType,
@@ -49,6 +52,7 @@ export type { ContextMenuItem } from 'cubs-components'
 
 export {
   cellErrorKey,
+  columnDivergence,
   formatCellValue,
   formatNumericValue,
   inferColumnType,

@@ -12,8 +12,15 @@ import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
 import { Checkbox, cn, type CheckedState } from 'cubs-components'
 
-import type { CellChange, ColumnDataType, ColumnOption, HeaderCol, RowData } from '../types'
-import { resolveColumnTypes, resolveColumnWidth } from '../utils'
+import type {
+  CellChange,
+  ColumnConfigPatch,
+  ColumnDataType,
+  ColumnOption,
+  HeaderCol,
+  RowData,
+} from '../types'
+import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
 import { CONTROL_CELL_WIDTH, TableRow } from './TableRow'
 import type { TableRowLabels } from './TableRow'
@@ -52,6 +59,12 @@ export interface TableViewProps {
   onSelectionChange?: (selectedPagesIds: string[]) => void
   /** Renomear coluna pelo menu do header (payload do `column-renamed`). */
   onColumnRename?: (columnId: string, name: string) => void
+  /** Trocar o TIPO da coluna (menu). Não-destrutivo — ver o backend. */
+  onColumnTypeChange?: (columnId: string, type: ColumnDataType) => void
+  /** Config da coluna (formato/moeda/máscara) pelo menu; `null` LIMPA a chave. */
+  onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
+  /** "Reset de tipos" (destrutivo) de uma coluna divergente. */
+  onColumnReset?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
   onColumnWidthChange?: (columnWidths: Record<string, number>) => void
   labels?: TableRowLabels
@@ -69,6 +82,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   sortable,
   resizable,
   isLast,
+  diverging,
   dragLabel,
   resizeLabel,
   onResize,
@@ -82,6 +96,8 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   resizable: boolean
   /** Última coluna: fecha a grade com a borda direita. */
   isLast: boolean
+  /** Há célula divergente do tipo atual → aviso vermelho no header. */
+  diverging?: boolean
   dragLabel: string
   resizeLabel: string
   /** Largura durante o arrasto (otimista, a cada movimento). */
@@ -144,6 +160,9 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
         // seletor `:last-child` pegaria ela, não a coluna.
         isLast && 'border-r',
         isDragging && 'z-10 opacity-90',
+        // Divergência: o header inteiro vira aviso (o tipo atual tem valores
+        // que não casam com ele). O "reset de tipos" mora no menu.
+        diverging && 'text-p-red opacity-100',
       )}
     >
       {sortable && (
@@ -214,7 +233,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnWidthChange, labels }: TableViewProps) {
+export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
@@ -257,6 +276,18 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     () => resolveColumnTypes(localColumns, localRows),
     [localColumns, localRows],
   )
+
+  // Divergência por coluna (há valor que não casa com o tipo atual) → header
+  // vermelho + "reset de tipos" no menu. Só faz sentido com reset habilitado.
+  const divergingColumns = useMemo(() => {
+    const map: Record<string, boolean> = {}
+    if (onColumnReset) {
+      for (const column of localColumns) {
+        map[column.id] = columnDivergence(column, localRows).length > 0
+      }
+    }
+    return map
+  }, [localColumns, localRows, onColumnReset])
 
   const rowsSortable = Boolean(onRowOrderChange)
   const columnsSortable = Boolean(onColumnOrderChange)
@@ -343,17 +374,21 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     [onColumnWidthChange],
   )
 
+  // O menu abre se QUALQUER edição de coluna estiver habilitada; sem nenhuma,
+  // botão direito segue com o menu nativo do browser (tabela "burra" continua).
+  const columnMenuEnabled = Boolean(
+    onColumnRename || onColumnTypeChange || onColumnOptionsChange || onColumnConfigChange,
+  )
+
   const handleHeaderContextMenu = useCallback(
     (columnId: string, event: MouseEvent<HTMLDivElement>) => {
-      // O menu só existe com rename habilitado — sem callback, botão direito
-      // segue com o menu nativo do browser (tabela "burra" continua burra).
-      if (!onColumnRename) return
+      if (!columnMenuEnabled) return
       event.preventDefault()
       const containerRect = containerRef.current?.getBoundingClientRect()
       const cellRect = event.currentTarget.getBoundingClientRect()
       setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
     },
-    [onColumnRename],
+    [columnMenuEnabled],
   )
 
   const closeColumnMenu = useCallback(() => setColumnMenu(null), [])
@@ -368,6 +403,31 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     },
     [columnMenu, onColumnRename],
   )
+
+  const handleMenuTypeChange = useCallback(
+    (type: ColumnDataType) => {
+      if (columnMenu) onColumnTypeChange?.(columnMenu.columnId, type)
+    },
+    [columnMenu, onColumnTypeChange],
+  )
+
+  const handleMenuOptionsChange = useCallback(
+    (options: ColumnOption[]) => {
+      if (columnMenu) onColumnOptionsChange?.(columnMenu.columnId, options)
+    },
+    [columnMenu, onColumnOptionsChange],
+  )
+
+  const handleMenuConfigChange = useCallback(
+    (patch: ColumnConfigPatch) => {
+      if (columnMenu) onColumnConfigChange?.(columnMenu.columnId, patch)
+    },
+    [columnMenu, onColumnConfigChange],
+  )
+
+  const handleMenuReset = useCallback(() => {
+    if (columnMenu) onColumnReset?.(columnMenu.columnId)
+  }, [columnMenu, onColumnReset])
 
   return (
     <div ref={containerRef} className="relative">
@@ -403,6 +463,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                   sortable={columnsSortable}
                   resizable={columnsResizable}
                   isLast={columnIndex === localColumns.length - 1}
+                  diverging={divergingColumns[column.id]}
                   dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
                   resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
                   onResize={handleColumnResize}
@@ -468,9 +529,13 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
         <ColumnHeaderMenu
           column={menuColumn}
           columnType={columnTypes[menuColumn.id]}
-          typeIcon={TYPE_ICON[columnTypes[menuColumn.id]]}
           onClose={closeColumnMenu}
           onRename={onColumnRename ? handleMenuRename : undefined}
+          onColumnTypeChange={onColumnTypeChange ? handleMenuTypeChange : undefined}
+          onColumnOptionsChange={onColumnOptionsChange ? handleMenuOptionsChange : undefined}
+          onColumnConfigChange={onColumnConfigChange ? handleMenuConfigChange : undefined}
+          diverging={divergingColumns[menuColumn.id]}
+          onColumnReset={onColumnReset ? handleMenuReset : undefined}
           labels={labels}
           className="top-9"
           style={{ left: columnMenu.left }}

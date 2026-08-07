@@ -46,20 +46,27 @@ Excluir uma coluna deixa referência pendurada. É benigno na leitura
 exclusão, é preciso PODAR o snapshot em vez de deixar lixo acumular. Já
 documentado como "custo aceito" no CLAUDE.md do frontend.
 
-## 5. Ciclo de vida completo de coluna e linha
+## 5. Ciclo de vida de coluna e linha — o que AINDA falta
 
 **Onde:** lib `cubs-database` + rotas de `page-route.ts`.
 
-Nesta leva a coluna ganhou só o **rename sob realtime** (era o que faltava para
-o autor ver a própria edição). Continuam de fora, como demanda:
+> **Já resolvido** (menu de coluna, botão direito): rename, **troca de tipo
+> não-destrutiva** (preserva config/valores; divergência → header vermelho →
+> `/reset`), **options CRUD** do select (add/renomear/cor/reordenar/excluir), e
+> **formato/moeda** (numeric) / **máscara** (text) — com whitelist do `data` no
+> backend. Ver a seção da base no `CLAUDE.md`.
 
-- **criar / excluir coluna** (a exclusão puxa a poda do §4);
-- **trocar o TIPO** da coluna — a parte cara: exige decidir o destino dos
-  valores já gravados (converter, limpar ou rejeitar);
-- **editar options do select** além de reordenar (adicionar, renomear, cor,
-  excluir — e o que fazer nas células que apontavam para a option excluída);
+Continuam de fora:
+
+- **criar / excluir coluna** pela UI (a exclusão puxa a poda do §4);
 - **criar / excluir LINHA** pela UI (o backend já emite `row-created` /
-  `row-deleted`, e o front já os trata com reload — falta só o gatilho na UI).
+  `row-deleted`, e o front já os trata com reload — falta só o gatilho na UI);
+- **mais moedas** além de BRL (o `CurrencyCode` do front e o backend têm só
+  BRL; ampliar é registrar a moeda nos dois — o menu de moeda já é um submenu
+  pronto para mais itens);
+- **"pink" e outras cores de option** — o `ColorOptions` do backend tem 6
+  (red/orange/yellow/green/blue/grey); o `ColorPicker` usa exatamente essas.
+  Ampliar exige o enum do backend.
 
 ## 6. Revogação de sessão por dispositivo + rotação com detecção de reuso
 

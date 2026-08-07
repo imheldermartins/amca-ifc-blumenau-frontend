@@ -7,6 +7,8 @@ import { TableView } from './components/TableView'
 import type { TableRowLabels } from './components/TableRow'
 import type {
   CellChange,
+  ColumnConfigPatch,
+  ColumnDataType,
   ColumnOption,
   DataViewSettings,
   DataViewType,
@@ -80,6 +82,22 @@ export interface CubsDatabaseProps {
    */
   onColumnRename?: (columnId: string, name: string) => void
   /**
+   * Trocar o TIPO da coluna (menu). Não-destrutivo no backend: o config e os
+   * valores do tipo antigo ficam preservados até um "reset de tipos".
+   */
+  onColumnTypeChange?: (columnId: string, type: ColumnDataType) => void
+  /**
+   * Config da coluna (formato/moeda de numeric, máscara de text) pelo menu.
+   * `null` numa chave a LIMPA; ausente preserva (o backend mescla).
+   */
+  onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
+  /**
+   * "Reset de tipos" (destrutivo) de uma coluna divergente: o backend zera o
+   * config para a base do tipo e limpa/reseta as células divergentes. A
+   * presença da prop habilita o header vermelho + o item no menu.
+   */
+  onColumnReset?: (columnId: string) => void
+  /**
    * Uma coluna foi redimensionada (alça na borda direita do header). Chega o
    * id da view + o mapa COMPLETO de larguras — o `columnWidths` pronto para o
    * snapshot. A presença da prop é o que habilita o resize.
@@ -117,6 +135,9 @@ export function CubsDatabase({
   onColumnOrderChange,
   onSelectionChange,
   onColumnRename,
+  onColumnTypeChange,
+  onColumnConfigChange,
+  onColumnReset,
   onColumnWidthChange,
   loading,
   emptyLabel,
@@ -177,6 +198,9 @@ export function CubsDatabase({
             }
             onSelectionChange={onSelectionChange}
             onColumnRename={onColumnRename}
+            onColumnTypeChange={onColumnTypeChange}
+            onColumnConfigChange={onColumnConfigChange}
+            onColumnReset={onColumnReset}
             onColumnWidthChange={
               onColumnWidthChange
                 ? (widths) => onColumnWidthChange(currentViewId, widths)

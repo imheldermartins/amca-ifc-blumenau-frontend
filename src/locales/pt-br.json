@@ -153,6 +153,27 @@
           "date": "Data",
           "checkbox": "Checkbox"
         },
+        "coluna": {
+          "tipo": "Tipo",
+          "opcoes": "Opções",
+          "formato": "Formato",
+          "mascara": "Máscara",
+          "percentual": "Percentual",
+          "moeda": "Moeda",
+          "brl": "Real (BRL)",
+          "nenhum": "Nenhum",
+          "resetar": "Resetar tipo",
+          "adicionar-opcao": "Adicionar opção",
+          "excluir-opcao": "Excluir opção",
+          "cor-opcao": "Cor da opção",
+          "nome-opcao": "Nome da opção"
+        },
+        "mascaras": {
+          "cpf": "CPF",
+          "cep": "CEP",
+          "telefone": "Telefone",
+          "data": "Data (dd/mm/aaaa)"
+        },
         "erro": "Não foi possível carregar a base.",
         "menu": {
           "renomear": "Renomear view",

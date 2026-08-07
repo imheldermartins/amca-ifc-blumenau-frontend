@@ -30,6 +30,13 @@
  * campo está em foco.
  */
 import type {
+  ColumnConfigPatch,
+  ColumnDataType,
+  ColumnOption,
+  HeaderCol,
+} from 'cubs-database'
+
+import type {
   CellUpdatedPayload,
   ColumnUpdatedPayload,
   RowUpdatedPayload,
@@ -123,6 +130,58 @@ export function applyLocalColumnRename(
   const headerCols = database.headerCols.slice()
   headerCols[index] = { ...column, title: name }
   return { ...database, headerCols }
+}
+
+/** Aplica um patch parcial numa coluna do header (otimista). Puro. */
+function patchColumn(
+  database: ParsedDatabase,
+  columnId: string,
+  patch: Partial<HeaderCol>,
+): ParsedDatabase {
+  const index = database.headerCols.findIndex((header) => header.id === columnId)
+  if (index < 0) return database
+  const headerCols = database.headerCols.slice()
+  headerCols[index] = { ...headerCols[index], ...patch }
+  return { ...database, headerCols }
+}
+
+/**
+ * Otimismo do editor de options do menu: mostra o array novo (add/renomear/cor/
+ * reordenar/excluir) na hora, para o próprio read-modify-write do editor não
+ * partir de estado velho enquanto o eco não voltou. Não toca no relógio.
+ */
+export function applyLocalColumnOptions(
+  database: ParsedDatabase,
+  columnId: string,
+  options: ColumnOption[],
+): ParsedDatabase {
+  return patchColumn(database, columnId, { options })
+}
+
+/** Otimismo da troca de TIPO — o header/editores refletem antes do eco. */
+export function applyLocalColumnType(
+  database: ParsedDatabase,
+  columnId: string,
+  type: ColumnDataType,
+): ParsedDatabase {
+  return patchColumn(database, columnId, { type })
+}
+
+/**
+ * Otimismo da config (formato/moeda/máscara). `null` no patch LIMPA a chave —
+ * o mesmo contrato do backend. Traduz o `ColumnConfigPatch` (null) para o
+ * `HeaderCol` (undefined) da lib.
+ */
+export function applyLocalColumnConfig(
+  database: ParsedDatabase,
+  columnId: string,
+  patch: ColumnConfigPatch,
+): ParsedDatabase {
+  const applied: Partial<HeaderCol> = {}
+  if ('format' in patch) applied.format = patch.format ?? undefined
+  if ('currency' in patch) applied.currency = patch.currency ?? undefined
+  if ('mask' in patch) applied.mask = patch.mask ?? undefined
+  return patchColumn(database, columnId, applied)
 }
 
 /** O evento é mais NOVO que o último aplicado nessa chave? */

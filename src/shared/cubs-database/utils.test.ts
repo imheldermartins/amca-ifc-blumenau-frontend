@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { reorderByIds, resolveColumnTypes } from './utils'
+import { columnDivergence, reorderByIds, resolveColumnTypes } from './utils'
 import type { HeaderCol, RowData } from './types'
 
 /**
@@ -56,5 +56,51 @@ describe('resolveColumnTypes', () => {
   it('coluna sem valor em nenhuma linha cai em text (denominador comum)', () => {
     const cols: HeaderCol[] = [{ id: 'vazia', title: 'Vazia' }]
     expect(resolveColumnTypes(cols, rows).vazia).toBe('text')
+  })
+})
+
+/**
+ * `columnDivergence` é o gatilho do header vermelho + "reset de tipos" — o
+ * coração do ponto 7 (troca de tipo não-destrutiva). Mede se o valor guardado
+ * casa com o tipo ATUAL da coluna, por tipo.
+ */
+describe('columnDivergence', () => {
+  const rowsWith = (values: Record<string, unknown>): RowData[] =>
+    Object.entries(values).map(([id, value]) => ({ id, cells: { c: { value } } }))
+
+  it('numeric: valores de texto (herdados de outro tipo) divergem', () => {
+    const col: HeaderCol = { id: 'c', title: 'N', type: 'numeric' }
+    const rows = rowsWith({ r1: 'aprovado', r2: 42, r3: 'x' })
+    expect(columnDivergence(col, rows).sort()).toEqual(['r1', 'r3'])
+  })
+
+  it('select: id fora das options (órfão) diverge; id válido não', () => {
+    const col: HeaderCol = {
+      id: 'c',
+      title: 'S',
+      type: 'select',
+      options: [{ id: 'opt-1', label: 'A' }],
+    }
+    const rows = rowsWith({ r1: 'opt-1', r2: 'opt-orfa' })
+    expect(columnDivergence(col, rows)).toEqual(['r2'])
+  })
+
+  it('checkbox: não-boolean diverge', () => {
+    const col: HeaderCol = { id: 'c', title: 'C', type: 'checkbox' }
+    expect(columnDivergence(col, rowsWith({ r1: true, r2: 'sim' }))).toEqual(['r2'])
+  })
+
+  it('célula ausente/vazia NÃO diverge (é só falta de valor)', () => {
+    const col: HeaderCol = { id: 'c', title: 'N', type: 'numeric' }
+    const rows: RowData[] = [
+      { id: 'r1', cells: {} },
+      { id: 'r2', cells: { c: { value: null } } },
+    ]
+    expect(columnDivergence(col, rows)).toEqual([])
+  })
+
+  it('type INFERIDO (ausente) nunca diverge — a coluna se molda aos valores', () => {
+    const col: HeaderCol = { id: 'c', title: 'X' }
+    expect(columnDivergence(col, rowsWith({ r1: 'a', r2: 42 }))).toEqual([])
   })
 })

@@ -12,6 +12,16 @@ export { ContextMenu } from './ContextMenu'
 export type { ContextMenuItem, ContextMenuProps } from './ContextMenu'
 export { Popover } from './Popover'
 export type { PopoverProps } from './Popover'
+export { NestedMenu } from './NestedMenu'
+export type { MenuNode, NestedMenuProps } from './NestedMenu'
+export { ColorPicker } from './ColorPicker'
+export type { ColorPickerProps } from './ColorPicker'
+export {
+  OPTION_COLORS,
+  OPTION_COLOR_CLASSES,
+  OPTION_COLOR_SWATCH,
+} from './lib/optionColors'
+export type { OptionColor } from './lib/optionColors'
 
 export { cn } from './lib/utils'
 export {

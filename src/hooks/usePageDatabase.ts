@@ -1,12 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { cellErrorKey, type CellChange, type ColumnOption, type DataViewSettings } from 'cubs-database'
+import {
+  cellErrorKey,
+  type CellChange,
+  type ColumnConfigPatch,
+  type ColumnDataType,
+  type ColumnOption,
+  type DataViewSettings,
+} from 'cubs-database'
 
 import { useFeedback } from '@/contexts/FeedbackContext'
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import {
   applyLocalCellChange,
+  applyLocalColumnConfig,
+  applyLocalColumnOptions,
   applyLocalColumnRename,
+  applyLocalColumnType,
   applyRealtimeEvent,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
@@ -44,6 +54,9 @@ export interface UsePageDatabaseResult {
     onCellChange: (change: CellChange) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
     onColumnRename: (columnId: string, name: string) => void
+    onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
+    onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
+    onColumnReset: (columnId: string) => void
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
@@ -210,6 +223,12 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     onColumnOptionsChange: useCallback(
       (columnId: string, options: ColumnOption[]) => {
         if (!pageId) return
+        // Otimista: o editor de options do menu lê `column.options`, então o
+        // read-modify-write dele precisa ver a mudança na hora (senão a próxima
+        // edição parte de estado velho). O eco confirma; erro → reload desfaz.
+        setDatabase((current) =>
+          current ? applyLocalColumnOptions(current, columnId, options) : current,
+        )
         pageWriteService.saveColumnOptions(pageId, columnId, options).catch(handleWriteError)
       },
       [pageId, handleWriteError],
@@ -226,6 +245,40 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         pageWriteService.renameColumn(pageId, columnId, name).catch(handleWriteError)
       },
       [pageId, handleWriteError],
+    ),
+    onColumnTypeChange: useCallback(
+      (columnId: string, type: ColumnDataType) => {
+        if (!pageId) return
+        // Otimista: header/editores passam ao novo tipo na hora. Não-destrutivo
+        // no backend (config e valores do tipo antigo ficam preservados).
+        setDatabase((current) =>
+          current ? applyLocalColumnType(current, columnId, type) : current,
+        )
+        pageWriteService.changeColumnType(pageId, columnId, type).catch(handleWriteError)
+      },
+      [pageId, handleWriteError],
+    ),
+    onColumnConfigChange: useCallback(
+      (columnId: string, patch: ColumnConfigPatch) => {
+        if (!pageId) return
+        setDatabase((current) =>
+          current ? applyLocalColumnConfig(current, columnId, patch) : current,
+        )
+        pageWriteService.saveColumnConfig(pageId, columnId, patch).catch(handleWriteError)
+      },
+      [pageId, handleWriteError],
+    ),
+    onColumnReset: useCallback(
+      (columnId: string) => {
+        if (!pageId) return
+        // Destrutivo e em MASSA (coluna + N células) — sem otimismo: relê a base
+        // no sucesso (a verdade autoritativa), notifica no erro.
+        pageWriteService
+          .resetColumn(pageId, columnId)
+          .then(() => reload())
+          .catch(handleWriteError)
+      },
+      [pageId, handleWriteError, reload],
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {

@@ -163,10 +163,25 @@ implemente `CellEditorProps` (`types.ts` da lib) e registre no map.
   `useReducer` (`selectionReducer`, ids num `Set`); toda mudança sobe completa
   por `onSelectionChange` — o terreno do futuro `batchRealtimeUpdate`. Ver
   "Memoização da tabela".
-- **Menu da coluna** (`ColumnHeaderMenu`): botão DIREITO no header abre o
-  painel (mesmo padrão do ContextMenu das tabs) com o TIPO readonly + campo
-  de renomear → `onColumnRename(columnId, name)`, o payload do
-  `column-renamed`. Habilitado pela presença de `onColumnRename`.
+- **Menu da coluna** (`ColumnHeaderMenu`): botão DIREITO no header abre um
+  `NestedMenu` (recursivo, do pacote) com renomear (campo inline) + submenus por
+  seção, cada um habilitado pela presença do callback: **Tipo** (troca de tipo
+  → `onColumnTypeChange`), **Opções** (select — CRUD completo em
+  `ColumnOptionsEditor`: add/renomear/cor via `ColorPicker`/reordenar dnd-kit/
+  excluir → `onColumnOptionsChange`), **Formato** (numeric — percentage/currency
+  + moeda) e **Máscara** (text) via `onColumnConfigChange(columnId, patch)`
+  (`patch` com `null` LIMPA a chave). Os submenus são Popovers portalados, então
+  o fechar-ao-clicar-fora ignora cliques dentro de `[data-radix-popper-content-wrapper]`.
+  Otimismo local em `usePageDatabase` (`applyLocalColumn*`); erro → feedback +
+  reload.
+- **Troca de tipo NÃO-destrutiva + divergência + reset** (o "ponto 7"): trocar o
+  tipo PRESERVA o config e os valores do tipo antigo no backend (`page_columns.
+  data` acumula config de vários tipos; `mergeData` mescla e faz whitelist —
+  nunca apaga por troca de tipo, só o `/reset` limpa). Reverter o tipo restaura
+  tudo. `columnDivergence(column, rows)` (puro) marca a coluna cujo valor não
+  casa com o tipo atual → header **vermelho** + item "Resetar tipo" no menu →
+  `onColumnReset` → `POST .../columns/:id/reset` (backend zera o `data` para a
+  base do tipo e sobrescreve as células divergentes com o default; relê a base).
 - **Seleção em massa**: com pelo menos uma linha marcada, a célula de controles
   do HEADER exibe o "selecionar todas" (`indeterminate` quando é parcial), que
   também limpa tudo. É o terreno do `batchRealtimeUpdate`.

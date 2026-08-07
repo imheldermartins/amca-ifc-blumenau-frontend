@@ -1,4 +1,10 @@
-import type { CellChange, ColumnOption, DataViewSettings, DataViewType } from 'cubs-database'
+import type {
+  CellChange,
+  ColumnConfigPatch,
+  ColumnOption,
+  DataViewSettings,
+  DataViewType,
+} from 'cubs-database'
 
 import { TITLE_COLUMN_ID } from '@/lib/databaseParser'
 import { apiService } from '@/services/ApiService'
@@ -61,6 +67,36 @@ export class PageWriteService {
 
   renameColumn(parentId: string, columnId: string, name: string): Promise<unknown> {
     return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { name })
+  }
+
+  /**
+   * Troca o TIPO da coluna. Não-destrutivo: o backend PRESERVA o config e os
+   * valores do tipo antigo (a limpeza é só via `resetColumn`). Manda só `type`
+   * — o `data` fica intacto.
+   */
+  changeColumnType(parentId: string, columnId: string, type: string): Promise<unknown> {
+    return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { type })
+  }
+
+  /**
+   * Config da coluna (formato/moeda/máscara). O `patch` vem da lib com `null`
+   * para LIMPAR uma chave; o backend mescla (não apaga o que não veio).
+   */
+  saveColumnConfig(
+    parentId: string,
+    columnId: string,
+    patch: ColumnConfigPatch,
+  ): Promise<unknown> {
+    return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, patch)
+  }
+
+  /**
+   * "Reset de tipos" — a limpeza destrutiva. O backend zera o `data` para a
+   * base do tipo e sobrescreve as células divergentes com o default. A base
+   * muda em massa, então quem chama relê (reload) em vez de remendar.
+   */
+  resetColumn(parentId: string, columnId: string): Promise<unknown> {
+    return apiService.post(`/pages/parent/${parentId}/columns/${columnId}/reset`)
   }
 
   /**

@@ -41,6 +41,9 @@ export const TextCellEditor = memo(function TextCellEditor({
       surface="plain"
       size="sm"
       className="w-full"
+      // A máscara da coluna (cpf/cep/...) formata a digitação; o valor commitado
+      // já sai mascarado, e o read-only o mostra como está.
+      mask={column.mask}
       value={field.draft}
       onFocus={field.focus}
       onChange={(event) => field.change(event.target.value)}

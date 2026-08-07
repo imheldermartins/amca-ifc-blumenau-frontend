@@ -21,7 +21,9 @@
  */
 import type {
   ColumnDataType,
+  ColumnMask,
   ColumnOption,
+  CurrencyCode,
   DataViewKind,
   DataViewSettings,
   DataViewType,
@@ -45,6 +47,8 @@ export interface ApiSelectOption {
 export interface ApiPageColumnData {
   options?: ApiSelectOption[]
   format?: 'percentage' | 'currency'
+  currency?: string
+  mask?: string
 }
 
 /** GET /pages/parent/:id/columns */
@@ -137,6 +141,12 @@ function isColumnType(value: unknown): value is ColumnDataType {
   return COLUMN_TYPES.includes(value as ColumnDataType)
 }
 
+const COLUMN_MASKS: readonly ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date']
+
+function isColumnMask(value: unknown): value is ColumnMask {
+  return COLUMN_MASKS.includes(value as ColumnMask)
+}
+
 // --- Colunas ---
 
 const OPTION_COLORS: readonly OptionColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'grey']
@@ -210,6 +220,11 @@ export function parseHeaderCols(
       column.data?.format === 'percentage' || column.data?.format === 'currency'
         ? column.data.format
         : undefined
+    // currency/mask só entram se estiverem no vocabulário — lixo vira ausência,
+    // como o format. São config PRESERVADO: podem vir junto de um tipo que não
+    // os usa (a troca de tipo não-destrutiva do backend), e o render decide.
+    const currency: CurrencyCode | undefined = column.data?.currency === 'BRL' ? 'BRL' : undefined
+    const mask = isColumnMask(column.data?.mask) ? column.data.mask : undefined
 
     return {
       id: column.id,
@@ -219,6 +234,8 @@ export function parseHeaderCols(
       ...(isColumnType(column.type) && { type: column.type }),
       ...(options && { options }),
       ...(format && { format }),
+      ...(currency && { currency }),
+      ...(mask && { mask }),
     }
   })
 

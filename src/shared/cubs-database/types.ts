@@ -11,11 +11,14 @@
 export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
 
 /**
- * Cores aceitas para uma option de coluna `select`. O vocabulário espelha o do
- * sistema que alimenta a lib (sem citá-lo): quem monta os dados garante que a
- * cor está neste conjunto; cor desconhecida cai no chip neutro.
+ * Cores aceitas para uma option de coluna `select`. Vem do pacote
+ * `cubs-components` (`OptionColor`) — fonte única do vocabulário de cor, que o
+ * `ColorPicker` e o backend também usam. Cor desconhecida cai no chip neutro.
+ * Importado E re-exportado: os tipos abaixo usam `OptionColor` local, e quem
+ * consome a lib continua importando `OptionColor` de `cubs-database`.
  */
-export type OptionColor = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'grey'
+import type { OptionColor } from 'cubs-components'
+export type { OptionColor }
 
 /**
  * Uma option de coluna `select`. A célula guarda o `id` da option — NUNCA o
@@ -31,6 +34,32 @@ export interface ColumnOption {
 
 /** Formato de exibição de uma coluna `numeric` — decide a máscara do editor. */
 export type NumberFormat = 'percentage' | 'currency'
+
+/**
+ * Moeda de uma coluna `numeric` com `format = currency` — vem do pacote
+ * (`CurrencyCode`), a mesma que o `applyMask` e o backend entendem. Ausente
+ * com `format = currency` = a moeda padrão (BRL).
+ */
+import type { CurrencyCode } from 'cubs-components'
+export type { CurrencyCode }
+
+/**
+ * Máscara de uma coluna `text` — o subconjunto de PATTERN das máscaras do
+ * pacote (sem percentage/currency, que são de numeric). Vira a `mask` do
+ * `TextField` no editor.
+ */
+export type ColumnMask = 'cpf' | 'cep' | 'phone-br' | 'date'
+
+/**
+ * Patch de config da coluna (numeric/text) emitido pelo menu. `null` LIMPA a
+ * chave (ex.: "nenhuma máscara"); ausente preserva. É o contrato do
+ * `onColumnConfigChange` — o app manda ao backend, que mescla (ver mergeData).
+ */
+export interface ColumnConfigPatch {
+  format?: NumberFormat | null
+  currency?: CurrencyCode | null
+  mask?: ColumnMask | null
+}
 
 /**
  * Uma edição de célula confirmada, no formato que o transporte de escrita vai
@@ -147,6 +176,16 @@ export interface HeaderCol {
   options?: ColumnOption[]
   /** Formato de uma coluna `numeric` — vira a máscara do editor da célula. */
   format?: NumberFormat
+  /** Moeda de uma coluna `numeric` com `format = currency` (default BRL). */
+  currency?: CurrencyCode
+  /** Máscara de uma coluna `text` — vira a `mask` do editor. */
+  mask?: ColumnMask
+  /**
+   * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva
+   * (backend), então uma coluna pode carregar `options`/`format`/`mask` de um
+   * tipo anterior mesmo não sendo o tipo atual. O render usa só o que o tipo
+   * ATUAL pede; o resto fica guardado até o "reset de tipos".
+   */
 }
 
 /*
