@@ -46,6 +46,10 @@
       "sem-conexao": "Sem conexão com o servidor. Tente de novo.",
       "servidor": "Erro no servidor. Tente de novo em instantes.",
       "generico": "Não foi possível salvar a alteração. Tente de novo."
+    },
+    "realtime": {
+      "titulo": "Atualização simultânea recebida",
+      "edicao-interrompida": "A edição de “{{column}}” foi cancelada por uma atualização simultânea. Valor recebido: “{{value}}”."
     }
   },
   "pages": {

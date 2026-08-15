@@ -12,7 +12,7 @@ import type {
 import type { DatabaseRealtimeEvent } from '@/lib/databaseRealtime'
 
 export interface UsePageRealtimeOptions {
-  /** Uma edição de outra pessoa chegou (célula/coluna/view). */
+  /** Uma edição confirmada chegou (de outro usuário ou eco do próprio autor). */
   onEvent?: (event: DatabaseRealtimeEvent) => void
   /** Uma LINHA nasceu ou morreu — a base precisa ser relida por inteiro. */
   onRowsChanged?: () => void
@@ -62,7 +62,12 @@ export function usePageRealtime(
     const join = () => socket.emit('join-page-database', { pageId })
 
     const handleJoined = (payload: { pageId: string }) => {
-      if (payload.pageId === pageId) setJoined(true)
+      if (payload.pageId !== pageId) return
+      setJoined(true)
+      // Só depois do ACK a membresia existe. Recarregar antes dele abre uma
+      // janela em que o fetch termina, uma edição acontece e o evento ainda
+      // não tem para onde ser entregue (especialmente perceptível na LAN).
+      onResync?.()
     }
     const handleDenied = (payload: { pageId: string }) => {
       if (payload.pageId === pageId) setJoined(false)
@@ -70,24 +75,30 @@ export function usePageRealtime(
     const handlePresence = (payload: PresencePayload) => {
       if (payload.pageId === pageId) setViewers(payload.count)
     }
-    const handleCell = (payload: CellUpdatedPayload) =>
-      onEvent?.({ type: 'cell-updated', payload })
-    const handleRowTitle = (payload: RowUpdatedPayload) =>
-      onEvent?.({ type: 'row-updated', payload })
-    const handleColumn = (payload: ColumnUpdatedPayload) =>
-      onEvent?.({ type: 'column-updated', payload })
-    const handleView = (payload: ViewUpdatedPayload) =>
-      onEvent?.({ type: 'view-updated', payload })
+    // Um socket vive além da página e pode receber o fim da sala anterior
+    // durante uma navegação. Todo evento de conteúdo precisa validar a sala,
+    // não só presence/rows.
+    const handleCell = (payload: CellUpdatedPayload) => {
+      if (payload.pageId === pageId) onEvent?.({ type: 'cell-updated', payload })
+    }
+    const handleRowTitle = (payload: RowUpdatedPayload) => {
+      if (payload.pageId === pageId) onEvent?.({ type: 'row-updated', payload })
+    }
+    const handleColumn = (payload: ColumnUpdatedPayload) => {
+      if (payload.pageId === pageId) onEvent?.({ type: 'column-updated', payload })
+    }
+    const handleView = (payload: ViewUpdatedPayload) => {
+      if (payload.pageId === pageId) onEvent?.({ type: 'view-updated', payload })
+    }
     // Linha nova/removida muda a FORMA da base (as células vêm de outra
     // leitura), então recarregar é mais honesto que remendar meia linha.
     const handleRows = (payload: RowPayload) => {
       if (payload.pageId === pageId) onRowsChanged?.()
     }
     // `connect` também dispara em RECONEXÃO: reentra na sala (a membresia
-    // morreu junto com a conexão) e avisa que houve buraco no meio.
+    // morreu junto com a conexão). A ressincronização espera o ACK acima.
     const handleConnect = () => {
       join()
-      onResync?.()
     }
 
     if (socket.connected) join()

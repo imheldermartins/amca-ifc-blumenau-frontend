@@ -3,6 +3,9 @@
 Guia de convenções para trabalhar neste repositório. Detalhes de setup e
 arquitetura estão no [README.md](README.md).
 
+Para o contrato cross-repo de edição e diagnóstico da `CubsDatabase`, leia
+também [CODEX.md](CODEX.md).
+
 ## Comandos
 
 - `npm run dev` — dev server (Vite) em http://localhost:5173
@@ -129,8 +132,8 @@ implemente `CellEditorProps` (`types.ts` da lib) e registre no map.
   reverte e NÃO commita); checkbox e select commitam no clique. `onCommit` só
   dispara se o valor MUDOU — é o que mantém o transporte livre de eco. O
   rascunho de text/numeric passa por `useExternalDraft` (ver "Colaboração e
-  realtime"): protege a digitação em foco do broadcast e, no blur SEM edição,
-  adota o valor externo em vez de commitar o antigo.
+  realtime"): se um valor externo chega durante o foco, o receiver cancela a
+  edição, adota o valor novo e desfoca sem commitar o rascunho antigo.
 - **Payload**: `CellChange { rowId, columnId, value, previousValue }` — já no
   formato do futuro evento `cell-updated`; o `pageId`/room entra do lado do
   app. A arquitetura inteira (store por célula via TanStack Query, um listener
@@ -263,16 +266,15 @@ resposta imediata; o eco é a confirmação autoritativa logo atrás. O caminho
 otimista NÃO mexe no relógio: o carimbo é do servidor, e adiantá-lo com a hora
 local faria eventos legítimos de outras pessoas parecerem velhos.
 
-**O eco não pode atropelar quem está digitando.** Como o autor agora recebe o
-próprio eco (e edições de terceiros sempre chegaram), os editores de texto
-protegem o campo em foco via `useExternalDraft`
-(`components/cells/useExternalDraft.ts`): com foco, o valor externo espera; sem
-edição do usuário, o blur ADOTA o valor externo em vez de commitar (senão sair
-de uma célula que outra pessoa editou gravaria o valor velho de volta). É
-estado derivado em RENDER, não `useEffect` — o efeito custaria um render
-descartado por evento. Limite conhecido: reeditar a MESMA célula antes do eco
-chegar deixa o servidor vencer (a escrita otimista não tem carimbo); com commit
-no blur a janela é estreita.
+**O receiver é autoritativo durante a edição.** Como o autor recebe o próprio
+eco (e edições de terceiros sempre chegaram), `useExternalDraft` usa modo
+interruptivo nos editores de célula: valor externo durante o foco descarta o
+draft, desfoca e faz o blur devolver "não commitar". `SelectCellEditor` fecha o
+popover pela mesma regra. O callback `onCellEditConflict` marca a célula em
+vermelho e avisa pelo toaster; para editar de novo é preciso focar/clicar outra
+vez já sobre o valor recebido. Isso impede o rascunho velho de sobreviver e ser
+emitido num segundo blur. Campos de configuração que também usam o hook mantêm
+o modo não-interruptivo, pois não representam uma célula concorrente.
 
 **Célula vazia é POST, não PUT**: `PUT .../value` exige que a linha já exista
 em `page_columns_values` (404 quando não). O `previousValue` do `CellChange` é

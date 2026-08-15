@@ -34,9 +34,10 @@ export class PageWriteService {
    *  - a coluna sintética de TÍTULO não é uma coluna de verdade: mapeia para
    *    `pages.title` da linha, então vai pelo PUT da página;
    *  - a célula VAZIA ainda não tem linha em `page_columns_values`, e o PUT do
-   *    valor exige que ela exista (404 quando não). `previousValue` ausente é
-   *    exatamente esse caso — daí o POST. Sem isto, preencher uma célula em
-   *    branco falhava silenciosamente.
+   *    valor exige que ela exista (404 quando não). Só `undefined` representa
+   *    ausência: `null` pode vir de um registro legado que existe fisicamente;
+   *  - limpar remove o registro com DELETE. O codec não aceita
+   *    `PUT { value: null }`, e uma célula já ausente não precisa de request.
    */
   saveCell({ rowId, columnId, value, previousValue }: CellChange): Promise<unknown> {
     if (columnId === TITLE_COLUMN_ID) {
@@ -44,7 +45,12 @@ export class PageWriteService {
     }
 
     const url = `/pages/${rowId}/column/${columnId}/value`
-    const cellExiste = previousValue !== undefined && previousValue !== null
+    const cellExiste = previousValue !== undefined
+
+    if (value == null) {
+      return cellExiste ? apiService.delete(url) : Promise.resolve(null)
+    }
+
     return cellExiste ? apiService.put(url, { value }) : apiService.post(url, { value })
   }
 

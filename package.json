@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0 --mode lan",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run --config vitest.config.ts",

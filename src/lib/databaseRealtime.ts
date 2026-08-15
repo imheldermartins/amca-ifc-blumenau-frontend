@@ -91,10 +91,10 @@ function writeCell(
  * Aplica LOCALMENTE a edição que este usuário acabou de fazer — o caminho
  * otimista, e a razão de ele existir:
  *
- * o servidor propaga a mudança para a sala inteira, mas quem originou IGNORA o
- * próprio eco (senão a resposta brigaria com o que está sendo digitado). Sem
- * aplicar aqui, o autor da edição era o ÚNICO que não a via: os editores leem
- * o valor das props, e as props só mudavam pelo evento que ele mesmo descarta.
+ * o servidor propaga a mudança para a sala inteira, inclusive ao autor, mas o
+ * caminho HTTP + socket não substitui a resposta imediata da interface. Sem
+ * aplicar aqui, o autor só veria a própria edição depois da ida e volta; o eco
+ * continua entrando em seguida para selar o relógio do servidor.
  *
  * Não mexe no relógio de propósito: o carimbo é do SERVIDOR, e adiantar o
  * relógio com a hora local faria eventos legítimos de outras pessoas parecerem
@@ -184,10 +184,13 @@ export function applyLocalColumnConfig(
   return patchColumn(database, columnId, applied)
 }
 
-/** O evento é mais NOVO que o último aplicado nessa chave? */
+/** O evento não é anterior ao último aplicado nessa chave? */
 function isFresh(clock: RealtimeClock, key: string, updatedAt: string): boolean {
   const applied = clock[key]
-  return applied === undefined || applied < updatedAt
+  // Dois commits podem receber o mesmo milissegundo do relógio da rota. O
+  // Socket.IO preserva a ordem de emissão; aceitar o empate deixa o segundo
+  // evento vencer em vez de descartá-lo silenciosamente.
+  return applied === undefined || applied <= updatedAt
 }
 
 export interface ApplyResult {

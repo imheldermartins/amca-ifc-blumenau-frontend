@@ -28,6 +28,7 @@ export type { CellEditor } from './components/cells'
 export type {
   CellChange,
   CellData,
+  CellEditConflict,
   CellEditorProps,
   ColumnConfigPatch,
   ColumnDataType,

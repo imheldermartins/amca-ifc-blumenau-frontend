@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import {
   cellErrorKey,
   type CellChange,
+  type CellEditConflict,
   type ColumnConfigPatch,
   type ColumnDataType,
   type ColumnOption,
@@ -45,13 +46,14 @@ export interface UsePageDatabaseResult {
   /** Repasse para o `<PageShell>`: é ele quem assina a sala. */
   realtimeOptions: UsePageRealtimeOptions
   /**
-   * Células cuja última escrita FALHOU (chave `cellErrorKey`). A UI otimista
-   * já reverteu o valor; isto é só a marca visual, que some na reedição.
+   * Células em estado de atenção (chave `cellErrorKey`): escrita falhou ou o
+   * receiver interrompeu uma edição simultânea. É a marca visual vermelha.
    */
   cellErrors: Set<string>
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
     onCellChange: (change: CellChange) => void
+    onCellEditConflict: (conflict: CellEditConflict) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
     onColumnRename: (columnId: string, name: string) => void
     onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
@@ -72,8 +74,8 @@ export interface UsePageDatabaseResult {
  *   2. este hook manda a escrita por **HTTP** — quem grava é sempre a API
  *      (router → rqlite, no líder do Raft). O socket NUNCA escreve;
  *   3. o backend, DEPOIS do commit, propaga o fato para a sala; os outros
- *      aplicam pelo redutor puro (`applyRealtimeEvent`), e quem originou
- *      ignora o próprio eco.
+   *      aplicam pelo redutor puro (`applyRealtimeEvent`), inclusive quem
+   *      originou (o próprio eco sela o relógio autoritativo).
  *
  * O estado é UM `ParsedDatabase` por página, e não um cache por célula como o
  * doc de arquitetura descreve (§6). É uma escolha consciente para esta etapa:
@@ -86,8 +88,17 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   const [database, setDatabase] = useState<ParsedDatabase | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
-  // Células cuja escrita falhou — só a MARCA (o valor já foi revertido).
+  // Células em atenção — escrita falhou ou edição foi interrompida pelo receiver.
   const [cellErrors, setCellErrors] = useState<Set<string>>(() => new Set())
+  // Revisão monotônica por célula. Duas mutações da mesma célula podem ficar
+  // em voo ao mesmo tempo; uma falha ANTIGA não tem autoridade para desfazer
+  // o otimismo de uma edição mais nova. O Map fica em ref porque coordena
+  // callbacks assíncronos, mas não desenha nada.
+  const cellMutationRevisionsRef = useRef<Map<string, number>>(new Map())
+  // Reloads podem se sobrepor (fetch inicial, ACK da sala, reconexão). Só a
+  // resposta da revisão mais nova pode substituir a base; caso contrário um
+  // fetch antigo encerraria depois e apagaria um evento já recebido.
+  const loadRevisionRef = useRef(0)
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
@@ -101,22 +112,29 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   const load = useCallback(() => {
     if (!pageId) return
     let active = true
+    const revision = loadRevisionRef.current + 1
+    loadRevisionRef.current = revision
+    const isCurrent = () => active && loadRevisionRef.current === revision
+    // Um evento recebido depois do início deste fetch torna a resposta
+    // potencialmente stale. `applyRealtimeEvent` troca a referência do clock
+    // sempre que aplica conteúdo, então ela funciona como versão causal.
+    const clockAtStart = clockRef.current
 
     setLoading(true)
     setFailed(false)
     databaseService
       .loadPage(pageId)
       .then((loaded) => {
-        if (!active) return
+        if (!isCurrent() || clockRef.current !== clockAtStart) return
         clockRef.current = {}
         settingsRef.current = loaded.settings
         setDatabase(loaded)
       })
       .catch(() => {
-        if (active) setFailed(true)
+        if (isCurrent()) setFailed(true)
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (isCurrent()) setLoading(false)
       })
 
     return () => {
@@ -197,11 +215,22 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     mutationFn: (change: CellChange) => pageWriteService.saveCell(change),
     onMutate: (change: CellChange) => {
       const key = cellErrorKey(change.rowId, change.columnId)
+      const revision = (cellMutationRevisionsRef.current.get(key) ?? 0) + 1
+      cellMutationRevisionsRef.current.set(key, revision)
       setCellErrors((prev) => toggleKey(prev, key, false))
       setDatabase((current) => (current ? applyLocalCellChange(current, change) : current))
-      return { key }
+      return { key, revision }
     },
     onError: (_error, change, context) => {
+      // A célula já recebeu outra edição depois desta requisição. Reverter,
+      // marcar ou notificar agora atribuiria a falha velha ao valor novo.
+      if (
+        !context ||
+        cellMutationRevisionsRef.current.get(context.key) !== context.revision
+      ) {
+        return
+      }
+
       setDatabase((current) =>
         current
           ? applyLocalCellChange(current, {
@@ -211,15 +240,44 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
             })
           : current,
       )
-      if (context) setCellErrors((prev) => toggleKey(prev, context.key, true))
+      setCellErrors((prev) => toggleKey(prev, context.key, true))
       notifyWriteError(_error)
+
+      // 404 = o snapshot dizia "existe", mas a célula/página já sumiu; 409 =
+      // dizia "ausente", mas alguém a criou. Sem reler, toda tentativa seguinte
+      // repete o mesmo PUT/POST errado e fica presa no mesmo impasse.
+      const kind = classifyWriteError(_error)
+      if (kind === 'nao-encontrado' || kind === 'conflito') reload()
     },
   })
+
+  const handleCellEditConflict = useCallback(
+    (conflict: CellEditConflict) => {
+      const key = cellErrorKey(conflict.rowId, conflict.columnId)
+
+      // Um evento autoritativo também invalida o rollback de qualquer request
+      // antiga ainda em voo. Sem isto, uma falha atrasada poderia restaurar o
+      // valor anterior POR CIMA daquele que acabou de chegar pelo receiver.
+      const revision = (cellMutationRevisionsRef.current.get(key) ?? 0) + 1
+      cellMutationRevisionsRef.current.set(key, revision)
+      setCellErrors((prev) => toggleKey(prev, key, true))
+      feedback({
+        title: i18n('feedback.realtime.titulo'),
+        description: i18n('feedback.realtime.edicao-interrompida', {
+          column: conflict.columnTitle,
+          value: conflict.displayValue,
+        }),
+        variant: 'warning',
+      })
+    },
+    [feedback],
+  )
 
   const handlers = {
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
     onCellChange: cellMutation.mutate,
+    onCellEditConflict: handleCellEditConflict,
     onColumnOptionsChange: useCallback(
       (columnId: string, options: ColumnOption[]) => {
         if (!pageId) return

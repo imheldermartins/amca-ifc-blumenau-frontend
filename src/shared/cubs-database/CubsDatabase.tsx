@@ -7,6 +7,7 @@ import { TableView } from './components/TableView'
 import type { TableRowLabels } from './components/TableRow'
 import type {
   CellChange,
+  CellEditConflict,
   ColumnConfigPatch,
   ColumnDataType,
   ColumnOption,
@@ -31,9 +32,8 @@ export interface CubsDatabaseProps {
   headerCols: HeaderCol[]
   rows: RowData[]
   /**
-   * Células cuja última escrita FALHOU (chave `cellErrorKey(rowId, columnId)`).
-   * O app host preenche no `onError` da escrita e limpa na reedição — a tabela
-   * só desenha a moldura de erro. Ausente = nenhuma marca.
+   * Células em atenção (chave `cellErrorKey(rowId, columnId)`): falha de
+   * escrita ou edição interrompida pelo receiver. A tabela só desenha a marca.
    */
   cellErrors?: Set<string>
   /** Modo controlado da view ativa; sem isso o componente controla sozinho. */
@@ -51,6 +51,11 @@ export interface CubsDatabaseProps {
    * broadcast) é responsabilidade do app host.
    */
   onCellChange?: (change: CellChange) => void
+  /**
+   * O receiver atualizou uma célula que estava em edição. Nesse ponto o
+   * rascunho já foi cancelado e o valor externo já está visível.
+   */
+  onCellEditConflict?: (conflict: CellEditConflict) => void
   /**
    * As options de uma coluna select foram reordenadas (drag no editor). Chega
    * o array COMPLETO na nova ordem — read-modify-write, como o snapshot das
@@ -130,6 +135,7 @@ export function CubsDatabase({
   viewMenuItems,
   onOpenRow,
   onCellChange,
+  onCellEditConflict,
   onColumnOptionsChange,
   onRowOrderChange,
   onColumnOrderChange,
@@ -189,6 +195,7 @@ export function CubsDatabase({
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
             onCellChange={onCellChange}
+            onCellEditConflict={onCellEditConflict}
             onColumnOptionsChange={onColumnOptionsChange}
             onRowOrderChange={
               onRowOrderChange ? (ids) => onRowOrderChange(currentViewId, ids) : undefined

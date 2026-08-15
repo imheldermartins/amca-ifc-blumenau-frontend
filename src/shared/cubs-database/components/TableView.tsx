@@ -14,6 +14,7 @@ import { Checkbox, cn, type CheckedState } from 'cubs-components'
 
 import type {
   CellChange,
+  CellEditConflict,
   ColumnConfigPatch,
   ColumnDataType,
   ColumnOption,
@@ -41,7 +42,7 @@ export interface TableViewProps {
    * para header e células — sem isso as duas grades divergem.
    */
   columnWidths?: Record<string, number>
-  /** Células cuja escrita falhou (chave `cellErrorKey`) — moldura de erro. */
+  /** Células em falha/impasse (chave `cellErrorKey`) — marca vermelha. */
   cellErrors?: Set<string>
   loading?: boolean
   emptyLabel?: string
@@ -49,6 +50,8 @@ export interface TableViewProps {
   onOpenRow?: (row: RowData) => void
   /** Presente = células editáveis (ver o cellMap em `components/cells`). */
   onCellChange?: (change: CellChange) => void
+  /** Uma edição ativa foi cancelada por atualização externa. */
+  onCellEditConflict?: (conflict: CellEditConflict) => void
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
   /** Drag de LINHA solto → ids na nova ordem (array completo da view). */
@@ -233,7 +236,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, labels }: TableViewProps) {
+export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
@@ -516,6 +519,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                   onShiftHover={handleRowHover}
                   onOpenRow={onOpenRow}
                   onCellChange={onCellChange}
+                  onCellEditConflict={onCellEditConflict}
                   onColumnOptionsChange={onColumnOptionsChange}
                   labels={labels}
                 />

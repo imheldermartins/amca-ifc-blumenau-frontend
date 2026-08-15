@@ -4,7 +4,14 @@ import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
 import { Checkbox, cn } from 'cubs-components'
 
-import type { CellChange, ColumnDataType, ColumnOption, HeaderCol, RowData } from '../types'
+import type {
+  CellChange,
+  CellEditConflict,
+  ColumnDataType,
+  ColumnOption,
+  HeaderCol,
+  RowData,
+} from '../types'
 import { cellErrorKey } from '../utils'
 import type { ColumnHeaderMenuLabels } from './ColumnHeaderMenu'
 import { TableCell } from './TableCell'
@@ -41,7 +48,7 @@ export interface TableRowProps {
   columnWidths?: Record<string, number>
   /** Tipos resolvidos por ID de coluna — o header usa o MESMO mapa. */
   columnTypes?: Record<string, ColumnDataType>
-  /** Células cuja escrita falhou (chave `cellErrorKey`) — a linha lê as suas. */
+  /** Células em falha/impasse (chave `cellErrorKey`) — a linha lê as suas. */
   cellErrors?: Set<string>
   /** true = linha "listrada" (bg-contrast); false = bg-background. */
   zebra: boolean
@@ -58,6 +65,8 @@ export interface TableRowProps {
   onOpenRow?: (row: RowData) => void
   /** Presente = células editáveis (ver o cellMap em `components/cells`). */
   onCellChange?: (change: CellChange) => void
+  /** Uma edição ativa foi cancelada por atualização externa. */
+  onCellEditConflict?: (conflict: CellEditConflict) => void
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
   labels?: TableRowLabels
@@ -79,7 +88,7 @@ export interface TableRowProps {
  * memoiza `labels` — um único literal inline em qualquer nível acima anula
  * este memo.
  */
-export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onColumnOptionsChange, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -154,6 +163,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
           isLast={columnIndex === columns.length - 1}
           hasError={cellErrors?.has(cellErrorKey(row.id, column.id))}
           onCellChange={onCellChange}
+          onCellEditConflict={onCellEditConflict}
           onColumnOptionsChange={onColumnOptionsChange}
           labels={labels}
         />

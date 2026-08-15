@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -82,14 +82,27 @@ export const SelectCellEditor = memo(function SelectCellEditor({
   column,
   value,
   onCommit,
+  onExternalConflict,
   onOptionsChange,
   labels,
 }: CellEditorProps) {
   const options = column.options ?? NO_OPTIONS
   const [open, setOpen] = useState(false)
   const [localOptions, setLocalOptions] = useState(options)
+  const seenValue = useRef(value)
 
   useEffect(() => setLocalOptions(options), [options])
+
+  // O popover aberto é o estado de edição do select. Se o receiver trouxer
+  // outro valor nesse intervalo, ele vence: fecha antes da pintura e impede
+  // que uma escolha baseada na seleção antiga permaneça ativa.
+  useLayoutEffect(() => {
+    const changed = !Object.is(seenValue.current, value)
+    seenValue.current = value
+    if (!changed || !open) return
+    setOpen(false)
+    onExternalConflict?.()
+  }, [value, open, onExternalConflict])
 
   const sensors = useSortableSensors()
 

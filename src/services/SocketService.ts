@@ -20,8 +20,9 @@ export interface EchoReply {
  *
  * `updatedAt` é a guarda de ordem: evento mais VELHO que o dado em memória é
  * descartado (chegada fora de ordem não desfaz edição mais nova).
- * `originUserId` é a guarda de eco: quem originou ignora a volta — e é por
- * USUÁRIO, não por socket, para duas abas da mesma conta não brigarem.
+ * `originUserId` identifica quem escreveu para auditoria/feedback. Ele não
+ * filtra a audiência: owner, collaborators e o próprio autor recebem o eco
+ * autoritativo do commit.
  */
 export interface RealtimeBase {
   pageId: string

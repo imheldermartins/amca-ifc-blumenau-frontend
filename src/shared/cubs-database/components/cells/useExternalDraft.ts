@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type FocusEvent } from 'react'
 
 /**
  * Rascunho de um editor de célula sincronizado com o valor EXTERNO — o que
@@ -11,10 +11,15 @@ import { useRef, useState } from 'react'
  * (ver `databaseRealtime.ts`), esse caminho passou a ser percorrido muito
  * mais.
  *
- * Duas regras, e a segunda é a que não é óbvia:
+ * Há dois modos porque os rascunhos de configuração e os de CÉLULA têm
+ * prioridades diferentes:
  *
- *  1. **com foco, o valor externo não entra** — quem está digitando manda;
- *  2. **sem edição do usuário, o blur ADOTA o valor externo em vez de
+ *  1. por padrão, **com foco o valor externo espera** — útil em campos de
+ *     configuração que fazem merge depois;
+ *  2. com `interruptOnExternalChange`, **o valor externo vence**: o rascunho
+ *     é descartado, o campo perde o foco e o blur não pode commitar o valor
+ *     velho. É o impasse das células em realtime;
+ *  3. **sem edição do usuário, o blur ADOTA o valor externo em vez de
  *     commitar.** Sem isto o remédio viraria doença: você clica numa célula,
  *     outra pessoa a edita, você sai sem digitar nada — e o commit compararia
  *     o seu rascunho (o valor VELHO) com o novo, veria diferença e gravaria o
@@ -29,8 +34,8 @@ export interface ExternalDraft {
   draft: string
   /** `onChange` do campo — marca que a edição é do usuário. */
   change: (next: string) => void
-  /** `onFocus` do campo — a partir daqui o valor externo espera. */
-  focus: () => void
+  /** `onFocus` do campo — registra também o elemento que deve perder o foco. */
+  focus: (event?: FocusEvent<HTMLInputElement>) => void
   /**
    * Chame no início do blur. `false` = o usuário não editou nada (e o
    * rascunho já foi realinhado ao valor externo), então NÃO commite.
@@ -40,19 +45,59 @@ export interface ExternalDraft {
   revert: () => void
 }
 
-export function useExternalDraft(external: string): ExternalDraft {
+export interface ExternalDraftOptions {
+  /**
+   * Uma mudança externa durante o foco cancela a edição em vez de ficar
+   * pendente. Use nos editores de célula; campos de configuração preservam o
+   * comportamento padrão.
+   */
+  interruptOnExternalChange?: boolean
+  /** Chamado depois de o blur cancelado adotar o valor externo. */
+  onConflict?: () => void
+}
+
+export function useExternalDraft(
+  external: string,
+  { interruptOnExternalChange = false, onConflict }: ExternalDraftOptions = {},
+): ExternalDraft {
   const [draft, setDraft] = useState(external)
   const [seen, setSeen] = useState(external)
   const focused = useRef(false)
   const dirty = useRef(false)
+  const focusedElement = useRef<HTMLInputElement | null>(null)
+  const pendingConflict = useRef(false)
+  const onConflictRef = useRef(onConflict)
+  onConflictRef.current = onConflict
 
   // Estado derivado durante o render: o React reexecuta o componente na hora,
   // sem commitar o render intermediário. Um `useEffect` aqui custaria dois
   // renders por evento recebido.
   if (external !== seen) {
     setSeen(external)
-    if (!focused.current && !dirty.current) setDraft(external)
+    if (focused.current && interruptOnExternalChange) {
+      // O receiver é autoritativo: antes de provocar o blur, invalida a
+      // edição. Assim o onBlur síncrono chama `settle()` e recebe `false`, sem
+      // nenhuma janela para o rascunho velho escapar pelo onCommit.
+      focused.current = false
+      dirty.current = false
+      setDraft(external)
+      pendingConflict.current = true
+    } else if (!focused.current && !dirty.current) {
+      setDraft(external)
+    }
   }
+
+  // O DOM não pode ser mutado durante render. Layout effect roda antes da
+  // pintura do novo valor, fecha o editor e só então avisa o host para marcar
+  // a célula/toaster. Sem dependências: a ref define se há trabalho pendente.
+  useLayoutEffect(() => {
+    if (!pendingConflict.current) return
+    pendingConflict.current = false
+    const element = focusedElement.current
+    focusedElement.current = null
+    element?.blur()
+    onConflictRef.current?.()
+  })
 
   return {
     draft,
@@ -60,11 +105,13 @@ export function useExternalDraft(external: string): ExternalDraft {
       dirty.current = true
       setDraft(next)
     },
-    focus: () => {
+    focus: (event) => {
       focused.current = true
+      focusedElement.current = event?.currentTarget ?? null
     },
     settle: () => {
       focused.current = false
+      focusedElement.current = null
       const edited = dirty.current
       dirty.current = false
       // Saiu sem editar: adota o que chegou enquanto o campo estava em foco.

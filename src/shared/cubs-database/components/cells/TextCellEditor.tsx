@@ -12,18 +12,22 @@ import { useExternalDraft } from './useExternalDraft'
  *   Enter  → blur (que confirma)
  *   Escape → reverte para o valor externo e faz blur SEM confirmar
  *
- * O rascunho acompanha o valor externo (broadcast do realtime) por
- * `useExternalDraft`, que segura a sincronização enquanto o campo está em
- * foco — digitação em andamento não é atropelada por edição alheia.
+ * O rascunho acompanha o valor externo por `useExternalDraft` em modo
+ * interruptivo: se o receiver atualizar esta célula durante o foco, o valor
+ * remoto vence, o draft é descartado e o campo desfoca sem commit stale.
  */
 export const TextCellEditor = memo(function TextCellEditor({
   column,
   value,
   onCommit,
+  onExternalConflict,
   hasError,
 }: CellEditorProps) {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value)
-  const field = useExternalDraft(text)
+  const field = useExternalDraft(text, {
+    interruptOnExternalChange: true,
+    onConflict: onExternalConflict,
+  })
 
   const commit = () => {
     // `settle()` false = o usuário não editou (e o rascunho já se realinhou ao

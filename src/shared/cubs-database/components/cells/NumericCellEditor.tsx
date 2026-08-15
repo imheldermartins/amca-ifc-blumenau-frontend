@@ -28,10 +28,14 @@ export const NumericCellEditor = memo(function NumericCellEditor({
   column,
   value,
   onCommit,
+  onExternalConflict,
   hasError,
 }: CellEditorProps) {
   const initial = formatNumericValue(value, column.format)
-  const field = useExternalDraft(initial)
+  const field = useExternalDraft(initial, {
+    interruptOnExternalChange: true,
+    onConflict: onExternalConflict,
+  })
 
   const commit = () => {
     // `settle()` false = o usuário não editou (e o rascunho já se realinhou ao

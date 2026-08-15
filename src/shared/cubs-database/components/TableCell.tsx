@@ -2,7 +2,14 @@ import { memo, useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 
-import type { CellChange, ColumnDataType, ColumnOption, HeaderCol, RowData } from '../types'
+import type {
+  CellChange,
+  CellEditConflict,
+  ColumnDataType,
+  ColumnOption,
+  HeaderCol,
+  RowData,
+} from '../types'
 import { formatCellValue, formatNumericValue, inferColumnType, resolveColumnWidth } from '../utils'
 import { CELL_EDITORS } from './cells'
 import { OptionChip } from './cells/OptionChip'
@@ -48,6 +55,14 @@ function CellValue({
   )
 }
 
+function formatConflictValue(type: ColumnDataType, value: unknown, column: HeaderCol): string {
+  if (type === 'select' && typeof value === 'string') {
+    return column.options?.find((option) => option.id === value)?.label ?? formatCellValue(value)
+  }
+  if (type === 'numeric' && column.format) return formatNumericValue(value, column.format)
+  return formatCellValue(value)
+}
+
 export interface TableCellProps {
   column: HeaderCol
   row: RowData
@@ -61,10 +76,12 @@ export interface TableCellProps {
   width?: number
   /** Última coluna da linha: fecha a grade com a borda direita (como o header). */
   isLast?: boolean
-  /** A última escrita desta célula falhou — moldura de erro + `aria-invalid`. */
+  /** Falha/impasse nesta célula — wash vermelho, moldura e `aria-invalid`. */
   hasError?: boolean
   /** Presente = célula EDITÁVEL (despacha para o editor do cellMap). */
   onCellChange?: (change: CellChange) => void
+  /** O receiver interrompeu uma edição ativa e aplicou o valor externo. */
+  onCellEditConflict?: (conflict: CellEditConflict) => void
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
   /** Rótulos de a11y dos editores (injetados pelo app host). */
@@ -101,6 +118,7 @@ export const TableCell = memo(function TableCell({
   isLast,
   hasError,
   onCellChange,
+  onCellEditConflict,
   onColumnOptionsChange,
   labels,
 }: TableCellProps) {
@@ -121,6 +139,18 @@ export const TableCell = memo(function TableCell({
     [onColumnOptionsChange, column.id],
   )
 
+  const handleExternalConflict = useCallback(
+    () =>
+      onCellEditConflict?.({
+        rowId: row.id,
+        columnId: column.id,
+        columnTitle: column.title,
+        value: previousValue,
+        displayValue: formatConflictValue(type, previousValue, column),
+      }),
+    [onCellEditConflict, row.id, column, type, previousValue],
+  )
+
   if (Editor && onCellChange) {
     return (
       <div
@@ -135,7 +165,7 @@ export const TableCell = memo(function TableCell({
         className={cn(
           'flex shrink-0 items-stretch border-l border-divider',
           isLast && 'border-r',
-          hasError && 'ring-1 ring-inset ring-p-red',
+          hasError && 'bg-p-red-500/10 ring-1 ring-inset ring-p-red dark:bg-p-red-500/15',
         )}
         style={{ width: resolveColumnWidth(width) }}
       >
@@ -144,6 +174,7 @@ export const TableCell = memo(function TableCell({
           rowId={row.id}
           value={previousValue}
           onCommit={handleCommit}
+          onExternalConflict={handleExternalConflict}
           onOptionsChange={onColumnOptionsChange ? handleOptionsChange : undefined}
           hasError={hasError}
           labels={labels}

@@ -1,8 +1,12 @@
-import { act } from 'react'
+import { act, type FocusEvent } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { useExternalDraft, type ExternalDraft } from './useExternalDraft'
+import {
+  useExternalDraft,
+  type ExternalDraft,
+  type ExternalDraftOptions,
+} from './useExternalDraft'
 
 /**
  * O guard que impede o realtime de atropelar quem está digitando.
@@ -16,14 +20,17 @@ import { useExternalDraft, type ExternalDraft } from './useExternalDraft'
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function render(external: string): { get: () => ExternalDraft; update: (next: string) => void } {
+function render(
+  external: string,
+  options?: ExternalDraftOptions,
+): { get: () => ExternalDraft; update: (next: string) => void } {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
 
   let latest!: ExternalDraft
   function Probe({ value }: { value: string }) {
-    latest = useExternalDraft(value)
+    latest = useExternalDraft(value, options)
     return null
   }
 
@@ -54,7 +61,7 @@ describe('useExternalDraft', () => {
     expect(probe.get().draft).toBe('veio-do-realtime')
   })
 
-  it('COM foco, segura o valor externo — não atropela quem digita', () => {
+  it('no modo padrão, COM foco segura o valor externo', () => {
     const probe = render('inicial')
 
     act(() => probe.get().focus())
@@ -64,6 +71,28 @@ describe('useExternalDraft', () => {
     // O defeito que isto corrige: um `useEffect(() => setDraft(externo))`
     // incondicional apagava o texto no meio da digitação.
     expect(probe.get().draft).toBe('estou-digitando')
+  })
+
+  it('no modo interruptivo, receiver cancela o draft, desfoca e bloqueia o blur stale', () => {
+    const onConflict = vi.fn()
+    const blur = vi.fn()
+    const probe = render('inicial', { interruptOnExternalChange: true, onConflict })
+
+    act(() =>
+      probe.get().focus({ currentTarget: { blur } } as unknown as FocusEvent<HTMLInputElement>),
+    )
+    act(() => probe.get().change('rascunho-local'))
+    probe.update('valor-do-receiver')
+
+    expect(probe.get().draft).toBe('valor-do-receiver')
+    expect(blur).toHaveBeenCalledTimes(1)
+    expect(onConflict).toHaveBeenCalledTimes(1)
+
+    let deveCommitar = true
+    act(() => {
+      deveCommitar = probe.get().settle()
+    })
+    expect(deveCommitar).toBe(false)
   })
 
   it('blur SEM edição ADOTA o valor externo em vez de commitar', () => {

@@ -68,6 +68,21 @@ describe('applyRealtimeEvent — guarda de ordem', () => {
     expect(result.database.rows[0].cells[COLUNA]?.value).toBe('inicial')
   })
 
+  it('aplica o segundo evento quando dois commits têm o mesmo milissegundo', () => {
+    const timestamp = '2026-07-21T10:00:00.123Z'
+    const clock: RealtimeClock = { [`cell:${LINHA}:${COLUNA}`]: timestamp }
+
+    const result = applyRealtimeEvent(
+      base(),
+      clock,
+      cellEvent('segundo-no-mesmo-ms', timestamp, OUTRO),
+      'Título',
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.database.rows[0].cells[COLUNA]?.value).toBe('segundo-no-mesmo-ms')
+  })
+
   it('devolve o MESMO objeto quando não aplica — descartar não pode custar render', () => {
     const database = base()
     const clock: RealtimeClock = { [`cell:${LINHA}:${COLUNA}`]: '2026-07-21T10:00:00Z' }

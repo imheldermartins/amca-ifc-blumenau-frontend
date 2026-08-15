@@ -15,6 +15,7 @@ dist-ssr
 
 # Ambiente local (use .env.example como referência)
 .env
+.env.lan
 
 # Editor directories and files
 .vscode/*

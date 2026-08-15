@@ -76,6 +76,21 @@ export interface CellChange {
 }
 
 /**
+ * Uma atualização externa chegou enquanto esta célula estava sendo editada.
+ * O editor já descartou o rascunho e adotou `value`; o app host usa o evento
+ * apenas para destacar a célula e avisar a pessoa que estava digitando.
+ */
+export interface CellEditConflict {
+  rowId: string
+  columnId: string
+  columnTitle: string
+  /** Valor autoritativo que interrompeu a edição local. */
+  value: unknown
+  /** Mesmo valor já formatado como a célula o apresenta (select = label). */
+  displayValue: string
+}
+
+/**
  * Contrato de um editor de célula (as entradas do `CELL_EDITORS`, o cellMap em
  * `components/cells`). Para criar um editor novo: implemente estas props,
  * memoize (`React.memo`) e registre no map — `TableCell` despacha pelo TIPO da
@@ -91,12 +106,16 @@ export interface CellEditorProps {
   value: unknown
   /** Confirma um novo valor. `null` = limpar a célula. */
   onCommit: (value: unknown) => void
+  /**
+   * O valor externo mudou com este editor ativo. O editor deve fechar sem
+   * commitar o rascunho; o callback permite ao host desenhar o impasse.
+   */
+  onExternalConflict?: () => void
   /** Só o select usa: a coluna teve as options reordenadas (array COMPLETO). */
   onOptionsChange?: (options: ColumnOption[]) => void
   /**
-   * A última escrita desta célula FALHOU (o app reverteu o valor otimista).
-   * O editor marca o campo como inválido (`aria-invalid`); a moldura visual
-   * fica no container da célula. Some quando o valor é reeditado.
+   * A célula está em falha/impasse. O editor marca o campo como inválido
+   * (`aria-invalid`); a moldura visual fica no container da célula.
    */
   hasError?: boolean
   /** Rótulos de a11y injetados pelo app host (i18n mora lá, nunca aqui). */
