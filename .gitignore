@@ -17,6 +17,17 @@ dist-ssr
 .env
 .env.lan
 
+# Orientações, handoffs e documentação de trabalho — somente locais
+.agents/
+.claude/
+.codex/
+AGENTS.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+NEXT_STEPS.md
+docs/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
