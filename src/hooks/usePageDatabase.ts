@@ -2,12 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   cellErrorKey,
+  ulid,
   type CellChange,
   type CellEditConflict,
   type ColumnConfigPatch,
   type ColumnDataType,
   type ColumnOption,
   type DataViewSettings,
+  type DataViewType,
 } from 'cubs-database'
 
 import { useFeedback } from '@/contexts/FeedbackContext'
@@ -21,7 +23,7 @@ import {
   applyRealtimeEvent,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
-import type { ParsedDatabase } from '@/lib/databaseParser'
+import { FALLBACK_VIEW_ID, type ParsedDatabase } from '@/lib/databaseParser'
 import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
@@ -108,6 +110,20 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // reenviar: `PUT /pages/:id` substitui `data` INTEIRO, então mandar só a
   // view editada apagaria as outras.
   const settingsRef = useRef<DataViewSettings>({})
+  // A view fallback é uma sentinela estável de leitura, mas não é um ULID
+  // válido. A primeira personalização materializa uma view real e este ref
+  // mantém a tradução disponível para callbacks do render anterior.
+  const materializedFallbackRef = useRef<{ pageId?: string; viewId?: string }>({ pageId })
+  // Snapshot é substituição do `pages.data` inteiro. Serializar as escritas
+  // desta sessão garante que um drag de linha seguido de um drag de coluna
+  // chegue ao backend na mesma ordem em que atualizou a UI.
+  const viewWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+
+  useEffect(() => {
+    settingsRef.current = {}
+    materializedFallbackRef.current = { pageId }
+    viewWriteQueueRef.current = Promise.resolve()
+  }, [pageId])
 
   const load = useCallback(() => {
     if (!pageId) return
@@ -197,6 +213,60 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       reload()
     },
     [notifyWriteError, reload],
+  )
+
+  /**
+   * Aplica e persiste uma personalização da view como snapshot completo.
+   *
+   * Além do otimismo visível, `settingsRef` muda SINCRONAMENTE: duas ações
+   * rápidas partem sempre do resultado da anterior, mesmo antes de o React
+   * renderizar ou de o primeiro PUT voltar. Para páginas ainda no fallback,
+   * a primeira ação troca a sentinela por um ULID real.
+   */
+  const saveViewSnapshot = useCallback(
+    (viewId: string, patch: Partial<DataViewType>) => {
+      if (!pageId) return
+
+      let resolvedViewId = viewId
+      let baseSettings = settingsRef.current
+
+      if (viewId === FALLBACK_VIEW_ID) {
+        const materialized = materializedFallbackRef.current
+        resolvedViewId =
+          materialized.pageId === pageId && materialized.viewId
+            ? materialized.viewId
+            : ulid()
+
+        if (!materialized.viewId || materialized.pageId !== pageId) {
+          const fallback = baseSettings[FALLBACK_VIEW_ID]
+          if (!fallback) return
+          const { [FALLBACK_VIEW_ID]: _fallback, ...savedViews } = baseSettings
+          baseSettings = { ...savedViews, [resolvedViewId]: fallback }
+          materializedFallbackRef.current = { pageId, viewId: resolvedViewId }
+        }
+      }
+
+      const current = baseSettings[resolvedViewId]
+      if (!current) return
+
+      const settings: DataViewSettings = {
+        ...baseSettings,
+        [resolvedViewId]: { ...current, ...patch },
+      }
+      settingsRef.current = settings
+      setDatabase((database) => (database ? { ...database, settings } : database))
+
+      // Cada chamada captura o snapshot já mesclado. O writer ainda recebe o
+      // patch para preservar sua API/guard-rail, mas o `baseSettings` desta
+      // chamada já contém todas as alterações concluídas anteriormente.
+      viewWriteQueueRef.current = viewWriteQueueRef.current
+        .catch(() => undefined)
+        .then(() =>
+          pageWriteService.saveViewSnapshot(pageId, baseSettings, resolvedViewId, patch),
+        )
+        .catch(handleWriteError)
+    },
+    [pageId, handleWriteError],
   )
 
   /**
@@ -340,30 +410,21 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {
-        if (!pageId) return
-        pageWriteService
-          .saveViewSnapshot(pageId, settingsRef.current, viewId, { orderedRows })
-          .catch(handleWriteError)
+        saveViewSnapshot(viewId, { orderedRows })
       },
-      [pageId, handleWriteError],
+      [saveViewSnapshot],
     ),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
-        if (!pageId) return
-        pageWriteService
-          .saveViewSnapshot(pageId, settingsRef.current, viewId, { orderedHeaderCols })
-          .catch(handleWriteError)
+        saveViewSnapshot(viewId, { orderedHeaderCols })
       },
-      [pageId, handleWriteError],
+      [saveViewSnapshot],
     ),
     onColumnWidthChange: useCallback(
       (viewId: string, columnWidths: Record<string, number>) => {
-        if (!pageId) return
-        pageWriteService
-          .saveViewSnapshot(pageId, settingsRef.current, viewId, { columnWidths })
-          .catch(handleWriteError)
+        saveViewSnapshot(viewId, { columnWidths })
       },
-      [pageId, handleWriteError],
+      [saveViewSnapshot],
     ),
   }
 

@@ -152,7 +152,11 @@ export function CubsDatabase({
   className,
 }: CubsDatabaseProps) {
   const [internalViewId, setInternalViewId] = useState(() => Object.keys(settings)[0] ?? '')
-  const currentViewId = activeViewId ?? internalViewId
+  // A primeira personalização de uma página sem snapshot troca a sentinela
+  // fallback por um ULID real. Se a view interna deixou de existir, acompanha
+  // a primeira view salva em vez de cair num painel vazio até outro clique.
+  const currentViewId =
+    activeViewId ?? (settings[internalViewId] ? internalViewId : Object.keys(settings)[0] ?? '')
   const currentView = settings[currentViewId] ?? FALLBACK_VIEW
 
   const handleViewChange = (viewId: string) => {

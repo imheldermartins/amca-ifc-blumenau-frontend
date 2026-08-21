@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { TextField, NestedMenu, cn, type MenuNode } from 'cubs-components'
 
@@ -65,19 +65,22 @@ function RenameField({
   label,
   onRename,
   onClose,
+  onPendingBlurChange,
 }: {
   column: HeaderCol
   label: string
   onRename: (name: string) => void
   onClose: () => void
+  /** true enquanto há um rename editado esperando o commit do blur. */
+  onPendingBlurChange: (pending: boolean) => void
 }) {
   const field = useExternalDraft(column.title)
 
   const commit = () => {
+    onPendingBlurChange(false)
     if (!field.settle()) return
     const next = field.draft.trim()
-    if (next === '' || next === column.title) return
-    onRename(next)
+    if (next !== '' && next !== column.title) onRename(next)
     onClose()
   }
 
@@ -88,12 +91,16 @@ function RenameField({
       size="sm"
       value={field.draft}
       onFocus={field.focus}
-      onChange={(event) => field.change(event.target.value)}
+      onChange={(event) => {
+        field.change(event.target.value)
+        onPendingBlurChange(true)
+      }}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
           event.stopPropagation()
+          onPendingBlurChange(false)
           field.revert()
           event.currentTarget.blur()
         }
@@ -126,10 +133,23 @@ export function ColumnHeaderMenu({
   className,
   style,
 }: ColumnHeaderMenuProps) {
+  const pendingRenameBlurRef = useRef(false)
+  const handlePendingBlurChange = useCallback((pending: boolean) => {
+    pendingRenameBlurRef.current = pending
+  }, [])
+
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       // Clique dentro de um submenu (Popover portalado do NestedMenu) não fecha.
       if ((event.target as Element)?.closest?.('[data-radix-popper-content-wrapper]')) return
+      // `pointerdown` vem antes de `blur`. Se um rename editado está esperando
+      // o blur, fechar aqui desmontaria o input e apagaria o commit pendente.
+      // Consome UMA tentativa de fechamento; o clique segue normalmente,
+      // provoca o blur e o próprio commit fecha o menu em seguida.
+      if (pendingRenameBlurRef.current) {
+        pendingRenameBlurRef.current = false
+        return
+      }
       onClose()
     }
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -156,6 +176,7 @@ export function ColumnHeaderMenu({
           label={labels?.renameColumn ?? 'Renomear coluna'}
           onRename={onRename}
           onClose={onClose}
+          onPendingBlurChange={handlePendingBlurChange}
         />
       ),
     })

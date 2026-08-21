@@ -91,6 +91,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   onResize,
   onResizeEnd,
   onContextMenu,
+  onHandleClick,
 }: {
   column: HeaderCol
   columnType: ColumnDataType
@@ -108,6 +109,8 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   /** Soltou: hora de persistir. */
   onResizeEnd: () => void
   onContextMenu?: (columnId: string, event: MouseEvent<HTMLDivElement>) => void
+  /** Clique simples no drag-handle também abre o menu da coluna. */
+  onHandleClick?: (columnId: string, event: MouseEvent<HTMLButtonElement>) => void
 }) {
   const {
     attributes,
@@ -175,6 +178,8 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
           aria-label={dragLabel}
           {...attributes}
           {...listeners}
+          aria-haspopup={onHandleClick ? 'menu' : undefined}
+          onClick={onHandleClick ? (event) => onHandleClick(column.id, event) : undefined}
           className={cn(
             'absolute left-1/2 top-0 -translate-x-1/2 cursor-grab rounded px-1 leading-none',
             'opacity-0 transition-opacity hover:bg-active group-hover/col:opacity-100 focus-visible:opacity-100',
@@ -272,6 +277,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
 
   const [selection, dispatch] = useReducer(selectionReducer, EMPTY_SELECTION)
   const [columnMenu, setColumnMenu] = useState<{ columnId: string; left: number } | null>(null)
+  const suppressHandleMenuRef = useRef<string | null>(null)
 
   const rowIds = useMemo(() => localRows.map((row) => row.id), [localRows])
 
@@ -353,6 +359,14 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
 
   const handleColumnDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
+      // O browser emite `click` depois do pointerup que encerra o drag. Como o
+      // mesmo handle agora abre o menu por clique, suprima só esse click
+      // imediato; no frame seguinte o handle volta ao comportamento normal.
+      const draggedId = String(active.id)
+      suppressHandleMenuRef.current = draggedId
+      requestAnimationFrame(() => {
+        if (suppressHandleMenuRef.current === draggedId) suppressHandleMenuRef.current = null
+      })
       if (!over || active.id === over.id) return
       setLocalColumns((current) => {
         const from = current.findIndex((column) => column.id === active.id)
@@ -389,6 +403,23 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
       event.preventDefault()
       const containerRect = containerRef.current?.getBoundingClientRect()
       const cellRect = event.currentTarget.getBoundingClientRect()
+      setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
+    },
+    [columnMenuEnabled],
+  )
+
+  const handleColumnHandleClick = useCallback(
+    (columnId: string, event: MouseEvent<HTMLButtonElement>) => {
+      if (!columnMenuEnabled) return
+      if (suppressHandleMenuRef.current === columnId) {
+        suppressHandleMenuRef.current = null
+        return
+      }
+      event.preventDefault()
+      event.stopPropagation()
+      const containerRect = containerRef.current?.getBoundingClientRect()
+      const cell = event.currentTarget.closest('[role="columnheader"]')
+      const cellRect = cell?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
       setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
     },
     [columnMenuEnabled],
@@ -472,6 +503,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                   onResize={handleColumnResize}
                   onResizeEnd={handleColumnResizeEnd}
                   onContextMenu={handleHeaderContextMenu}
+                  onHandleClick={handleColumnHandleClick}
                 />
               ))}
             </SortableContext>

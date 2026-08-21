@@ -4,6 +4,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ParsedDatabase } from '@/lib/databaseParser'
+import { FALLBACK_VIEW_ID } from '@/lib/databaseParser'
 import { AppError } from '@/lib/errors'
 import { usePageDatabase } from './usePageDatabase'
 
@@ -11,6 +12,7 @@ const dependencies = vi.hoisted(() => ({
   feedback: vi.fn(),
   loadPage: vi.fn(),
   saveCell: vi.fn(),
+  saveViewSnapshot: vi.fn(),
 }))
 
 vi.mock('@/contexts/FeedbackContext', () => ({
@@ -22,7 +24,10 @@ vi.mock('@/services/DatabaseService', () => ({
 }))
 
 vi.mock('@/services/PageWriteService', () => ({
-  pageWriteService: { saveCell: dependencies.saveCell },
+  pageWriteService: {
+    saveCell: dependencies.saveCell,
+    saveViewSnapshot: dependencies.saveViewSnapshot,
+  },
 }))
 
 vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
@@ -71,6 +76,7 @@ async function flushMutation() {
 beforeEach(() => {
   vi.resetAllMocks()
   dependencies.loadPage.mockResolvedValue(database('inicial'))
+  dependencies.saveViewSnapshot.mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())
@@ -293,5 +299,60 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
     await waitFor(() =>
       expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('autoritativo'),
     )
+  })
+})
+
+describe('usePageDatabase — snapshot da view', () => {
+  it('materializa o fallback e serializa drags rápidos sem perder o primeiro patch', async () => {
+    const firstWrite = deferred<unknown>()
+    dependencies.saveViewSnapshot
+      .mockImplementationOnce(() => firstWrite.promise)
+      .mockResolvedValueOnce(undefined)
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: {
+        [FALLBACK_VIEW_ID]: {
+          view: 'table',
+          name: 'Tabela',
+          filters: '',
+          orderedHeaderCols: [COLUMN_ID],
+        },
+      },
+    })
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => {
+      result.current.handlers.onRowOrderChange(FALLBACK_VIEW_ID, ['row-2', ROW_ID])
+      result.current.handlers.onColumnOrderChange(FALLBACK_VIEW_ID, ['page_title', COLUMN_ID])
+    })
+
+    const settings = result.current.database?.settings ?? {}
+    const [materializedId] = Object.keys(settings)
+    expect(materializedId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+    expect(materializedId).not.toBe(FALLBACK_VIEW_ID)
+    expect(settings[materializedId]).toMatchObject({
+      orderedRows: ['row-2', ROW_ID],
+      orderedHeaderCols: ['page_title', COLUMN_ID],
+    })
+
+    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1))
+    expect(dependencies.saveViewSnapshot.mock.calls[0][2]).toBe(materializedId)
+    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({
+      orderedRows: ['row-2', ROW_ID],
+    })
+
+    // O segundo PUT não ultrapassa o primeiro, e sua base já carrega a ordem
+    // de linhas — portanto não pode apagá-la ao salvar a ordem de colunas.
+    expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1)
+    firstWrite.resolve(undefined)
+    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(2))
+    expect(dependencies.saveViewSnapshot.mock.calls[1][1][materializedId]).toMatchObject({
+      orderedRows: ['row-2', ROW_ID],
+    })
+    expect(dependencies.saveViewSnapshot.mock.calls[1][3]).toEqual({
+      orderedHeaderCols: ['page_title', COLUMN_ID],
+    })
   })
 })
