@@ -4,18 +4,17 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Tema base do Cub's — SÓ os tokens fundamentais (zinc do próprio Tailwind):
+ * Tema base do Cub's — tokens fundamentais sobre a paleta clássica:
  *
- *   background  → zinc-100 (light) / zinc-900 (dark)
- *   contrast    → zinc-200 (light) / zinc-800 (dark)   [superfícies]
- *   active      → zinc-300 (light) / zinc-700 (dark)   [hover/seleção]
- *   divider     → zinc-300 (light) / zinc-700 (dark)   [bordas padrão]
- *   foreground  → zinc-900 (light) / zinc-100 (dark)   [texto]
- *   rounded     → raio padrão do projeto = rounded-lg
+ *   background  → light-100 / dark-900
+ *   contrast    → light-200 / dark-800   [superfícies e zebra]
+ *   active      → light-300 / dark-600   [hover/seleção]
+ *   divider     → light-300 / dark-700   [bordas padrão]
+ *   foreground  → dark-700 / light-300   [texto]
+ *   rounded     → raio padrão do projeto = rounded-xl
  *
- * `active` tem o MESMO tom do `divider` de propósito (hoje), mas é um token
- * separado porque a intenção é outra (fundo de item ativo/hover): dá pra
- * ajustar um sem tocar no outro depois.
+ * `active` e `divider` são tokens separados porque representam intenções
+ * diferentes: o primeiro precisa aparecer no hover, o segundo deve recuar.
  *
  * COMO ADICIONAR UM TOKEN DE COR (2 passos):
  *   1. defina o valor (light + dark) em :root e .dark abaixo;
@@ -23,23 +22,22 @@
  * É o passo 2 que faz o Tailwind GERAR as classes bg-<nome>/text-<nome>/
  * border-<nome>/hover:bg-<nome>. Sem ele, `bg-<nome>` não existe.
  *
- * Os valores vêm da paleta do Tailwind via theme() — nada de literal oklch.
- * Não há tokens por-componente: cada componente compõe a partir desta base
- * com utilitários (bg-contrast, border-divider, rounded, ...). Texto tem
- * hierarquia própria no componente Typography.
+ * A escala light/dark abaixo é a do frontend clássico do Cub's. Não há tokens
+ * por componente: cada peça compõe a partir desta base com utilitários
+ * (bg-contrast, border-divider, rounded, ...).
  */
 :root {
-  --background: theme(--color-zinc-100);
-  --contrast: theme(--color-zinc-200);
-  --active: theme(--color-zinc-300);
-  --divider: theme(--color-zinc-200);
-  --divider-contrast: theme(--color-zinc-300);
-  --foreground: theme(--color-zinc-900);
+  --background: var(--color-light-100);
+  --contrast: var(--color-light-200);
+  --active: var(--color-light-300);
+  --divider: var(--color-light-300);
+  --divider-contrast: var(--color-light-500);
+  --foreground: var(--color-dark-700);
 
-  /* Glass: MESMO tom do background com transparência ~AA (67%). Combine com
-     backdrop-blur para o efeito de vidro (ex.: `bg-glass backdrop-blur-md`).
-     Uso: ContextMenu (e futuramente Popover/Tooltip). */
-  --glass: color-mix(in oklab, theme(--color-zinc-100) 67%, transparent);
+  /* No light, mais matéria e reflexo preservam a leitura do blur sobre o
+     background claro. O dark mantém a transparência histórica. */
+  --glass: rgb(215 215 215 / 72%);
+  --glow-purple-background: theme(--color-violet-400);
 
   /* Tom "cheio" (bare) de cada cor de destaque, JÁ theme-aware: 600 no light.
      Mapeia os nomes semânticos aos hues do Tailwind (red→rose, blue→blue,
@@ -56,13 +54,14 @@
 }
 
 .dark {
-  --background: theme(--color-zinc-900);
-  --contrast: theme(--color-zinc-800);
-  --active: theme(--color-zinc-700);
-  --divider: theme(--color-zinc-800);
-  --divider-contrast: theme(--color-zinc-700);
-  --foreground: theme(--color-zinc-100);
-  --glass: color-mix(in oklab, theme(--color-zinc-900) 67%, transparent);
+  --background: var(--color-dark-900);
+  --contrast: var(--color-dark-800);
+  --active: var(--color-dark-600);
+  --divider: var(--color-dark-700);
+  --divider-contrast: var(--color-dark-600);
+  --foreground: var(--color-light-300);
+  --glass: rgb(55 55 55 / 60%);
+  --glow-purple-background: theme(--color-violet-400);
 
   /* No dark, o tom cheio cai para 500 (regra de superfície/borda da palette). */
   --p-red: theme(--color-rose-500);
@@ -80,6 +79,28 @@
    @fontsource-variable/noto-sans. */
 @theme {
   --font-sans: 'Noto Sans Variable', ui-sans-serif, system-ui, sans-serif;
+
+  /* Escala neutra histórica do Cub's. Mantê-la nomeada facilita comparar o
+     app atual com as referências antigas sem espalhar hex pelos componentes. */
+  --color-dark-100: #606060;
+  --color-dark-200: #575757;
+  --color-dark-300: #505050;
+  --color-dark-400: #474747;
+  --color-dark-500: #404040;
+  --color-dark-600: #373737;
+  --color-dark-700: #303030;
+  --color-dark-800: #272727;
+  --color-dark-900: #202020;
+
+  --color-light-100: #f7f7f7;
+  --color-light-200: #f0f0f0;
+  --color-light-300: #d7d7d7;
+  --color-light-400: #d0d0d0;
+  --color-light-500: #c7c7c7;
+  --color-light-600: #c0c0c0;
+  --color-light-700: #b7b7b7;
+  --color-light-800: #b0b0b0;
+  --color-light-900: #a7a7a7;
 }
 
 @theme inline {
@@ -206,12 +227,22 @@
   --color-p-grey-950: var(--color-zinc-950);
 }
 
-/* `rounded` (sem sufixo) passa a valer o raio padrão do projeto (lg).
+/* `rounded` (sem sufixo) passa a valer o raio padrão do projeto (xl).
    Fica em @layer utilities DEPOIS do import: mesma layer e especificidade
    do utilitário core, então a ordem de fonte garante que este vence. */
 @layer utilities {
   .rounded {
-    border-radius: theme(--radius-lg);
+    border-radius: theme(--radius-xl);
+  }
+
+  /* Glow clássico do Cub's: preenchimento e sombra usam exatamente a mesma
+     cor. As duas camadas abaixo são a geometria do `shadow-xl` do Tailwind. */
+  .glow-purple-hover:hover,
+  .glow-purple-hover:focus-visible,
+  .glow-purple-hover[data-highlighted] {
+    background-color: var(--glow-purple-background);
+    color: white;
+    box-shadow: 0 4px 16px var(--glow-purple-background);
   }
 }
 
@@ -223,6 +254,6 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply min-h-dvh bg-background text-foreground antialiased;
   }
 }

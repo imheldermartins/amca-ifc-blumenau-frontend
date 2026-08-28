@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react'
 import { useController, useFormContext, type RegisterOptions } from 'react-hook-form'
 
 import { PALETTE } from './lib/palette'
+import { FLOATING_SURFACE_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 
 export interface SelectOption {
@@ -50,11 +51,11 @@ function SelectView({
         aria-label={ariaLabel}
         aria-invalid={errorMessage ? true : undefined}
         className={cn(
-          'inline-flex h-10 w-full items-center justify-between gap-2 rounded border border-divider',
-          'bg-background px-3 text-sm font-normal',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-divider',
+          'inline-flex h-9 w-full items-center justify-between gap-2 rounded border border-divider',
+          'bg-background px-2.5 text-sm font-normal',
+          'focus-visible:border-divider-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
           'disabled:cursor-not-allowed disabled:opacity-50',
-          'data-[placeholder]:text-zinc-500 dark:data-[placeholder]:text-zinc-400',
+          'data-[placeholder]:text-dark-100 dark:data-[placeholder]:text-light-900',
           errorMessage &&
             cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500'),
         )}
@@ -72,8 +73,8 @@ function SelectView({
           position="popper"
           sideOffset={4}
           className={cn(
-            'z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg',
-            'border border-divider-contrast p-1 shadow-xl bg-glass backdrop-blur-md',
+            'z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] overflow-hidden',
+            FLOATING_SURFACE_CLASSES,
           )}
         >
           <RadixSelect.Viewport>
@@ -83,7 +84,7 @@ function SelectView({
                 value={option.value}
                 disabled={option.disabled}
                 className={cn(
-                  'flex cursor-pointer select-none items-center justify-between gap-2 rounded px-2 py-1.5 text-sm',
+                  'flex cursor-pointer select-none items-center justify-between gap-2 rounded px-2 py-1 text-sm',
                   'outline-none transition-colors data-[highlighted]:bg-active',
                   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
                 )}
@@ -101,7 +102,7 @@ function SelectView({
   )
 
   return (
-    <div className={cn('flex flex-col gap-1.5 text-sm font-medium', className)}>
+    <div className={cn('flex flex-col gap-1 text-sm font-medium', className)}>
       {label}
       {field}
       {errorMessage && (

@@ -58,83 +58,62 @@ export function AppLayout() {
   ]
 
   return (
-    // <div className="flex min-h-dvh flex-col">
-    //   <header className="flex items-center justify-between border-b border-divider bg-contrast px-6 py-3">
-    //     <Typography variant="h3" as="span">
-    //       {i18n('common.app-name')}
-    //     </Typography>
-    //     <div className="flex items-center gap-4">
-    //       <Typography variant="subtitle" as="span">
-    //         {auth.user?.name ?? auth.user?.email}
-    //       </Typography>
-    //       <ThemeToggle />
-    //       <Button variant="outlined" color="red" onClick={handleSignOut}>
-    //         {i18n('common.sair')}
-    //       </Button>
-    //     </div>
-    //   </header>
-
-    //   <main className="flex-1">
-    //     <Outlet />
-    //   </main>
-    // </div>
-    <div className='flex h-dvh flex-col overflow-hidden'>
-
-      <header className='flex items-center justify-between border-b border-divider px-6 py-2 shrink-0'>
-        <Button
-          variant='text'
-          color='from-theme'
-          className='p-0.5'
-          onClick={() => setCollapsed((value) => !value)}
-          aria-label={i18n(collapsed ? 'common.expandir-menu' : 'common.recolher-menu')}
-        >
-          <Icon
-            icon={collapsed ? 'lucide:sidebar-open' : 'lucide:sidebar-close'}
-            fontSize={20}
-            className={THEME.textMuted}
-          />
-        </Button>
-        {/* Busca do app: o estado dela é a URL (`?q=`), não um state daqui —
-            quem consome lê `useQueryParams().get('q')` de onde estiver. */}
-        <div className='flex flex-1 justify-center px-6'>
-          <SearchBar className='w-full max-w-sm' />
+    <div className='flex h-dvh flex-col overflow-hidden bg-background'>
+      <header className='z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center bg-background px-4 py-1.5'>
+        <div className='min-w-0 justify-self-start'>
+          <Button
+            variant='text'
+            color='from-theme'
+            className='p-1'
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={i18n(collapsed ? 'common.expandir-menu' : 'common.recolher-menu')}
+          >
+            <Icon
+              icon={collapsed ? 'lucide:sidebar-open' : 'lucide:sidebar-close'}
+              fontSize={20}
+              className={THEME.textMuted}
+            />
+          </Button>
         </div>
+        <SearchBar className='w-full' />
 
-        <Button
-          variant='text'
-          color='from-theme'
-          className='px-2 py-1'
-          onClick={workspaceDialog.openDialog}
-          aria-label={i18n('common.workspace.abrir-detalhes')}
-        >
-          <Icon icon='lucide:graduation-cap' className={THEME.textMuted} />
-          <Typography variant="subtitle" as='span' className='whitespace-nowrap text-nowrap'>
-            {workspaceLabel(workspaceState)}
-          </Typography>
-        </Button>
+        <div className='min-w-0 max-w-full justify-self-end'>
+          <Button
+            variant='text'
+            color='from-theme'
+            className='min-w-0 max-w-full px-2 py-1 hover:bg-active/50'
+            onClick={workspaceDialog.openDialog}
+            aria-label={i18n('common.workspace.abrir-detalhes')}
+          >
+            <Icon icon='lucide:graduation-cap' className={THEME.textMuted} />
+            <Typography variant="subtitle" as='span' className='truncate'>
+              {workspaceLabel(workspaceState)}
+            </Typography>
+          </Button>
+        </div>
       </header>
 
       <div className='flex flex-1 min-h-0'>
         <section
           className={cn(
-            'bg-contrast border border-divider-contrast px-2 py-3 m-4 rounded-lg shadow-xl',
+            'm-3 rounded-2xl border border-divider-contrast bg-background p-2 shadow-2xl shadow-black/15 backdrop-blur-xl',
             'flex flex-col justify-between shrink-0 overflow-hidden',
             'transition-[width] duration-300 ease-in-out',
-            collapsed ? 'w-16 items-center' : 'w-48 items-start',
+            collapsed ? 'w-14 items-center' : 'w-48 items-start',
           )}
         >
           <div className='w-full'>
             <nav>
-              <ul className={cn('flex flex-col gap-2')}>
+              <ul className={cn('flex flex-col gap-1')}>
                 {navItems.map((item, index) => (
                   <li key={index}>
                     <Link
                       to={item.href}
                       className={cn(
-                        'w-full inline-flex items-center gap-2 px-3 py-1.5 rounded transition-all ease-in duration-200',
+                        'w-full inline-flex items-center gap-2 px-2.5 py-1.5 rounded transition-all ease-in duration-200',
                         location.pathname === item.href
-                          ? 'bg-p-purple-500 text-white shadow-xl shadow-p-purple-600/40 dark:shadow-p-purple-500/40 hover:bg-p-purple-400 dark:hover:bg-p-purple-600'
-                          : 'hover:bg-active',
+                          ? 'bg-p-purple text-white'
+                          : 'glow-purple-hover hover:bg-active',
                       )}
                     >
                       <Icon icon={item.icon} fontSize={18} className={cn('shrink-0', collapsed && 'transition-discrete ml-0.5')} />
@@ -170,7 +149,7 @@ export function AppLayout() {
         <Typography variant='caption' as='p' className='mb-2'>
           {i18n('common.workspace.debug-contexto')}
         </Typography>
-        <pre className='overflow-auto rounded bg-background p-3 text-xs'>
+        <pre className='overflow-auto p-0 text-xs'>
           {JSON.stringify(workspaceState, null, 2)}
         </pre>
       </Modal>

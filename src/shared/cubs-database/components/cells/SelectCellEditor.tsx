@@ -56,7 +56,7 @@ function SortableOption({
       <button
         type="button"
         onClick={onPick}
-        className="flex flex-1 items-center justify-between gap-2 rounded px-2 py-1.5 text-sm transition-colors hover:bg-active"
+        className="flex flex-1 items-center justify-between gap-2 rounded px-2 py-1 text-sm transition-colors hover:bg-active"
       >
         <OptionChip option={option} />
         {selected && <Icon icon="lucide:check" fontSize={14} className="shrink-0 text-p-purple" />}
@@ -127,7 +127,7 @@ export const SelectCellEditor = memo(function SelectCellEditor({
         <button
           type="button"
           aria-label={column.title}
-          className="flex h-full w-full cursor-pointer items-center px-3 py-2 text-left"
+          className="flex h-full w-full cursor-pointer items-center px-2.5 py-1.5 text-left"
         >
           {current ? <OptionChip option={current} /> : <span className="text-sm opacity-60">—</span>}
         </button>

@@ -50,7 +50,7 @@ export interface TableRowProps {
   columnTypes?: Record<string, ColumnDataType>
   /** Células em falha/impasse (chave `cellErrorKey`) — a linha lê as suas. */
   cellErrors?: Set<string>
-  /** true = linha "listrada" (bg-contrast); false = bg-background. */
+  /** true = linha ímpar visual (bg-contrast); false = bg-background. */
   zebra: boolean
   selected: boolean
   /** Toggle do checkbox; `shiftKey` liga a seleção em INTERVALO. */
@@ -73,8 +73,9 @@ export interface TableRowProps {
 }
 
 /**
- * Linha da tabela em zebra striping — linhas contíguas, não cards. A PRIMEIRA
- * célula é estática (posição zero, dentro da zebra) e carrega os controles:
+ * Linha da tabela em zebra striping — linhas contíguas, não cards. As linhas
+ * ímpares visuais (1ª, 3ª...) usam `contrast`. A PRIMEIRA célula é estática
+ * (posição zero, dentro da zebra) e carrega os controles:
  * drag-handle + checkbox + botão "Abrir ›"; aparecem no hover da linha e
  * ficam fixos quando ela está selecionada.
  *
@@ -110,8 +111,8 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
       style={{ transform: CSS.Transform.toString(transform), transition }}
       onMouseEnter={onShiftHover ? () => onShiftHover(rowIndex) : undefined}
       className={cn(
-        'group/row flex w-max min-w-full items-stretch',
-        zebra ? 'bg-contrast' : 'bg-background',
+        'group/row flex w-max min-w-full items-stretch transition-colors hover:bg-active/60',
+        !zebra ? 'bg-contrast' : 'bg-background',
         // Área coberta pela seleção com Shift (âncora → linha sob o mouse).
         inShiftRange && 'bg-p-purple-500/10 dark:bg-p-purple-500/15',
         isDragging && 'relative z-10 opacity-80',

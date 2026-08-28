@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import type { CSSProperties } from 'react'
-import { Icon } from '@iconify/react'
 
+import { Menu } from './Menu'
 import { cn } from './lib/utils'
 
 /** Item do ContextMenu (aberto com botão DIREITO do mouse). */
@@ -45,35 +45,21 @@ export function ContextMenu({ open, onClose, items, className, style }: ContextM
   if (!open) return null
 
   return (
-    <div
-      role="menu"
+    <Menu
+      items={items.map((item) => ({
+        id: item.id,
+        name: item.label,
+        icon: item.icon,
+        danger: item.danger,
+        onSelect: () => {
+          item.onSelect?.()
+          onClose()
+        },
+      }))}
       style={style}
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
-      className={cn(
-        'absolute z-50 mt-1 min-w-44 rounded-lg border border-divider-contrast p-1 shadow-xl',
-        'bg-glass backdrop-blur-md',
-        className,
-      )}
-    >
-      {items.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          role="menuitem"
-          className={cn(
-            'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-active',
-            item.danger && 'text-p-red',
-          )}
-          onClick={() => {
-            item.onSelect?.()
-            onClose()
-          }}
-        >
-          {item.icon ? <Icon icon={item.icon} fontSize={15} className="shrink-0" /> : null}
-          <span className="whitespace-nowrap">{item.label}</span>
-        </button>
-      ))}
-    </div>
+      className={cn('absolute z-50 mt-1 min-w-44', className)}
+    />
   )
 }

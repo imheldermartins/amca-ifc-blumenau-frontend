@@ -185,11 +185,9 @@ export function CubsDatabase({
         viewMenuItems={viewMenuItems}
       />
 
-      <div className="pt-2">
+      <div className="mt-1.5 pb-6">
         {currentView.view === 'table' ? (
           <TableView
-            // key por view: trocar de tab zera ordem otimista e seleção — são
-            // estados DA VIEW (a ordem mora no snapshot dela), não da base.
             key={currentViewId}
             columns={orderedColumns}
             rows={orderedRows}
@@ -220,7 +218,7 @@ export function CubsDatabase({
             labels={labels}
           />
         ) : (
-          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-divider-contrast px-4 py-10 opacity-60">
+          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-divider-contrast px-4 py-8 opacity-60">
             <Icon
               icon={currentView.view === 'board' ? 'lucide:kanban' : 'lucide:calendar'}
               fontSize={22}

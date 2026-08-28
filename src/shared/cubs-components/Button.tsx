@@ -39,14 +39,15 @@ function resolveColor(color: ButtonColor): PaletteEntry {
 }
 
 const BASE_CLASSES =
-  'inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium cursor-pointer ' +
-  'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-divider ' +
+  'inline-flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-semibold cursor-pointer ' +
+  'transition-[color,background-color,border-color,box-shadow,transform] active:translate-y-px ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-purple-500/25 ' +
   'disabled:pointer-events-none disabled:opacity-50'
 
 function variantClasses(variant: ButtonVariant, c: PaletteEntry): string {
   switch (variant) {
     case 'filled':
-      return cn(c.bg, c.textOnFilled, c.bgHover)
+      return cn(c.bg, c.textOnFilled, c.bgHover, c.shadow)
     case 'outlined':
       return cn('border bg-transparent', c.border, c.text, c.bgSoft)
     case 'text':
@@ -63,6 +64,15 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = variantClasses(variant, resolveColor(color))
+  // O glow clássico pertence somente ao CTA roxo preenchido. Variantes text
+  // (fechar, triggers da topbar etc.) preservam apenas a própria palette.
+  const glow = variant === 'filled' && color === 'purple'
 
-  return <button type={type} className={cn(BASE_CLASSES, classes, className)} {...props} />
+  return (
+    <button
+      type={type}
+      className={cn(BASE_CLASSES, glow && 'glow-purple-hover', classes, className)}
+      {...props}
+    />
+  )
 }

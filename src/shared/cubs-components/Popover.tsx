@@ -1,6 +1,7 @@
 import * as RadixPopover from '@radix-ui/react-popover'
 import type { ReactNode } from 'react'
 
+import { FLOATING_SURFACE_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 
 export interface PopoverProps {
@@ -50,8 +51,8 @@ export function Popover({
           align={align}
           sideOffset={sideOffset}
           className={cn(
-            'z-50 rounded-lg border border-divider-contrast p-1 shadow-xl',
-            'bg-glass backdrop-blur-md',
+            'z-50',
+            FLOATING_SURFACE_CLASSES,
             className,
           )}
         >

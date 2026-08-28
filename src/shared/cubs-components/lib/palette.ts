@@ -54,7 +54,7 @@ export const PALETTE: Record<PaletteColor, PaletteEntry> = {
     text: 'text-p-blue-600 dark:text-p-blue-400',
     textOnFilled: 'text-white',
     border: 'border-p-blue-600 dark:border-p-blue-500',
-    shadow: 'shadow-xl shadow-p-blue-600/20 dark:shadow-p-blue-500/20',
+    shadow: 'shadow-lg shadow-p-blue-600/25 dark:shadow-p-blue-500/25',
   },
   red: {
     bg: 'bg-p-red-500',
@@ -63,16 +63,16 @@ export const PALETTE: Record<PaletteColor, PaletteEntry> = {
     text: 'text-p-red-600 dark:text-p-red-400',
     textOnFilled: 'text-white',
     border: 'border-p-red-600 dark:border-p-red-500',
-    shadow: 'shadow-xl shadow-p-red-600/20 dark:shadow-p-red-500/20',
+    shadow: 'shadow-lg shadow-p-red-600/25 dark:shadow-p-red-500/25',
   },
   purple: {
     bg: 'bg-p-purple-500',
-    bgHover: 'hover:bg-p-purple-400 dark:hover:bg-p-purple-600',
+    bgHover: 'hover:bg-p-purple-400',
     bgSoft: 'hover:bg-p-purple-600/25 dark:hover:bg-p-purple-500/20',
     text: 'text-p-purple-600 dark:text-p-purple-400',
     textOnFilled: 'text-white',
     border: 'border-p-purple-600 dark:border-p-purple-500',
-    shadow: 'shadow-xl shadow-p-purple-600/20 dark:shadow-p-purple-500/20',
+    shadow: 'shadow-lg shadow-p-purple-600/35 dark:shadow-p-purple-500/35',
   },
   green: {
     bg: 'bg-p-green-500',
@@ -81,7 +81,7 @@ export const PALETTE: Record<PaletteColor, PaletteEntry> = {
     text: 'text-p-green-600 dark:text-p-green-400',
     textOnFilled: 'text-white',
     border: 'border-p-green-600 dark:border-p-green-500',
-    shadow: 'shadow-xl shadow-p-green-600/20 dark:shadow-p-green-500/20',
+    shadow: 'shadow-lg shadow-p-green-600/25 dark:shadow-p-green-500/25',
   },
 }
 

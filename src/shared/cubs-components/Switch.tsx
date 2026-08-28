@@ -30,15 +30,15 @@ function SwitchView({ checked, onCheckedChange, label, disabled, className }: Sw
         disabled={disabled}
         onClick={() => onCheckedChange(!checked)}
         className={cn(
-          'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-divider',
+          'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
           checked ? 'bg-p-purple' : 'bg-divider-contrast',
         )}
       >
         <span
           className={cn(
-            'size-5 rounded-full bg-white shadow-sm transition-transform',
-            checked ? 'translate-x-5' : 'translate-x-0',
+            'size-4 rounded-full bg-white shadow-sm transition-transform',
+            checked ? 'translate-x-4' : 'translate-x-0',
           )}
         />
       </button>

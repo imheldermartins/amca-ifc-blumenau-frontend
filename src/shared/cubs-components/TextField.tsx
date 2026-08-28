@@ -5,7 +5,7 @@ import { applyMask, type MaskName } from './lib/masks'
 import { PALETTE } from './lib/palette'
 import { cn } from './lib/utils'
 
-/** `md` (h-10) é o campo de formulário; `sm` (h-9) é o de barra/topbar. */
+/** `md` (h-9) é o campo de formulário; `sm` (h-8) é o de barra/topbar. */
 export type TextFieldSize = 'sm' | 'md'
 
 /**
@@ -23,14 +23,14 @@ export type TextFieldSize = 'sm' | 'md'
 export type TextFieldSurface = 'background' | 'contrast' | 'plain'
 
 const SIZES: Record<TextFieldSize, string> = {
-  sm: 'h-9',
-  md: 'h-10',
+  sm: 'h-8',
+  md: 'h-9',
 }
 
 const SURFACES: Record<TextFieldSurface, string> = {
-  background: 'border-divider bg-background focus-visible:ring-divider',
-  contrast: 'border-divider-contrast bg-contrast focus-visible:ring-divider-contrast',
-  plain: 'border-transparent bg-transparent focus-visible:ring-0',
+  background: 'border-divider bg-background',
+  contrast: 'border-divider-contrast bg-contrast',
+  plain: 'border-transparent bg-transparent focus-visible:border-transparent focus-visible:ring-0',
 }
 
 interface TextFieldBaseProps extends Omit<ComponentProps<'input'>, 'name' | 'size'> {
@@ -72,7 +72,7 @@ function TextFieldView({
   const field = (
     <span className="relative flex items-center">
       {startAdornment && (
-        <span className="pointer-events-none absolute left-3 flex shrink-0 items-center">
+        <span className="pointer-events-none absolute left-2.5 flex shrink-0 items-center">
           {startAdornment}
         </span>
       )}
@@ -95,12 +95,12 @@ function TextFieldView({
           // ao `plain` anulá-lo com `ring-0` (o tailwind-merge fica com o
           // ÚLTIMO conflito — se o ring-2 viesse depois, engoliria o ring-0 e
           // a "edição discreta" ganharia anel de focus).
-          'focus-visible:outline-none focus-visible:ring-2',
+          'focus-visible:border-divider-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
           SIZES[size],
           SURFACES[surface],
-          startAdornment ? 'pl-9' : 'pl-3',
-          endAdornment ? 'pr-9' : 'pr-3',
-          'placeholder:text-zinc-500 dark:placeholder:text-zinc-400',
+          startAdornment ? 'pl-8' : 'pl-2.5',
+          endAdornment ? 'pr-8' : 'pr-2.5',
+          'placeholder:text-dark-100 dark:placeholder:text-light-900',
           // O "x" nativo do WebKit duplicaria um botão de limpar passado como
           // endAdornment. Só afeta type="search".
           '[&::-webkit-search-cancel-button]:hidden',
@@ -127,7 +127,7 @@ function TextFieldView({
     </>
   )
 
-  const stack = cn('flex flex-col gap-1.5 text-sm font-medium', className)
+  const stack = cn('flex flex-col gap-1 text-sm font-medium', className)
 
   // Com label visível, o <label> ENVOLVE o input: associação implícita, sem
   // precisar gerar id. Sem label não há o que associar — o nome acessível vem

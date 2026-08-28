@@ -78,3 +78,22 @@ describe('TableView — menu da coluna', () => {
     expect(screen.queryByRole('textbox', { name: 'Renomear coluna' })).toBeNull()
   })
 })
+
+describe('TableView — zebra', () => {
+  it('usa contrast nas linhas visuais ímpares, começando pela primeira', () => {
+    render(
+      <TableView
+        columns={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[
+          { id: 'row-1', cells: { 'column-1': { value: 'Primeira' } } },
+          { id: 'row-2', cells: { 'column-1': { value: 'Segunda' } } },
+        ]}
+      />,
+    )
+
+    const [, firstRow, secondRow] = screen.getAllByRole('row')
+
+    expect(firstRow.className).toContain('bg-contrast')
+    expect(secondRow.className).toContain('bg-background')
+  })
+})

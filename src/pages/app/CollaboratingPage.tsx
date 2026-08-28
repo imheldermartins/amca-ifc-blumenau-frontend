@@ -41,38 +41,38 @@ export function CollaboratingPage() {
   }, [])
 
   return (
-    <div className="mx-auto my-0 w-full max-w-5xl p-6">
+    <div className="mx-auto my-0 w-full max-w-6xl p-4">
       <Typography variant="h1">{i18n('pages.app.colaborando.titulo')}</Typography>
       <Typography variant="subtitle" as="p" className="mt-2 opacity-70">
         {i18n('pages.app.colaborando.descricao')}
       </Typography>
 
       {loading ? (
-        <div aria-hidden className="mt-8 grid gap-3 sm:grid-cols-2">
+        <div aria-hidden className="mt-5 grid gap-2.5 sm:grid-cols-2">
           {[0, 1, 2].map((skeleton) => (
             <div
               key={skeleton}
-              className="h-24 animate-pulse rounded-lg border border-divider-contrast bg-contrast"
+              className="h-20 animate-pulse rounded-2xl border border-divider-contrast bg-glass"
             />
           ))}
         </div>
       ) : failed || pages.length === 0 ? (
-        <div className="mt-8 flex flex-col items-center gap-2 rounded-lg border border-dashed border-divider-contrast px-4 py-10 opacity-60">
+        <div className="mt-5 flex flex-col items-center gap-2 rounded-2xl border border-dashed border-divider-contrast px-4 py-8 opacity-60">
           <Icon icon={failed ? 'lucide:unplug' : 'lucide:users'} fontSize={22} />
           <span className="text-sm">
             {i18n(failed ? 'pages.app.colaborando.erro' : 'pages.app.colaborando.vazio')}
           </span>
         </div>
       ) : (
-        <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+        <ul className="mt-5 grid gap-2.5 sm:grid-cols-2">
           {pages.map((page) => (
             <li key={page.id}>
               <Link
                 to="/$lang/page/$pageId"
                 params={{ lang: lang ?? 'pt-br', pageId: page.id }}
                 className={cn(
-                  'flex h-full flex-col gap-2 rounded-lg border border-divider-contrast bg-contrast p-4',
-                  'shadow-sm transition-colors hover:bg-active',
+                  'flex h-full flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
+                  'shadow-lg shadow-black/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',
                 )}
               >
                 <span className="flex items-center gap-2">

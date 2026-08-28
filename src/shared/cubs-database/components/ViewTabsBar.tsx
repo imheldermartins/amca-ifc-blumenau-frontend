@@ -41,7 +41,7 @@ export function ViewTabsBar({ settings, activeViewId, onViewChange, viewMenuItem
   return (
     <div ref={barRef} className="relative">
       <div
-        className="flex items-end gap-1 overflow-x-auto overflow-y-hidden border-b border-divider"
+        className="flex items-center gap-1 overflow-x-auto overflow-y-hidden pb-1"
         onScroll={() => setMenu(null)}
       >
         {Object.entries(settings).map(([viewId, view]) => {
@@ -57,13 +57,17 @@ export function ViewTabsBar({ settings, activeViewId, onViewChange, viewMenuItem
               }}
               onContextMenu={(event) => handleTabContextMenu(viewId, event)}
               className={cn(
-                '-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-1.5 text-sm transition-colors',
+                'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2 py-1 text-sm transition-[color,background-color,border-color,box-shadow]',
                 active
-                  ? 'border-p-purple text-foreground'
-                  : 'border-transparent opacity-60 hover:bg-active hover:opacity-100',
+                  ? 'border-divider-contrast bg-active text-foreground shadow-sm'
+                  : 'border-divider bg-transparent opacity-60 hover:border-divider-contrast hover:bg-contrast hover:opacity-100',
               )}
             >
-              <Icon icon={VIEW_ICON[view.view]} fontSize={15} className="shrink-0" />
+              <Icon
+                icon={VIEW_ICON[view.view]}
+                fontSize={15}
+                className={cn('shrink-0', active && 'text-p-purple')}
+              />
               {view.name}
             </button>
           )

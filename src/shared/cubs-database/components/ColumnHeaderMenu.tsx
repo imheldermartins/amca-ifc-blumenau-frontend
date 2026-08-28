@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { TextField, NestedMenu, cn, type MenuNode } from 'cubs-components'
+import { Menu, TextField, cn, type MenuNode } from 'cubs-components'
 
 import type {
   ColumnConfigPatch,
@@ -110,13 +110,13 @@ function RenameField({
 }
 
 /**
- * Menu da coluna (botão DIREITO no header). Monta um `NestedMenu` com as seções
+ * Menu da coluna (botão DIREITO no header). Monta um `Menu` com as seções
  * habilitadas pela presença dos callbacks: renomear (campo inline), trocar
  * TIPO, e a config do tipo ATUAL — options (select), formato/moeda (numeric),
  * máscara (text). Cada write sobe pelo callback; a lib não conhece transporte.
  *
  * O painel é `absolute` (posicionado pelo caller); os SUBMENUS são Popovers do
- * `NestedMenu` (portalados). Por isso o fechar-ao-clicar-fora IGNORA cliques
+ * `Menu` (portalados). Por isso o fechar-ao-clicar-fora IGNORA cliques
  * dentro de qualquer popper do Radix — senão clicar num submenu fecharia tudo.
  */
 export function ColumnHeaderMenu({
@@ -283,18 +283,12 @@ export function ColumnHeaderMenu({
   }
 
   return (
-    <div
-      role="menu"
+    <Menu
+      items={nodes}
       style={style}
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => event.preventDefault()}
-      className={cn(
-        'absolute z-50 mt-1 min-w-48 rounded-lg border border-divider-contrast p-1 shadow-xl',
-        'bg-glass backdrop-blur-md',
-        className,
-      )}
-    >
-      <NestedMenu nodes={nodes} />
-    </div>
+      className={cn('absolute z-50 mt-1 min-w-48', className)}
+    />
   )
 }

@@ -17,7 +17,7 @@ export const CheckboxCellEditor = memo(function CheckboxCellEditor({
   const checked = value === true
 
   return (
-    <span className="flex items-center px-3 py-2">
+    <span className="flex items-center px-2.5 py-1.5">
       <Checkbox
         aria-label={column.title}
         checked={checked}

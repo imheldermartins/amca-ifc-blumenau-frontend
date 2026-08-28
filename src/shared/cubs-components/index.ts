@@ -14,6 +14,8 @@ export { Popover } from './Popover'
 export type { PopoverProps } from './Popover'
 export { NestedMenu } from './NestedMenu'
 export type { MenuNode, NestedMenuProps } from './NestedMenu'
+export { Menu } from './Menu'
+export type { MenuProps } from './Menu'
 export { ColorPicker } from './ColorPicker'
 export type { ColorPickerProps } from './ColorPicker'
 export {

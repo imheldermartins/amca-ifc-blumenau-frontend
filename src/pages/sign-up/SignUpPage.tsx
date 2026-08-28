@@ -42,8 +42,8 @@ export function SignUpPage() {
     : null
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded border border-divider bg-contrast p-8 shadow-sm">
+    <main className="flex min-h-dvh items-center justify-center p-5">
+      <div className="w-full max-w-sm rounded-2xl border border-divider-contrast bg-glass p-5 shadow-2xl shadow-black/15 backdrop-blur-xl">
         <Typography variant="h2" as="h1">
           {i18n('pages.sign-up.crie-sua-conta')}
         </Typography>
@@ -53,7 +53,7 @@ export function SignUpPage() {
 
         <FormProvider {...form}>
           <form
-            className="mt-6 flex flex-col gap-4"
+            className="mt-5 flex flex-col gap-3"
             onSubmit={form.handleSubmit((values) => signUp.mutate(values))}
             noValidate
           >
@@ -88,7 +88,7 @@ export function SignUpPage() {
               </Typography>
             )}
 
-            <Button type="submit" variant="filled" color="blue" disabled={signUp.isPending}>
+            <Button type="submit" variant="filled" color="purple" disabled={signUp.isPending}>
               {signUp.isPending
                 ? i18n('pages.sign-up.criando-conta')
                 : i18n('pages.sign-up.botao-criar-conta')}
@@ -96,12 +96,12 @@ export function SignUpPage() {
           </form>
         </FormProvider>
 
-        <Typography variant="subtitle" className="mt-6 text-center">
+        <Typography variant="subtitle" className="mt-5 text-center">
           {i18n('pages.sign-up.ja-tem-conta')}{' '}
           <Link
             to="/$lang/sign-in"
             params={{ lang }}
-            className={cn('font-medium hover:underline', PALETTE.blue.text)}
+            className={cn('font-medium hover:underline', PALETTE.purple.text)}
           >
             {i18n('pages.sign-up.link-entrar')}
           </Link>

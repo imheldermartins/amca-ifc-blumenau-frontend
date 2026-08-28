@@ -26,7 +26,7 @@ function CellValue({
   if (type === 'checkbox') {
     return (
       <Icon
-        icon={value ? 'lucide:square-check' : 'lucide:square'}
+        icon={value ? 'lucide:circle-check' : 'lucide:circle'}
         fontSize={16}
         className={cn('shrink-0', value ? 'text-p-green' : 'opacity-40')}
       />
@@ -156,7 +156,7 @@ export const TableCell = memo(function TableCell({
       <div
         role="cell"
         // Sem padding próprio: cada editor preenche a célula inteira e traz o
-        // seu (o TextField `plain` tem px-3; checkbox/select idem) — assim a
+        // seu (o TextField `plain` tem padding compacto; checkbox/select idem) — assim a
         // área clicável/focável é a célula toda, não uma ilha no meio.
         //
         // A moldura de erro fica no CONTAINER (um lugar, cobre os 4 tipos de
@@ -187,7 +187,7 @@ export const TableCell = memo(function TableCell({
     <div
       role="cell"
       className={cn(
-        'flex shrink-0 items-center border-l border-divider px-3 py-2 text-sm',
+        'flex shrink-0 items-center border-l border-divider px-2.5 py-1.5 text-sm',
         isLast && 'border-r',
       )}
       style={{ width: resolveColumnWidth(width) }}

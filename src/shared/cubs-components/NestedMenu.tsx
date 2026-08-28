@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Icon } from '@iconify/react'
 
 import { Popover } from './Popover'
+import { MENU_ROW_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 
 /**
@@ -12,6 +13,8 @@ import { cn } from './lib/utils'
  * Um nó pode combinar `name` + `content` (uma seção rotulada).
  */
 export interface MenuNode {
+  /** Identidade estável opcional; útil quando o array vem de dados externos. */
+  id?: string
   name: string
   icon?: string
   content?: ReactNode
@@ -26,9 +29,6 @@ export interface NestedMenuProps {
   className?: string
 }
 
-const ROW =
-  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-active'
-
 function MenuRow({ node }: { node: MenuNode }) {
   // 1) Submenu: a própria linha é o gatilho de um Popover à direita, cujo
   //    conteúdo é OUTRO NestedMenu (a recursão).
@@ -40,7 +40,7 @@ function MenuRow({ node }: { node: MenuNode }) {
         sideOffset={2}
         className="min-w-44"
         trigger={
-          <button type="button" role="menuitem" className={ROW}>
+          <button type="button" role="menuitem" className={MENU_ROW_CLASSES}>
             {node.icon && <Icon icon={node.icon} fontSize={15} className="shrink-0" />}
             <span className="flex-1 whitespace-nowrap">{node.name}</span>
             <Icon icon="lucide:chevron-right" fontSize={14} className="shrink-0 opacity-60" />
@@ -70,7 +70,7 @@ function MenuRow({ node }: { node: MenuNode }) {
       type="button"
       role="menuitem"
       onClick={node.onSelect}
-      className={cn(ROW, node.danger && 'text-p-red')}
+      className={cn(MENU_ROW_CLASSES, node.danger && 'text-p-red')}
     >
       {node.icon && <Icon icon={node.icon} fontSize={15} className="shrink-0" />}
       <span className="flex-1 whitespace-nowrap">{node.name}</span>
@@ -91,7 +91,7 @@ export function NestedMenu({ nodes, className }: NestedMenuProps) {
   return (
     <div role="menu" className={cn('min-w-44', className)}>
       {nodes.map((node, index) => (
-        <MenuRow key={index} node={node} />
+        <MenuRow key={node.id ?? index} node={node} />
       ))}
     </div>
   )

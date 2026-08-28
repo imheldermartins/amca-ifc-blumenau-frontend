@@ -54,16 +54,13 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
   }, [pageId])
 
   return (
-    <div className="mx-auto my-0 w-full max-w-5xl p-6">
-      <header className="mb-6 flex items-center justify-between gap-4">
+    <div className="mx-auto my-0 w-full max-w-6xl p-4">
+      <header className="mb-3 flex items-center justify-between gap-3">
         <Typography variant="h1">
           {failed
             ? i18n('pages.app.pagina.indisponivel')
             : (title ?? i18n('pages.app.pagina.sem-titulo'))}
         </Typography>
-
-        {/* Presença: prova visível de que a sala existe e quem mais está nela.
-            Só aparece com companhia — sozinho, o contador é ruído. */}
         {viewers > 1 && (
           <span
             className="flex shrink-0 items-center gap-1.5 rounded bg-active px-2 py-1 text-xs"

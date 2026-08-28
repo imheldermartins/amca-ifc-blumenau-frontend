@@ -14,7 +14,7 @@ export function OptionChip({ option, className }: { option: ColumnOption; classN
   return (
     <span
       className={cn(
-        'rounded px-1.5 py-0.5 text-xs whitespace-nowrap',
+        'rounded-lg px-1.5 py-0.5 text-xs whitespace-nowrap',
         colorClasses ?? 'bg-active',
         className,
       )}

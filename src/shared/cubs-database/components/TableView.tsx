@@ -158,7 +158,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
       }}
       onContextMenu={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
       className={cn(
-        'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-3 py-2 text-sm font-medium opacity-60',
+        'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-2.5 py-1.5 text-sm font-semibold opacity-70',
         // A ÚLTIMA coluna fecha a grade à direita: sem esta borda a tabela
         // termina "aberta" e a alça de resize da última coluna não teria em
         // que se apoiar visualmente. Por PROP, e não por `last:`, porque o
@@ -465,8 +465,12 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
 
   return (
     <div ref={containerRef} className="relative">
-      <div role="table" className="overflow-x-auto" onMouseLeave={handleMouseLeave}>
-        <div role="row" className="flex w-max min-w-full border-b border-divider">
+      <div
+        role="table"
+        className="overflow-x-auto rounded-xl border border-divider bg-background shadow-sm"
+        onMouseLeave={handleMouseLeave}
+      >
+        <div role="row" className="flex w-max min-w-full border-b border-divider bg-contrast">
           {/* Célula de controles do header: espaçador enquanto não há seleção
               (o alinhamento com as linhas depende da MESMA largura) e caixa de
               "selecionar todas" a partir da primeira linha marcada. */}
@@ -515,10 +519,10 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
             {[0, 1, 2, 3].map((skeletonIndex) => (
               <div
                 key={skeletonIndex}
-                className={cn('flex', skeletonIndex % 2 === 1 ? 'bg-contrast' : 'bg-background')}
+                className={cn('flex', skeletonIndex % 2 === 0 ? 'bg-contrast' : 'bg-background')}
               >
                 <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
-                <div className="flex h-9 flex-1 items-center border-l border-divider px-3">
+                <div className="flex h-8 flex-1 items-center border-l border-divider px-2.5">
                   <div className="h-3 w-1/3 animate-pulse rounded bg-active" />
                 </div>
               </div>
@@ -527,7 +531,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
         ) : localRows.length === 0 ? (
           <div className="flex">
             <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
-            <div className="flex-1 border-l border-divider px-3 py-8 text-center text-sm opacity-60">
+            <div className="flex-1 border-l border-divider px-3 py-6 text-center text-sm opacity-60">
               {emptyLabel}
             </div>
           </div>
@@ -543,7 +547,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                   columnWidths={localWidths}
                   columnTypes={columnTypes}
                   cellErrors={cellErrors}
-                  zebra={rowIndex % 2 === 1}
+                  zebra={rowIndex % 2 === 0}
                   selected={selection.ids.has(row.id)}
                   onSelectedChange={handleRowSelectedChange}
                   sortable={rowsSortable}

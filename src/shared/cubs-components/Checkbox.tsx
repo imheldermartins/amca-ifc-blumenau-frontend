@@ -44,11 +44,11 @@ function CheckboxView({
       aria-label={ariaLabel}
       aria-invalid={errorMessage ? true : undefined}
       className={cn(
-        'inline-flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-divider',
+        'inline-flex size-4 shrink-0 items-center justify-center rounded-full border transition-[color,background-color,border-color,box-shadow]',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
         checked === false
           ? 'border-divider-contrast bg-background'
-          : 'border-p-purple bg-p-purple text-white',
+          : 'border-p-purple bg-p-purple text-white shadow-sm shadow-p-purple-500/40',
         errorMessage && checked === false && PALETTE.red.border,
         !label && className,
       )}

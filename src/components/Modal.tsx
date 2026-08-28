@@ -78,19 +78,12 @@ export function Modal({
         />
 
         <Dialog.Content
-          // O Radix também procura uma descrição; esta casca não tem uma (o
-          // corpo é livre). Explicitar `undefined` desliga a busca em vez de
-          // deixar o aviso no console.
           aria-describedby={undefined}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
-            // Cola nas laterais em tela estreita; o SIZES é o teto.
             'w-[calc(100%-2rem)]',
             SIZES[size],
-            // Mesma superfície elevada do painel lateral do AppLayout.
-            'rounded border border-divider-contrast bg-contrast shadow-xl',
-            // Header fixo + corpo rolável: a coluna limita a altura, o corpo
-            // fica com o overflow.
+            'rounded-2xl bg-background shadow-black/20 shadow-2xl',
             'flex max-h-[calc(100dvh-4rem)] flex-col',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
@@ -98,11 +91,11 @@ export function Modal({
         >
           <Dialog.Title className="sr-only">{accessibleTitle}</Dialog.Title>
 
-          <header className="flex shrink-0 items-center justify-end border-b border-divider-contrast px-2 py-1.5">
+          <header className="flex shrink-0 items-center justify-end px-2 py-1">
             <Dialog.Close asChild>
               <Button
                 variant="text"
-                color="from-theme"
+                color="red"
                 className="px-1.5 py-1"
                 aria-label={i18n('common.fechar')}
               >
@@ -111,7 +104,7 @@ export function Modal({
             </Dialog.Close>
           </header>
 
-          <div className={cn('min-h-0 flex-1 overflow-auto p-4', className)}>{children}</div>
+          <div className={cn('min-h-0 flex-1 overflow-auto p-3.5', className)}>{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
