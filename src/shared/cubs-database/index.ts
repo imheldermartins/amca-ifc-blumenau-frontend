@@ -41,6 +41,7 @@ export type {
   HeaderCol,
   NumberFormat,
   OptionColor,
+  PageTitleColumn,
   RowData,
 } from './types'
 

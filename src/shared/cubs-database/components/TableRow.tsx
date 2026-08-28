@@ -134,9 +134,9 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
           {...(sortable ? { ...attributes, ...listeners } : {})}
           className="cursor-grab rounded px-0.5 py-1 opacity-60 transition-colors hover:bg-active hover:opacity-100"
         >
-          <Icon icon="lucide:grip-vertical" />
+          <Icon icon="lucide:grip-vertical" fontSize={18} />
         </button>
-        <span onClickCapture={(event) => (shiftClickRef.current = event.shiftKey)}>
+        <span onClickCapture={(event) => (shiftClickRef.current = event.shiftKey)} className="flex items-center">
           <Checkbox
             aria-label={labels?.select ?? 'Selecionar linha'}
             checked={selected}

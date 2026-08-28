@@ -10,6 +10,7 @@ import {
   type ColumnOption,
   type DataViewSettings,
   type DataViewType,
+  type PageTitleColumn,
 } from 'cubs-database'
 
 import { useFeedback } from '@/contexts/FeedbackContext'
@@ -23,7 +24,7 @@ import {
   applyRealtimeEvent,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
-import { FALLBACK_VIEW_ID, type ParsedDatabase } from '@/lib/databaseParser'
+import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/databaseParser'
 import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
@@ -58,6 +59,7 @@ export interface UsePageDatabaseResult {
     onCellEditConflict: (conflict: CellEditConflict) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
     onColumnRename: (columnId: string, name: string) => void
+    onPageTitleColumnChange: (viewId: string, column: PageTitleColumn) => void
     onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
     onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
     onColumnReset: (columnId: string) => void
@@ -363,7 +365,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onColumnRename: useCallback(
       (columnId: string, name: string) => {
-        if (!pageId) return
+        // Defesa de fronteira: a coluna mestra usa o handler por-view abaixo
+        // e nunca pode escapar para a rota de uma `page_columns` inexistente.
+        if (!pageId || columnId === TITLE_COLUMN_ID) return
         // Otimista, como a célula: o header mostra o nome novo sem esperar a
         // volta da rede. O eco confirma logo atrás; se a escrita falhar, o
         // reload do `handleWriteError` desfaz o otimismo.
@@ -374,9 +378,17 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [pageId, handleWriteError],
     ),
+    onPageTitleColumnChange: useCallback(
+      (viewId: string, column: PageTitleColumn) => {
+        // A coluna mestra não existe em `page_columns`: nome e máscara são
+        // a prévia daquela view e entram no snapshot da própria página.
+        saveViewSnapshot(viewId, { title: column })
+      },
+      [saveViewSnapshot],
+    ),
     onColumnTypeChange: useCallback(
       (columnId: string, type: ColumnDataType) => {
-        if (!pageId) return
+        if (!pageId || columnId === TITLE_COLUMN_ID) return
         // Otimista: header/editores passam ao novo tipo na hora. Não-destrutivo
         // no backend (config e valores do tipo antigo ficam preservados).
         setDatabase((current) =>
@@ -388,7 +400,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onColumnConfigChange: useCallback(
       (columnId: string, patch: ColumnConfigPatch) => {
-        if (!pageId) return
+        if (!pageId || columnId === TITLE_COLUMN_ID) return
         setDatabase((current) =>
           current ? applyLocalColumnConfig(current, columnId, patch) : current,
         )
@@ -398,7 +410,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onColumnReset: useCallback(
       (columnId: string) => {
-        if (!pageId) return
+        if (!pageId || columnId === TITLE_COLUMN_ID) return
         // Destrutivo e em MASSA (coluna + N células) — sem otimismo: relê a base
         // no sucesso (a verdade autoritativa), notifica no erro.
         pageWriteService

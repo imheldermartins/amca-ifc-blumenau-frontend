@@ -11,6 +11,10 @@ import { usePageDatabase } from './usePageDatabase'
 const dependencies = vi.hoisted(() => ({
   feedback: vi.fn(),
   loadPage: vi.fn(),
+  changeColumnType: vi.fn(),
+  renameColumn: vi.fn(),
+  resetColumn: vi.fn(),
+  saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
   saveViewSnapshot: vi.fn(),
 }))
@@ -25,6 +29,10 @@ vi.mock('@/services/DatabaseService', () => ({
 
 vi.mock('@/services/PageWriteService', () => ({
   pageWriteService: {
+    changeColumnType: dependencies.changeColumnType,
+    renameColumn: dependencies.renameColumn,
+    resetColumn: dependencies.resetColumn,
+    saveColumnConfig: dependencies.saveColumnConfig,
     saveCell: dependencies.saveCell,
     saveViewSnapshot: dependencies.saveViewSnapshot,
   },
@@ -303,6 +311,59 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
 })
 
 describe('usePageDatabase — snapshot da view', () => {
+  it('nunca envia a coluna title para as rotas genéricas de page_columns', async () => {
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => {
+      result.current.handlers.onColumnRename('page_title', 'Outro nome')
+      result.current.handlers.onColumnTypeChange('page_title', 'numeric')
+      result.current.handlers.onColumnConfigChange('page_title', { mask: 'cpf' })
+      result.current.handlers.onColumnReset('page_title')
+    })
+
+    expect(dependencies.renameColumn).not.toHaveBeenCalled()
+    expect(dependencies.changeColumnType).not.toHaveBeenCalled()
+    expect(dependencies.saveColumnConfig).not.toHaveBeenCalled()
+    expect(dependencies.resetColumn).not.toHaveBeenCalled()
+  })
+
+  it('salva nome e máscara da coluna title no snapshot da view', async () => {
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: {
+        ['01KXVZ0000VIEW00000000001']: {
+          view: 'table',
+          name: 'Tabela',
+          filters: '',
+          title: { key: 'title', column_name: 'Título' },
+          orderedHeaderCols: ['page_title', COLUMN_ID],
+        },
+      },
+    })
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => {
+      result.current.handlers.onPageTitleColumnChange('01KXVZ0000VIEW00000000001', {
+        key: 'title',
+        column_name: 'Docente',
+        mask: 'cpf',
+      })
+    })
+
+    expect(result.current.database?.settings['01KXVZ0000VIEW00000000001'].title).toEqual({
+      key: 'title',
+      column_name: 'Docente',
+      mask: 'cpf',
+    })
+    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1))
+    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({
+      title: { key: 'title', column_name: 'Docente', mask: 'cpf' },
+    })
+  })
+
   it('materializa o fallback e serializa drags rápidos sem perder o primeiro patch', async () => {
     const firstWrite = deferred<unknown>()
     dependencies.saveViewSnapshot

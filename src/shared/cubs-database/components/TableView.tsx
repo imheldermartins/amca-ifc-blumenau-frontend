@@ -292,6 +292,8 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     const map: Record<string, boolean> = {}
     if (onColumnReset) {
       for (const column of localColumns) {
+        // Projeção mestra (`pages.title`) não troca de tipo nem sofre reset.
+        if (column.key === 'title') continue
         map[column.id] = columnDivergence(column, localRows).length > 0
       }
     }
@@ -571,11 +573,19 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
           columnType={columnTypes[menuColumn.id]}
           onClose={closeColumnMenu}
           onRename={onColumnRename ? handleMenuRename : undefined}
-          onColumnTypeChange={onColumnTypeChange ? handleMenuTypeChange : undefined}
+          // `key: title` aponta para `pages.title`: o tipo é estruturalmente
+          // texto. Nome e máscara são apresentação; tipo/reset não se aplicam.
+          onColumnTypeChange={
+            menuColumn.key !== 'title' && onColumnTypeChange
+              ? handleMenuTypeChange
+              : undefined
+          }
           onColumnOptionsChange={onColumnOptionsChange ? handleMenuOptionsChange : undefined}
           onColumnConfigChange={onColumnConfigChange ? handleMenuConfigChange : undefined}
           diverging={divergingColumns[menuColumn.id]}
-          onColumnReset={onColumnReset ? handleMenuReset : undefined}
+          onColumnReset={
+            menuColumn.key !== 'title' && onColumnReset ? handleMenuReset : undefined
+          }
           labels={labels}
           className="top-9"
           style={{ left: columnMenu.left }}

@@ -30,6 +30,7 @@ import type {
   HeaderCol,
   NumberFormat,
   OptionColor,
+  PageTitleColumn,
   RowData,
 } from 'cubs-database'
 
@@ -211,7 +212,12 @@ export function parseHeaderCols(
   titleLabel: string,
   dataset: ApiDatasetRow[] = [],
 ): HeaderCol[] {
-  const titleColumn: HeaderCol = { id: TITLE_COLUMN_ID, title: titleLabel, type: 'text' }
+  const titleColumn: HeaderCol = {
+    id: TITLE_COLUMN_ID,
+    key: 'title',
+    title: titleLabel,
+    type: 'text',
+  }
   const optionsByColumn = buildColumnOptions(columns, dataset)
 
   const dataColumns = columns.map((column) => {
@@ -298,6 +304,23 @@ function parseIdList(raw: unknown): string[] {
   return Array.isArray(raw) ? raw.filter((id): id is string => typeof id === 'string') : []
 }
 
+/**
+ * Config por view da coluna mestra. `key: title` é deliberadamente explícito:
+ * o nome exibido pode mudar, mas a coluna continua apontando para `pages.title`.
+ */
+function parsePageTitleColumn(raw: unknown): PageTitleColumn | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const candidate = raw as Record<string, unknown>
+  if (candidate.key !== 'title' || typeof candidate.column_name !== 'string') return undefined
+
+  const mask = isColumnMask(candidate.mask) ? candidate.mask : undefined
+  return {
+    key: 'title',
+    column_name: candidate.column_name,
+    ...(mask && { mask }),
+  }
+}
+
 /** Uma entrada de `page.data` só vira view se tiver o formato esperado. */
 function parseView(raw: unknown): DataViewType | null {
   if (!raw || typeof raw !== 'object') return null
@@ -306,11 +329,13 @@ function parseView(raw: unknown): DataViewType | null {
 
   const columnWidths = parseColumnWidths(candidate.columnWidths)
   const orderedRows = parseIdList(candidate.orderedRows)
+  const title = parsePageTitleColumn(candidate.title)
 
   return {
     view: candidate.view,
     name: typeof candidate.name === 'string' ? candidate.name : '',
     filters: typeof candidate.filters === 'string' ? candidate.filters : '',
+    ...(title && { title }),
     orderedHeaderCols: parseIdList(candidate.orderedHeaderCols),
     // Ausente e vazio são a MESMA coisa na leitura (ordem natural), então o
     // campo só entra quando tem conteúdo — snapshot enxuto.
@@ -325,13 +350,26 @@ function parseView(raw: unknown): DataViewType | null {
  * de view são DESCARTADAS em silêncio: elas podem ser qualquer outra coisa que
  * o app venha a guardar ali, e não devem virar uma tab quebrada.
  */
-export function parseViewSettings(data: Record<string, unknown> | null | undefined): DataViewSettings {
+export function parseViewSettings(
+  data: Record<string, unknown> | null | undefined,
+  titleLabel?: string,
+): DataViewSettings {
   if (!data) return {}
 
   const settings: DataViewSettings = {}
   for (const [viewId, raw] of Object.entries(data)) {
     const view = parseView(raw)
-    if (view) settings[viewId] = view
+    if (view) {
+      settings[viewId] =
+        view.title || titleLabel === undefined
+          ? view
+          : {
+              ...view,
+              // Snapshot legado: materializa em memória a identidade
+              // canônica. A próxima personalização a persistirá junto.
+              title: { key: 'title', column_name: titleLabel },
+            }
+    }
   }
   return settings
 }
@@ -341,11 +379,19 @@ export function createFallbackViewSettings(
   headerCols: HeaderCol[],
   name: string,
 ): DataViewSettings {
+  const titleColumn = headerCols.find((column) => column.key === 'title')
   return {
     [FALLBACK_VIEW_ID]: {
       view: 'table',
       name,
       filters: '',
+      ...(titleColumn && {
+        title: {
+          key: 'title',
+          column_name: titleColumn.title,
+          ...(titleColumn.mask && { mask: titleColumn.mask }),
+        },
+      }),
       orderedHeaderCols: headerCols.map((column) => column.id),
     },
   }
@@ -382,7 +428,7 @@ export function parseDatabase({
   fallbackViewName,
 }: ParseDatabaseInput): ParsedDatabase {
   const headerCols = parseHeaderCols(columns, titleLabel, dataset)
-  const settings = parseViewSettings(page.data)
+  const settings = parseViewSettings(page.data, titleLabel)
 
   return {
     headerCols,

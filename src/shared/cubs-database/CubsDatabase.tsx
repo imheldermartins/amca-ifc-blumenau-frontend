@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { cn, type ContextMenuItem } from 'cubs-components'
 
@@ -14,6 +14,7 @@ import type {
   DataViewSettings,
   DataViewType,
   HeaderCol,
+  PageTitleColumn,
   RowData,
 } from './types'
 import { reorderByIds } from './utils'
@@ -87,6 +88,11 @@ export interface CubsDatabaseProps {
    */
   onColumnRename?: (columnId: string, name: string) => void
   /**
+   * Nome/máscara da coluna mestra `pages.title` naquela view. Diferente das
+   * colunas EAV, essa apresentação pertence ao snapshot em `page.data`.
+   */
+  onPageTitleColumnChange?: (viewId: string, column: PageTitleColumn) => void
+  /**
    * Trocar o TIPO da coluna (menu). Não-destrutivo no backend: o config e os
    * valores do tipo antigo ficam preservados até um "reset de tipos".
    */
@@ -141,6 +147,7 @@ export function CubsDatabase({
   onColumnOrderChange,
   onSelectionChange,
   onColumnRename,
+  onPageTitleColumnChange,
   onColumnTypeChange,
   onColumnConfigChange,
   onColumnReset,
@@ -159,6 +166,37 @@ export function CubsDatabase({
     activeViewId ?? (settings[internalViewId] ? internalViewId : Object.keys(settings)[0] ?? '')
   const currentView = settings[currentViewId] ?? FALLBACK_VIEW
 
+  const basePageTitleColumn = useMemo(
+    () => headerCols.find((column) => column.key === 'title'),
+    [headerCols],
+  )
+  const pageTitleColumn = useMemo<PageTitleColumn>(
+    () =>
+      currentView.title ?? {
+        key: 'title',
+        column_name: basePageTitleColumn?.title ?? '',
+        ...(basePageTitleColumn?.mask && { mask: basePageTitleColumn.mask }),
+      },
+    [basePageTitleColumn, currentView.title],
+  )
+
+  // O mesmo `pages.title` pode aparecer como "Docente" numa view e "Nome"
+  // em outra. A coluna base mantém a identidade; o snapshot troca apenas a
+  // apresentação que desce para a tabela ativa.
+  const viewHeaderCols = useMemo(
+    () =>
+      headerCols.map((column) =>
+        column.key === 'title'
+          ? {
+              ...column,
+              title: pageTitleColumn.column_name,
+              mask: pageTitleColumn.mask,
+            }
+          : column,
+      ),
+    [headerCols, pageTitleColumn],
+  )
+
   const handleViewChange = (viewId: string) => {
     setInternalViewId(viewId)
     onViewChange?.(viewId)
@@ -168,12 +206,48 @@ export function CubsDatabase({
   // otimista (ordem local re-sincroniza quando a prop muda). Sem memo, cada
   // render daqui criaria um array novo e o sync descartaria o otimismo.
   const orderedColumns = useMemo(
-    () => reorderByIds(headerCols, currentView.orderedHeaderCols),
-    [headerCols, currentView],
+    () => reorderByIds(viewHeaderCols, currentView.orderedHeaderCols),
+    [viewHeaderCols, currentView.orderedHeaderCols],
   )
   const orderedRows = useMemo(
     () => reorderByIds(rows, currentView.orderedRows ?? []),
     [rows, currentView],
+  )
+
+  const handleColumnRename = useCallback(
+    (columnId: string, name: string) => {
+      const column = viewHeaderCols.find((candidate) => candidate.id === columnId)
+      if (column?.key === 'title') {
+        onPageTitleColumnChange?.(currentViewId, { ...pageTitleColumn, column_name: name })
+        return
+      }
+      onColumnRename?.(columnId, name)
+    },
+    [currentViewId, onColumnRename, onPageTitleColumnChange, pageTitleColumn, viewHeaderCols],
+  )
+
+  const handleColumnConfigChange = useCallback(
+    (columnId: string, patch: ColumnConfigPatch) => {
+      const column = viewHeaderCols.find((candidate) => candidate.id === columnId)
+      if (column?.key === 'title') {
+        // `title` é sempre text; do patch genérico só a máscara se aplica.
+        const mask = 'mask' in patch ? (patch.mask ?? undefined) : pageTitleColumn.mask
+        onPageTitleColumnChange?.(currentViewId, {
+          key: 'title',
+          column_name: pageTitleColumn.column_name,
+          ...(mask && { mask }),
+        })
+        return
+      }
+      onColumnConfigChange?.(columnId, patch)
+    },
+    [
+      currentViewId,
+      onColumnConfigChange,
+      onPageTitleColumnChange,
+      pageTitleColumn,
+      viewHeaderCols,
+    ],
   )
 
   return (
@@ -206,9 +280,15 @@ export function CubsDatabase({
               onColumnOrderChange ? (ids) => onColumnOrderChange(currentViewId, ids) : undefined
             }
             onSelectionChange={onSelectionChange}
-            onColumnRename={onColumnRename}
+            onColumnRename={
+              onColumnRename || onPageTitleColumnChange ? handleColumnRename : undefined
+            }
             onColumnTypeChange={onColumnTypeChange}
-            onColumnConfigChange={onColumnConfigChange}
+            onColumnConfigChange={
+              onColumnConfigChange || onPageTitleColumnChange
+                ? handleColumnConfigChange
+                : undefined
+            }
             onColumnReset={onColumnReset}
             onColumnWidthChange={
               onColumnWidthChange

@@ -277,7 +277,7 @@ export function applyRealtimeEvent(
       const { data, updatedAt } = event.payload
       if (!isFresh(clock, VIEW_KEY, updatedAt)) return unchanged
 
-      const settings = parseViewSettings(data as Record<string, unknown> | null)
+      const settings = parseViewSettings(data as Record<string, unknown> | null, titleLabel)
       // Snapshot vazio/ilegível não apaga as tabs de quem está vendo: sem view
       // a tabela não teria como se desenhar.
       if (Object.keys(settings).length === 0) return unchanged

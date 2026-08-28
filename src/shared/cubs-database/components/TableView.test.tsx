@@ -77,6 +77,32 @@ describe('TableView — menu da coluna', () => {
     fireEvent.pointerDown(document.body)
     expect(screen.queryByRole('textbox', { name: 'Renomear coluna' })).toBeNull()
   })
+
+  it('mantém nome e máscara, mas não oferece tipo/reset para a coluna title', () => {
+    render(
+      <TableView
+        columns={[{ ...column, id: 'page_title', key: 'title' }]}
+        rows={[]}
+        onColumnRename={() => undefined}
+        onColumnTypeChange={() => undefined}
+        onColumnConfigChange={() => undefined}
+        onColumnReset={() => undefined}
+        labels={{
+          renameColumn: 'Renomear coluna',
+          changeType: 'Mudar tipo',
+          maskMenu: 'Máscara',
+          resetType: 'Resetar tipo',
+        }}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('columnheader'))
+
+    expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
+    expect(screen.getByText('Máscara')).not.toBeNull()
+    expect(screen.queryByText('Mudar tipo')).toBeNull()
+    expect(screen.queryByText('Resetar tipo')).toBeNull()
+  })
 })
 
 describe('TableView — zebra', () => {

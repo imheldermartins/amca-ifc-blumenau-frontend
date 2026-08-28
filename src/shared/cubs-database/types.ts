@@ -62,6 +62,20 @@ export interface ColumnConfigPatch {
 }
 
 /**
+ * Apresentação, POR VIEW, da coluna mestra que aponta para `pages.title`.
+ *
+ * `key` identifica o campo canônico da página; `column_name` é só o rótulo
+ * daquela view e pode mudar sem renomear nem reescrever `page.title`. O tipo
+ * não entra aqui porque `title` é sempre texto. A máscara continua sendo
+ * apresentação e, por isso, também pode variar entre views.
+ */
+export interface PageTitleColumn {
+  key: 'title'
+  column_name: string
+  mask?: ColumnMask
+}
+
+/**
  * Uma edição de célula confirmada, no formato que o transporte de escrita vai
  * carregar — hoje o callback `onCellChange`, amanhã o evento `cell-updated` do
  * realtime (o `pageId`/room entra do lado do app, que sabe qual página está
@@ -136,6 +150,11 @@ export interface DataViewType {
    */
   filters: string
   /**
+   * Prévia da coluna mestra `pages.title` nesta view. O valor de cada linha
+   * continua em `page.title`; somente nome de coluna e máscara moram aqui.
+   */
+  title?: PageTitleColumn
+  /**
    * Ordem de exibição como lista de IDs de coluna. Reordenar = produzir um
    * NOVO array (slice/spread), nunca mexer em índices na mão. Vazio = usa a
    * ordem natural de `headerCols`.
@@ -179,6 +198,12 @@ export interface CellData {
 /** Definição de coluna. A ordem do array já é a ordem de display (esq→dir). */
 export interface HeaderCol {
   id: string
+  /**
+   * Campo canônico da entidade quando a coluna é uma projeção mestra, e não
+   * uma `page_columns`. Hoje existe `key: 'title'`, ligada a `pages.title`.
+   * Ausente significa coluna EAV normal, identificada pelo próprio `id`.
+   */
+  key?: 'title'
   title: string
   /**
    * Ausente = INFERIDO dos valores da coluna (`inferColumnType`). A lib não
