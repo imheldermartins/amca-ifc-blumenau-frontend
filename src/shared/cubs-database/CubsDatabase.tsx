@@ -279,7 +279,7 @@ export function CubsDatabase({
         viewMenuItems={viewMenuItems}
       />
 
-      <div className="mt-3.5 pb-6">
+      <div data-database-view-container className="mt-3.5 pb-6">
         {currentView.view === 'table' ? (
           <TableView
             key={currentViewId}

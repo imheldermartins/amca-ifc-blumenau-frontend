@@ -91,7 +91,7 @@ describe('CubsDatabase — espaçamento das views', () => {
       />,
     )
 
-    const viewContainer = screen.getByRole('table').parentElement?.parentElement
+    const viewContainer = screen.getByRole('table').closest('[data-database-view-container]')
     expect(viewContainer?.className).toContain('mt-3.5')
   })
 })

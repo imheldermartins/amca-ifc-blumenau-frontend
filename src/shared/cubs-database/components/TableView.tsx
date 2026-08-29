@@ -24,9 +24,11 @@ import type {
 } from '../types'
 import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
-import { GuidedAddControl } from './GuidedAddControl'
+import { GuidedAddControls } from './GuidedAddControls'
 import { CONTROL_CELL_WIDTH, TableRow } from './TableRow'
 import type { TableRowLabels } from './TableRow'
+import { CUBS_SCROLLBAR_CLASS_NAME } from './scrollbarStyles'
+import { VirtualScroller } from './VirtualScroller'
 import { TYPE_ICON } from './columnTypeIcons'
 import { useSortableSensors } from './dndSensors'
 import { useShiftKey } from './useShiftKey'
@@ -296,6 +298,8 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  */
 export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const tableScrollRef = useRef<HTMLDivElement>(null)
+  const tableContentRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
 
@@ -568,14 +572,23 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
         ref={setDragHandleLayer}
         className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px [clip-path:inset(-1rem_0)]"
       />
-      <div
-        role="table"
-        className="overflow-x-auto rounded-xl border border-divider bg-background shadow-sm"
-        onMouseLeave={handleMouseLeave}
-        onScroll={(event) => setTableScrollLeft(event.currentTarget.scrollLeft)}
+      <GuidedAddControls
+        onAddRow={onAddRow}
+        onAddColumn={onAddColumn}
+        addRowLabel={labels?.addRow ?? 'Adicionar linha'}
+        addColumnLabel={labels?.addColumn ?? 'Adicionar coluna'}
       >
-        <div className="relative w-max min-w-full">
-          <div className={cn(onAddColumn && 'pr-9')}>
+        <div
+          ref={tableScrollRef}
+          role="table"
+          data-table-scroll-viewport
+          className={cn(
+            'overflow-x-auto rounded-xl border border-divider bg-background shadow-sm',
+            CUBS_SCROLLBAR_CLASS_NAME,
+          )}
+          onMouseLeave={handleMouseLeave}
+        >
+          <div ref={tableContentRef} className="relative w-max min-w-full">
             <div role="row" className="flex w-max min-w-full border-b border-divider bg-contrast">
               {/* Célula de controles do header: espaçador enquanto não há seleção
                   (o alinhamento com as linhas depende da MESMA largura) e caixa de
@@ -677,27 +690,14 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
               </DndContext>
             )}
           </div>
-
-          {onAddColumn && (
-            <GuidedAddControl
-              axis="vertical"
-              label={labels?.addColumn ?? 'Adicionar coluna'}
-              onClick={onAddColumn}
-              className={cn('absolute right-0 top-0', onAddRow ? 'bottom-9' : 'bottom-0')}
-            />
-          )}
-
-          {onAddRow && (
-            <div className={cn(onAddColumn && 'pr-9')}>
-              <GuidedAddControl
-                axis="horizontal"
-                label={labels?.addRow ?? 'Adicionar linha'}
-                onClick={onAddRow}
-              />
-            </div>
-          )}
         </div>
-      </div>
+      </GuidedAddControls>
+
+      <VirtualScroller
+        scrollViewportRef={tableScrollRef}
+        contentRef={tableContentRef}
+        onScrollLeftChange={setTableScrollLeft}
+      />
 
       {columnMenu && menuColumn ? (
         <ColumnHeaderMenu

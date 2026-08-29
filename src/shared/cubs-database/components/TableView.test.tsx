@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -217,6 +217,8 @@ describe('TableView — adição guiada', () => {
 
     expect(onAddRow).toHaveBeenCalledOnce()
     expect(onAddColumn).toHaveBeenCalledOnce()
+    expect(screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova linha' }))).toBe(false)
+    expect(screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova coluna' }))).toBe(false)
   })
 
   it('faz o indicador acompanhar e limitar o ponteiro no eixo do trilho', () => {
@@ -276,5 +278,92 @@ describe('TableView — adição guiada', () => {
     fireEvent.pointerLeave(columnControl)
     expect(rowIndicator?.style.left).toBe('14px')
     expect(columnIndicator?.style.top).toBe('14px')
+  })
+})
+
+describe('TableView — virtual scroller', () => {
+  it('sincroniza o scroll flutuante e some quando a barra real chega à viewport', () => {
+    let tableBottom = 900
+    const frames: FrameRequestCallback[] = []
+
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(500)
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.hasAttribute('data-table-scroll-viewport') ? 300 : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.hasAttribute('data-table-scroll-viewport') || this.classList.contains('w-max')
+        ? 700
+        : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('w-max') ? 700 : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.hasAttribute('data-table-scroll-viewport')) {
+        return {
+          left: 80,
+          top: 100,
+          width: 300,
+          height: tableBottom - 100,
+          right: 380,
+          bottom: tableBottom,
+          x: 80,
+          y: 100,
+          toJSON: () => ({}),
+        }
+      }
+      return {
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }
+    })
+
+    render(
+      <TableView
+        columns={[
+          { id: 'column-1', title: 'Nome', type: 'text' },
+          { id: 'column-2', title: 'Descrição', type: 'text' },
+        ]}
+        rows={[]}
+      />,
+    )
+
+    const table = screen.getByRole('table') as HTMLDivElement
+    const virtualScroller = document.querySelector<HTMLDivElement>('[data-virtual-scroller]')
+    expect(virtualScroller).not.toBeNull()
+    expect(virtualScroller?.style.left).toBe('80px')
+    expect(virtualScroller?.style.width).toBe('300px')
+
+    if (!virtualScroller) throw new Error('Virtual scroller não renderizado')
+    fireEvent.scroll(virtualScroller, { target: { scrollLeft: 120 } })
+    expect(table.scrollLeft).toBe(120)
+
+    fireEvent.scroll(table, { target: { scrollLeft: 48 } })
+    expect(virtualScroller.scrollLeft).toBe(48)
+
+    tableBottom = 480
+    fireEvent(window, new Event('resize'))
+    act(() => frames.shift()?.(0))
+
+    expect(document.querySelector('[data-virtual-scroller]')).toBeNull()
   })
 })
