@@ -29,6 +29,9 @@ import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
 import { pageWriteService } from '@/services/PageWriteService'
+import { socketService } from '@/services/SocketService'
+
+const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
 
 /**
  * Set imutável: devolve a MESMA referência quando nada muda (para não custar
@@ -48,6 +51,8 @@ export interface UsePageDatabaseResult {
   failed: boolean
   /** Repasse para o `<PageShell>`: é ele quem assina a sala. */
   realtimeOptions: UsePageRealtimeOptions
+  /** Larguras efêmeras recebidas; não fazem parte do snapshot persistido. */
+  columnWidthPreviews: Record<string, Record<string, number>>
   /**
    * Células em estado de atenção (chave `cellErrorKey`): escrita falhou ou o
    * receiver interrompeu uma edição simultânea. É a marca visual vermelha.
@@ -66,6 +71,7 @@ export interface UsePageDatabaseResult {
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
+    onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
   }
 }
 
@@ -94,6 +100,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   const [failed, setFailed] = useState(false)
   // Células em atenção — escrita falhou ou edição foi interrompida pelo receiver.
   const [cellErrors, setCellErrors] = useState<Set<string>>(() => new Set())
+  const [columnWidthPreviews, setColumnWidthPreviews] = useState<
+    Record<string, Record<string, number>>
+  >({})
   // Revisão monotônica por célula. Duas mutações da mesma célula podem ficar
   // em voo ao mesmo tempo; uma falha ANTIGA não tem autoridade para desfazer
   // o otimismo de uma edição mais nova. O Map fica em ref porque coordena
@@ -120,12 +129,29 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // desta sessão garante que um drag de linha seguido de um drag de coluna
   // chegue ao backend na mesma ordem em que atualizou a UI.
   const viewWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const columnResizePreviewTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  )
+
+  const cancelColumnWidthPreviewTimers = useCallback(() => {
+    for (const timer of columnResizePreviewTimersRef.current.values()) clearTimeout(timer)
+    columnResizePreviewTimersRef.current.clear()
+  }, [])
+
+  const clearColumnWidthPreviews = useCallback(() => {
+    cancelColumnWidthPreviewTimers()
+    setColumnWidthPreviews((current) =>
+      Object.keys(current).length === 0 ? current : {},
+    )
+  }, [cancelColumnWidthPreviewTimers])
 
   useEffect(() => {
+    clearColumnWidthPreviews()
     settingsRef.current = {}
     materializedFallbackRef.current = { pageId }
     viewWriteQueueRef.current = Promise.resolve()
-  }, [pageId])
+    return cancelColumnWidthPreviewTimers
+  }, [pageId, cancelColumnWidthPreviewTimers, clearColumnWidthPreviews])
 
   const load = useCallback(() => {
     if (!pageId) return
@@ -164,6 +190,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
 
   const handleRealtimeEvent = useCallback<NonNullable<UsePageRealtimeOptions['onEvent']>>(
     (event) => {
+      // Qualquer snapshot confirmado substitui os previews: ele é a verdade
+      // durável, inclusive quando o resize acabou ou sua escrita foi superada.
+      if (event.type === 'view-updated') clearColumnWidthPreviews()
       setDatabase((current) => {
         if (!current) return current
         // Sem filtro de autoria: o eco da PRÓPRIA edição também entra, e é ele
@@ -183,8 +212,40 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         return result.database
       })
     },
-    [],
+    [clearColumnWidthPreviews],
   )
+
+  const handleRemoteColumnResize = useCallback<
+    NonNullable<UsePageRealtimeOptions['onColumnResize']>
+  >((payload) => {
+    const key = `${payload.viewId}:${payload.columnId}`
+    const previousTimer = columnResizePreviewTimersRef.current.get(key)
+    if (previousTimer) clearTimeout(previousTimer)
+
+    setColumnWidthPreviews((current) => ({
+      ...current,
+      [payload.viewId]: {
+        ...current[payload.viewId],
+        [payload.columnId]: payload.width,
+      },
+    }))
+
+    columnResizePreviewTimersRef.current.set(
+      key,
+      setTimeout(() => {
+        columnResizePreviewTimersRef.current.delete(key)
+        setColumnWidthPreviews((current) => {
+          const view = current[payload.viewId]
+          if (!view || !(payload.columnId in view)) return current
+          const { [payload.columnId]: _expired, ...remainingColumns } = view
+          const next = { ...current }
+          if (Object.keys(remainingColumns).length > 0) next[payload.viewId] = remainingColumns
+          else delete next[payload.viewId]
+          return next
+        })
+      }, COLUMN_RESIZE_PREVIEW_TTL_MS),
+    )
+  }, [])
 
   // Linha criada/removida e reconexão caem no mesmo remédio: reler a base. É
   // mais barato (e mais honesto) do que remendar meia linha ou tentar
@@ -438,6 +499,13 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [saveViewSnapshot],
     ),
+    onColumnWidthPreview: useCallback(
+      (viewId: string, columnId: string, width: number) => {
+        if (!pageId) return
+        socketService.previewColumnResize({ pageId, viewId, columnId, width })
+      },
+      [pageId],
+    ),
   }
 
   return {
@@ -445,9 +513,11 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     loading,
     failed,
     cellErrors,
+    columnWidthPreviews,
     realtimeOptions: {
       onEvent: handleRealtimeEvent,
       onRowsChanged: reload,
+      onColumnResize: handleRemoteColumnResize,
       onResync: reload,
     },
     handlers,

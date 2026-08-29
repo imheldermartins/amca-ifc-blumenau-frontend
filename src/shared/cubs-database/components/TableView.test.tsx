@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { TableView } from './TableView'
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
 describe('TableView — menu da coluna', () => {
   const column = { id: 'column-1', title: 'Nome', type: 'text' as const }
@@ -20,9 +23,34 @@ describe('TableView — menu da coluna', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Arrastar coluna' }))
+    const dragHandle = screen.getByRole('button', { name: 'Arrastar coluna' })
+    const tableContent = screen.getByRole('table').firstElementChild as HTMLElement
+
+    expect(dragHandle.className).toContain('px-2')
+    expect(dragHandle.className).toContain('py-1')
+    expect(tableContent.className).not.toContain('pt-3')
+
+    fireEvent.click(dragHandle)
 
     expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
+  })
+
+  it('mantém o handle sobreposto alinhado durante o scroll horizontal', () => {
+    render(
+      <TableView
+        columns={[column]}
+        rows={[]}
+        onColumnOrderChange={() => undefined}
+        labels={{ dragColumn: 'Arrastar coluna' }}
+      />,
+    )
+
+    const table = screen.getByRole('table')
+    const dragHandle = screen.getByRole('button', { name: 'Arrastar coluna' })
+
+    expect(dragHandle.style.left).toBe('0px')
+    fireEvent.scroll(table, { target: { scrollLeft: 40 } })
+    expect(dragHandle.style.left).toBe('-40px')
   })
 
   it('preserva o menu no primeiro pointerdown externo para o blur confirmar o rename', () => {
@@ -121,6 +149,51 @@ describe('TableView — zebra', () => {
 
     expect(firstRow.className).toContain('bg-contrast')
     expect(secondRow.className).toContain('bg-background')
+  })
+})
+
+describe('TableView — resize suave', () => {
+  it('coalesce previews por frame e persiste a última largura no pointerup', () => {
+    const onColumnWidthPreview = vi.fn()
+    const onColumnWidthChange = vi.fn()
+    const frames: FrameRequestCallback[] = []
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
+
+    render(
+      <TableView
+        columns={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[]}
+        onColumnWidthPreview={onColumnWidthPreview}
+        onColumnWidthChange={onColumnWidthChange}
+        labels={{ resizeColumn: 'Redimensionar coluna' }}
+      />,
+    )
+
+    const handle = screen.getByRole('separator', { name: 'Redimensionar coluna' })
+    Object.defineProperties(handle, {
+      setPointerCapture: { value: vi.fn() },
+      releasePointerCapture: { value: vi.fn() },
+    })
+
+    fireEvent(handle, new MouseEvent('pointerdown', { bubbles: true, clientX: 100 }))
+    fireEvent(handle, new MouseEvent('pointermove', { bubbles: true, clientX: 140 }))
+    fireEvent(handle, new MouseEvent('pointermove', { bubbles: true, clientX: 180 }))
+
+    expect(onColumnWidthPreview).not.toHaveBeenCalled()
+    expect(frames).toHaveLength(1)
+    frames[0](0)
+    expect(onColumnWidthPreview).toHaveBeenLastCalledWith('column-1', 256)
+
+    fireEvent(handle, new MouseEvent('pointermove', { bubbles: true, clientX: 200 }))
+    fireEvent(handle, new MouseEvent('pointerup', { bubbles: true, clientX: 200 }))
+
+    expect(cancelFrame).toHaveBeenCalledWith(2)
+    expect(onColumnWidthPreview).toHaveBeenLastCalledWith('column-1', 276)
+    expect(onColumnWidthChange).toHaveBeenCalledWith({ 'column-1': 276 })
   })
 })
 

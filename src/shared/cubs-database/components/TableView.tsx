@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -71,6 +72,8 @@ export interface TableViewProps {
   onColumnReset?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
   onColumnWidthChange?: (columnWidths: Record<string, number>) => void
+  /** Frame do drag → preview efêmero para outros clientes, sem persistência. */
+  onColumnWidthPreview?: (columnId: string, width: number) => void
   /** Clique no trilho horizontal de adição — UI somente nesta etapa. */
   onAddRow?: () => void
   /** Clique no trilho vertical de adição — UI somente nesta etapa. */
@@ -87,12 +90,15 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   column,
   columnType,
   width,
+  orderIndex,
   sortable,
   resizable,
   isLast,
   diverging,
   dragLabel,
   resizeLabel,
+  dragHandleLayer,
+  scrollLeft,
   onResize,
   onResizeEnd,
   onContextMenu,
@@ -101,6 +107,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   column: HeaderCol
   columnType: ColumnDataType
   width?: number
+  orderIndex: number
   sortable: boolean
   resizable: boolean
   /** Última coluna: fecha a grade com a borda direita. */
@@ -109,13 +116,21 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   diverging?: boolean
   dragLabel: string
   resizeLabel: string
+  /** Camada fora do scrollport: evita que o overflow recorte o handle. */
+  dragHandleLayer: HTMLDivElement | null
+  /** Mantém o handle alinhado à coluna durante o scroll horizontal. */
+  scrollLeft: number
   /** Largura durante o arrasto (otimista, a cada movimento). */
   onResize: (columnId: string, width: number) => void
   /** Soltou: hora de persistir. */
   onResizeEnd: () => void
   onContextMenu?: (columnId: string, event: MouseEvent<HTMLDivElement>) => void
   /** Clique simples no drag-handle também abre o menu da coluna. */
-  onHandleClick?: (columnId: string, event: MouseEvent<HTMLButtonElement>) => void
+  onHandleClick?: (
+    columnId: string,
+    event: MouseEvent<HTMLButtonElement>,
+    cell: HTMLDivElement | null,
+  ) => void
 }) {
   const {
     attributes,
@@ -126,6 +141,23 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
     transition,
     isDragging,
   } = useSortable({ id: column.id, disabled: !sortable })
+  const cellRef = useRef<HTMLDivElement | null>(null)
+  const [handleLeft, setHandleLeft] = useState<number | null>(null)
+  const [cellHovered, setCellHovered] = useState(false)
+
+  const setCellNodeRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      cellRef.current = node
+      setNodeRef(node)
+    },
+    [setNodeRef],
+  )
+
+  useLayoutEffect(() => {
+    const cell = cellRef.current
+    if (!cell || !dragHandleLayer) return
+    setHandleLeft(cell.offsetLeft + cell.offsetWidth / 2 - scrollLeft)
+  }, [dragHandleLayer, orderIndex, scrollLeft, width])
 
   // O resize NÃO é dnd-kit: não há reordenação nem drop target, é só arrastar
   // uma borda. Pointer capture direto é mais simples e não briga com o sensor
@@ -152,67 +184,83 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
     onResizeEnd()
   }
 
+  const dragHandle =
+    sortable && dragHandleLayer && handleLeft !== null
+      ? createPortal(
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            aria-label={dragLabel}
+            {...attributes}
+            {...listeners}
+            aria-haspopup={onHandleClick ? 'menu' : undefined}
+            onClick={
+              onHandleClick
+                ? (event) => onHandleClick(column.id, event, cellRef.current)
+                : undefined
+            }
+            style={{ left: handleLeft + (transform?.x ?? 0) }}
+            className={cn(
+              'pointer-events-auto absolute top-0 -translate-x-1/2 -translate-y-3 cursor-grab rounded px-2 py-1 leading-none',
+              'opacity-0 transition-opacity bg-contrast border-t border-active hover:bg-active hover:opacity-100 focus-visible:opacity-100',
+              cellHovered && 'opacity-100',
+            )}
+          >
+            <Icon icon="lucide:grip-horizontal" fontSize={12} />
+          </button>,
+          dragHandleLayer,
+        )
+      : null
+
   return (
-    <div
-      role="columnheader"
-      ref={setNodeRef}
-      style={{
-        width: resolveColumnWidth(width),
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-      onContextMenu={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
-      className={cn(
-        'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-2.5 py-1.5 text-sm font-semibold opacity-70',
-        // A ÚLTIMA coluna fecha a grade à direita: sem esta borda a tabela
-        // termina "aberta" e a alça de resize da última coluna não teria em
-        // que se apoiar visualmente. Por PROP, e não por `last:`, porque o
-        // DndContext injeta uma live-region de a11y como último irmão — o
-        // seletor `:last-child` pegaria ela, não a coluna.
-        isLast && 'border-r',
-        isDragging && 'z-10 opacity-90',
-        // Divergência: o header inteiro vira aviso (o tipo atual tem valores
-        // que não casam com ele). O "reset de tipos" mora no menu.
-        diverging && 'text-p-red opacity-100',
-      )}
-    >
-      {sortable && (
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          aria-label={dragLabel}
-          {...attributes}
-          {...listeners}
-          aria-haspopup={onHandleClick ? 'menu' : undefined}
-          onClick={onHandleClick ? (event) => onHandleClick(column.id, event) : undefined}
-          className={cn(
-            'absolute left-1/2 top-0 -translate-x-1/2 cursor-grab rounded px-1 leading-none',
-            'opacity-0 transition-opacity hover:bg-active group-hover/col:opacity-100 focus-visible:opacity-100',
-          )}
-        >
-          <Icon icon="lucide:grip-horizontal" fontSize={12} />
-        </button>
-      )}
-      <Icon icon={TYPE_ICON[columnType]} fontSize={14} className="shrink-0" />
-      <span className="truncate">{column.title}</span>
-      {resizable && (
-        // Alça sobre a borda DIREITA (a mesma que separa da próxima coluna).
-        // `touch-none` porque o pointer capture precisa dos eventos que o
-        // scroll horizontal roubaria no touch.
-        <span
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={resizeLabel}
-          onPointerDown={handleResizePointerDown}
-          onPointerMove={handleResizePointerMove}
-          onPointerUp={handleResizePointerUp}
-          className={cn(
-            'absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none',
-            'opacity-0 transition-opacity hover:bg-p-purple group-hover/col:opacity-100',
-          )}
-        />
-      )}
-    </div>
+    <>
+      <div
+        role="columnheader"
+        ref={setCellNodeRef}
+        style={{
+          width: resolveColumnWidth(width),
+          transform: CSS.Transform.toString(transform),
+          transition,
+        }}
+        onPointerEnter={() => setCellHovered(true)}
+        onPointerLeave={() => setCellHovered(false)}
+        onContextMenu={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
+        className={cn(
+          'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-2.5 py-1.5 text-sm font-semibold opacity-70',
+          // A ÚLTIMA coluna fecha a grade à direita: sem esta borda a tabela
+          // termina "aberta" e a alça de resize da última coluna não teria em
+          // que se apoiar visualmente. Por PROP, e não por `last:`, porque o
+          // DndContext injeta uma live-region de a11y como último irmão — o
+          // seletor `:last-child` pegaria ela, não a coluna.
+          isLast && 'border-r',
+          isDragging && 'z-10 opacity-90',
+          // Divergência: o header inteiro vira aviso (o tipo atual tem valores
+          // que não casam com ele). O "reset de tipos" mora no menu.
+          diverging && 'text-p-red opacity-100',
+        )}
+      >
+        <Icon icon={TYPE_ICON[columnType]} fontSize={14} className="shrink-0" />
+        <span className="truncate">{column.title}</span>
+        {resizable && (
+          // Alça sobre a borda DIREITA (a mesma que separa da próxima coluna).
+          // `touch-none` porque o pointer capture precisa dos eventos que o
+          // scroll horizontal roubaria no touch.
+          <span
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={resizeLabel}
+            onPointerDown={handleResizePointerDown}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            className={cn(
+              'absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none',
+              'opacity-0 transition-opacity hover:bg-p-purple group-hover/col:opacity-100',
+            )}
+          />
+        )}
+      </div>
+      {dragHandle}
+    </>
   )
 })
 
@@ -246,7 +294,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
@@ -268,6 +316,11 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
   // ler `localWidths` da closure do render entrega a largura de um movimento
   // atrás, e é justamente a última que o usuário quer salvar.
   const latestWidthsRef = useRef(localWidths)
+  // A UI local acompanha cada pointermove. Para a rede, basta o último frame
+  // de cada pintura: requestAnimationFrame coalesce eventos mais rápidos que
+  // a tela e evita inundar a sala sem introduzir debounce perceptível.
+  const resizePreviewFrameRef = useRef<number | null>(null)
+  const pendingResizePreviewRef = useRef<{ columnId: string; width: number } | null>(null)
 
   if (seenProps.rows !== rows || seenProps.columns !== columns || seenProps.columnWidths !== columnWidths) {
     setSeenProps({ rows, columns, columnWidths })
@@ -282,6 +335,8 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
 
   const [selection, dispatch] = useReducer(selectionReducer, EMPTY_SELECTION)
   const [columnMenu, setColumnMenu] = useState<{ columnId: string; left: number } | null>(null)
+  const [dragHandleLayer, setDragHandleLayer] = useState<HTMLDivElement | null>(null)
+  const [tableScrollLeft, setTableScrollLeft] = useState(0)
   const suppressHandleMenuRef = useRef<string | null>(null)
 
   const rowIds = useMemo(() => localRows.map((row) => row.id), [localRows])
@@ -321,6 +376,15 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     }
     onSelectionChange?.([...selection.ids])
   }, [selection.ids, onSelectionChange])
+
+  useEffect(
+    () => () => {
+      if (resizePreviewFrameRef.current !== null) {
+        cancelAnimationFrame(resizePreviewFrameRef.current)
+      }
+    },
+    [],
+  )
 
   /**
    * Estado do "selecionar todas" — só existe quando JÁ há seleção: a caixa
@@ -387,15 +451,44 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     [onColumnOrderChange],
   )
 
-  const handleColumnResize = useCallback((columnId: string, width: number) => {
-    const next = { ...latestWidthsRef.current, [columnId]: resolveColumnWidth(width) }
-    latestWidthsRef.current = next
-    setLocalWidths(next)
-  }, [])
+  const flushColumnResizePreview = useCallback(() => {
+    if (resizePreviewFrameRef.current !== null) {
+      cancelAnimationFrame(resizePreviewFrameRef.current)
+      resizePreviewFrameRef.current = null
+    }
+    const pending = pendingResizePreviewRef.current
+    pendingResizePreviewRef.current = null
+    if (pending) onColumnWidthPreview?.(pending.columnId, pending.width)
+  }, [onColumnWidthPreview])
+
+  const handleColumnResize = useCallback(
+    (columnId: string, width: number) => {
+      const resolvedWidth = resolveColumnWidth(width)
+      const next = { ...latestWidthsRef.current, [columnId]: resolvedWidth }
+      latestWidthsRef.current = next
+      setLocalWidths(next)
+
+      if (!onColumnWidthPreview) return
+      pendingResizePreviewRef.current = { columnId, width: resolvedWidth }
+      if (resizePreviewFrameRef.current !== null) return
+      resizePreviewFrameRef.current = requestAnimationFrame(() => {
+        resizePreviewFrameRef.current = null
+        const pending = pendingResizePreviewRef.current
+        pendingResizePreviewRef.current = null
+        if (pending) onColumnWidthPreview(pending.columnId, pending.width)
+      })
+    },
+    [onColumnWidthPreview],
+  )
 
   const handleColumnResizeEnd = useCallback(
-    () => onColumnWidthChange?.(latestWidthsRef.current),
-    [onColumnWidthChange],
+    () => {
+      // O último preview é enfileirado antes do PUT. O `view-updated`
+      // autoritativo (ou o TTL do receiver, em falha) fecha o estado efêmero.
+      flushColumnResizePreview()
+      onColumnWidthChange?.(latestWidthsRef.current)
+    },
+    [flushColumnResizePreview, onColumnWidthChange],
   )
 
   // O menu abre se QUALQUER edição de coluna estiver habilitada; sem nenhuma,
@@ -416,7 +509,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
   )
 
   const handleColumnHandleClick = useCallback(
-    (columnId: string, event: MouseEvent<HTMLButtonElement>) => {
+    (columnId: string, event: MouseEvent<HTMLButtonElement>, cell: HTMLDivElement | null) => {
       if (!columnMenuEnabled) return
       if (suppressHandleMenuRef.current === columnId) {
         suppressHandleMenuRef.current = null
@@ -425,7 +518,6 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
       event.preventDefault()
       event.stopPropagation()
       const containerRect = containerRef.current?.getBoundingClientRect()
-      const cell = event.currentTarget.closest('[role="columnheader"]')
       const cellRect = cell?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
       setColumnMenu({ columnId, left: containerRect ? cellRect.left - containerRect.left : 0 })
     },
@@ -473,9 +565,14 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
   return (
     <div ref={containerRef} className="relative">
       <div
+        ref={setDragHandleLayer}
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px [clip-path:inset(-1rem_0)]"
+      />
+      <div
         role="table"
         className="overflow-x-auto rounded-xl border border-divider bg-background shadow-sm"
         onMouseLeave={handleMouseLeave}
+        onScroll={(event) => setTableScrollLeft(event.currentTarget.scrollLeft)}
       >
         <div className="relative w-max min-w-full">
           <div className={cn(onAddColumn && 'pr-9')}>
@@ -511,12 +608,15 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                       column={column}
                       columnType={columnTypes[column.id]}
                       width={localWidths[column.id]}
+                      orderIndex={columnIndex}
                       sortable={columnsSortable}
                       resizable={columnsResizable}
                       isLast={columnIndex === localColumns.length - 1}
                       diverging={divergingColumns[column.id]}
                       dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
                       resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
+                      dragHandleLayer={dragHandleLayer}
+                      scrollLeft={tableScrollLeft}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
                       onContextMenu={handleHeaderContextMenu}

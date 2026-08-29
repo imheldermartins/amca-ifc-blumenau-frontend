@@ -43,8 +43,15 @@ const EMPTY_ROWS: RowData[] = []
 export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewProps) {
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
-  const { database, loading, failed, cellErrors, realtimeOptions, handlers } =
-    usePageDatabase(pageId)
+  const {
+    database,
+    loading,
+    failed,
+    cellErrors,
+    columnWidthPreviews,
+    realtimeOptions,
+    handlers,
+  } = usePageDatabase(pageId)
 
   const broken = failed || failedToResolve
   const currentLang = lang ?? 'pt-br'
@@ -156,6 +163,7 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
         headerCols={database?.headerCols ?? EMPTY_COLUMNS}
         rows={database?.rows ?? EMPTY_ROWS}
         cellErrors={cellErrors}
+        columnWidthPreviews={columnWidthPreviews}
         loading={loading && !broken}
         emptyLabel={i18n(
           broken ? 'pages.app.cubs-database.erro' : 'pages.app.cubs-database.vazio',

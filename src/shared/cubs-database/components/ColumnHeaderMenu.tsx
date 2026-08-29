@@ -1,42 +1,20 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
-import { Menu, TextField, cn, type MenuNode } from 'cubs-components'
+import { Menu, TextField, cn } from 'cubs-components'
 
 import type {
   ColumnConfigPatch,
   ColumnDataType,
-  ColumnMask,
   ColumnOption,
   HeaderCol,
 } from '../types'
-import { TYPE_ICON } from './columnTypeIcons'
-import { ColumnOptionsEditor, type ColumnOptionsEditorLabels } from './ColumnOptionsEditor'
+import {
+  buildColumnHeaderMenuNodes,
+  type ColumnHeaderMenuLabels,
+} from './columnHeaderMenu.shared'
 import { useExternalDraft } from './cells/useExternalDraft'
 
-const COLUMN_TYPES: ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox']
-const TEXT_MASKS: ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date']
-
-export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
-  /** Rótulo do campo de renomear (aria-label; sem label visível). */
-  renameColumn?: string
-  /** Rótulos exibíveis por tipo de coluna; ausente = o token cru. */
-  columnTypes?: Partial<Record<ColumnDataType, string>>
-  /** Submenus. */
-  changeType?: string
-  optionsMenu?: string
-  formatMenu?: string
-  maskMenu?: string
-  /** Numeric. */
-  formatPercentage?: string
-  formatCurrency?: string
-  currencyBRL?: string
-  /** "nenhum" (limpar format/máscara). */
-  none?: string
-  /** Máscaras exibíveis; ausente = o token cru. */
-  masks?: Partial<Record<ColumnMask, string>>
-  /** Item destrutivo de "reset de tipos" (só aparece com divergência). */
-  resetType?: string
-}
+export type { ColumnHeaderMenuLabels } from './columnHeaderMenu.shared'
 
 export interface ColumnHeaderMenuProps {
   column: HeaderCol
@@ -163,124 +141,27 @@ export function ColumnHeaderMenu({
     }
   }, [onClose])
 
-  const check = (active: boolean) => (active ? 'lucide:check' : undefined)
-  const nodes: MenuNode[] = []
-
-  // Renomear.
-  if (onRename) {
-    nodes.push({
-      name: labels?.renameColumn ?? 'Renomear',
-      content: (
-        <RenameField
-          column={column}
-          label={labels?.renameColumn ?? 'Renomear coluna'}
-          onRename={onRename}
-          onClose={onClose}
-          onPendingBlurChange={handlePendingBlurChange}
-        />
-      ),
-    })
-  }
-
-  // Trocar tipo.
-  if (onColumnTypeChange) {
-    nodes.push({
-      name: labels?.changeType ?? 'Tipo',
-      icon: TYPE_ICON[columnType],
-      children: COLUMN_TYPES.map((type) => ({
-        name: labels?.columnTypes?.[type] ?? type,
-        icon: check(type === columnType) ?? TYPE_ICON[type],
-        onSelect: () => {
-          onColumnTypeChange(type)
-          onClose()
-        },
-      })),
-    })
-  }
-
-  // Options (select).
-  if (columnType === 'select' && onColumnOptionsChange) {
-    nodes.push({
-      name: labels?.optionsMenu ?? 'Opções',
-      icon: 'lucide:list',
-      children: [
-        {
-          name: '',
-          content: (
-            <ColumnOptionsEditor
-              options={column.options ?? []}
-              onChange={onColumnOptionsChange}
-              labels={labels}
-            />
-          ),
-        },
-      ],
-    })
-  }
-
-  // Formato + moeda (numeric).
-  if (columnType === 'numeric' && onColumnConfigChange) {
-    nodes.push({
-      name: labels?.formatMenu ?? 'Formato',
-      icon: 'lucide:percent',
-      children: [
-        {
-          name: labels?.formatPercentage ?? 'Percentual',
-          icon: check(column.format === 'percentage'),
-          onSelect: () => onColumnConfigChange({ format: 'percentage', currency: null }),
-        },
-        {
-          name: labels?.formatCurrency ?? 'Moeda',
-          icon: check(column.format === 'currency'),
-          children: [
-            {
-              name: labels?.currencyBRL ?? 'Real (BRL)',
-              icon: check(column.currency === 'BRL'),
-              onSelect: () => onColumnConfigChange({ format: 'currency', currency: 'BRL' }),
-            },
-          ],
-        },
-        {
-          name: labels?.none ?? 'Nenhum',
-          onSelect: () => onColumnConfigChange({ format: null, currency: null }),
-        },
-      ],
-    })
-  }
-
-  // Máscara (text).
-  if (columnType === 'text' && onColumnConfigChange) {
-    nodes.push({
-      name: labels?.maskMenu ?? 'Máscara',
-      icon: 'lucide:asterisk',
-      children: [
-        {
-          name: labels?.none ?? 'Nenhuma',
-          icon: check(!column.mask),
-          onSelect: () => onColumnConfigChange({ mask: null }),
-        },
-        ...TEXT_MASKS.map((mask) => ({
-          name: labels?.masks?.[mask] ?? mask,
-          icon: check(column.mask === mask),
-          onSelect: () => onColumnConfigChange({ mask }),
-        })),
-      ],
-    })
-  }
-
-  // Reset de tipos — só com divergência (há valor que não casa com o tipo).
-  // Destrutivo, então é o único item de perigo e fica por último.
-  if (diverging && onColumnReset) {
-    nodes.push({
-      name: labels?.resetType ?? 'Resetar tipo',
-      icon: 'lucide:alert-triangle',
-      danger: true,
-      onSelect: () => {
-        onColumnReset()
-        onClose()
-      },
-    })
-  }
+  const nodes = buildColumnHeaderMenuNodes({
+    column,
+    columnType,
+    onClose,
+    onRename,
+    renderRenameContent: (rename) => (
+      <RenameField
+        column={column}
+        label={labels?.renameColumn ?? 'Renomear coluna'}
+        onRename={rename}
+        onClose={onClose}
+        onPendingBlurChange={handlePendingBlurChange}
+      />
+    ),
+    onColumnTypeChange,
+    onColumnOptionsChange,
+    onColumnConfigChange,
+    diverging,
+    onColumnReset,
+    labels,
+  })
 
   return (
     <Menu

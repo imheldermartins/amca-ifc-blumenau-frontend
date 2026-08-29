@@ -1,7 +1,11 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CellUpdatedPayload, CubsSocket } from '@/services/SocketService'
+import type {
+  CellUpdatedPayload,
+  ColumnResizingPayload,
+  CubsSocket,
+} from '@/services/SocketService'
 import { usePageRealtime } from './usePageRealtime'
 
 type Listener = (payload: never) => void
@@ -90,5 +94,25 @@ describe('usePageRealtime — sala e ressincronização', () => {
     const current = { ...payload, pageId: PAGE_ID, value: 'atual' }
     act(() => socket.receive('cell-updated', current))
     expect(onEvent).toHaveBeenCalledWith({ type: 'cell-updated', payload: current })
+  })
+
+  it('encaminha somente o preview de resize da página atual', () => {
+    const onColumnResize = vi.fn()
+    renderHook(() => usePageRealtime(PAGE_ID, { onColumnResize }))
+    const socket = socketState.socket as unknown as FakeSocket
+    const payload: ColumnResizingPayload = {
+      pageId: OTHER_PAGE_ID,
+      viewId: '01KXVZ0000VIEW000000000001',
+      columnId: '01KXVZ0000COLUMN00000001',
+      width: 360,
+      originUserId: '01KXVZ0000USER00000000001',
+    }
+
+    act(() => socket.receive('column-resizing', payload))
+    expect(onColumnResize).not.toHaveBeenCalled()
+
+    const current = { ...payload, pageId: PAGE_ID }
+    act(() => socket.receive('column-resizing', current))
+    expect(onColumnResize).toHaveBeenCalledWith(current)
   })
 })

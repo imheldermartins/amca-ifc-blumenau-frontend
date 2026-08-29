@@ -16,7 +16,8 @@ export interface EchoReply {
 }
 
 /**
- * Base de todo evento de SALA (a sala é a página; ver `usePageRealtime`).
+ * Base de todo evento DURÁVEL de sala (a sala é a página; ver
+ * `usePageRealtime`). O preview de resize é efêmero e não entra neste relógio.
  *
  * `updatedAt` é a guarda de ordem: evento mais VELHO que o dado em memória é
  * descartado (chegada fora de ordem não desfaz edição mais nova).
@@ -42,6 +43,17 @@ export interface ColumnUpdatedPayload extends RealtimeBase {
   /** A coluna INTEIRA como ficou (o client substitui, não remenda). */
   column: unknown
 }
+
+/** Frame efêmero do resize; a largura durável chega depois em `view-updated`. */
+export interface ColumnResizingPayload {
+  pageId: string
+  viewId: string
+  columnId: string
+  width: number
+  originUserId: string
+}
+
+export type ResizeColumnCommand = Omit<ColumnResizingPayload, 'originUserId'>
 
 export interface ViewUpdatedPayload extends RealtimeBase {
   /** O `pages.data` inteiro — snapshot é retrato completo. */
@@ -77,6 +89,7 @@ export interface ServerToClientEvents {
   'cell-updated': (payload: CellUpdatedPayload) => void
   'row-updated': (payload: RowUpdatedPayload) => void
   'column-updated': (payload: ColumnUpdatedPayload) => void
+  'column-resizing': (payload: ColumnResizingPayload) => void
   'view-updated': (payload: ViewUpdatedPayload) => void
   'row-created': (payload: RowPayload) => void
   'row-deleted': (payload: RowPayload) => void
@@ -86,6 +99,7 @@ export interface ClientToServerEvents {
   'echo:send': (message: string) => void
   'join-page-database': (payload: { pageId: string }) => void
   'leave-page-database': (payload: { pageId: string }) => void
+  'resize-column': (payload: ResizeColumnCommand) => void
 }
 
 export type CubsSocket = Socket<ServerToClientEvents, ClientToServerEvents>
@@ -154,6 +168,15 @@ export class SocketService {
   disconnect(): void {
     this.consumers = 0
     this.socket?.disconnect()
+  }
+
+  /**
+   * Publica só a animação do drag. `volatile` evita criar fila de frames
+   * atrasados numa conexão lenta; o `view-updated` do PUT confirma o estado.
+   */
+  previewColumnResize(payload: ResizeColumnCommand): void {
+    if (!this.socket?.connected) return
+    this.socket.volatile.emit('resize-column', payload)
   }
 
   private attachLogging(socket: CubsSocket): void {

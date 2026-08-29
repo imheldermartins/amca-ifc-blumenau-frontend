@@ -50,3 +50,48 @@ describe('CubsDatabase — coluna mestra title', () => {
     expect(onColumnRename).not.toHaveBeenCalled()
   })
 })
+
+describe('CubsDatabase — preview de largura', () => {
+  it('sobrepõe a largura persistida somente na view correspondente', () => {
+    render(
+      <CubsDatabase
+        settings={{
+          [VIEW_ID]: {
+            view: 'table',
+            name: 'Tabela',
+            filters: '',
+            orderedHeaderCols: ['column-1'],
+            columnWidths: { 'column-1': 180 },
+          },
+        }}
+        headerCols={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[]}
+        columnWidthPreviews={{ [VIEW_ID]: { 'column-1': 333 } }}
+      />,
+    )
+
+    expect(screen.getByRole('columnheader').style.width).toBe('333px')
+  })
+})
+
+describe('CubsDatabase — espaçamento das views', () => {
+  it('reserva o espaço mínimo comum entre as tabs e qualquer view', () => {
+    render(
+      <CubsDatabase
+        settings={{
+          [VIEW_ID]: {
+            view: 'table',
+            name: 'Tabela',
+            filters: '',
+            orderedHeaderCols: ['column-1'],
+          },
+        }}
+        headerCols={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[]}
+      />,
+    )
+
+    const viewContainer = screen.getByRole('table').parentElement?.parentElement
+    expect(viewContainer?.className).toContain('mt-3.5')
+  })
+})

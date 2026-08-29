@@ -14,6 +14,7 @@ interface SignUpFormValues {
   name: string
   email: string
   password: string
+  confirmPassword: string
 }
 
 export function SignUpPage() {
@@ -23,11 +24,12 @@ export function SignUpPage() {
 
   const form = useForm<SignUpFormValues>({
     mode: 'onTouched',
-    defaultValues: { name: '', email: '', password: '' },
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   })
 
   const signUp = useMutation({
-    mutationFn: (values: SignUpFormValues) => auth.signUp(values),
+    mutationFn: (values: SignUpFormValues) =>
+      auth.signUp({ name: values.name, email: values.email, password: values.password }),
     onSuccess: () =>
       navigate({
         to: '/$lang/myworkspace/$workspaceId',
@@ -93,6 +95,26 @@ export function SignUpPage() {
                 autoComplete="new-password"
                 placeholder={i18n('pages.sign-up.campo-senha-placeholder')}
                 rules={combineRules(validators.required(), validators.minLength(6))}
+                startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-light-900" />}
+                className="gap-1.5 text-dark-100"
+                inputClassName="h-11 rounded-xl border-light-300 bg-light-200 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-400 focus-visible:ring-p-purple-200"
+                errorClassName="text-p-red-600"
+                errorInputClassName="border-p-red-600 focus-visible:border-p-red-600 focus-visible:ring-p-red-300/30"
+              />
+              <TextField
+                name="confirmPassword"
+                label={i18n('pages.sign-up.campo-confirmar-senha')}
+                type="password"
+                autoComplete="new-password"
+                placeholder={i18n('pages.sign-up.campo-confirmar-senha-placeholder')}
+                rules={combineRules(validators.required(), {
+                  deps: ['password'],
+                  validate: {
+                    passwordMatch: (value) =>
+                      value === form.getValues('password') ||
+                      i18n('validation.senhas-nao-coincidem'),
+                  },
+                })}
                 startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-light-900" />}
                 className="gap-1.5 text-dark-100"
                 inputClassName="h-11 rounded-xl border-light-300 bg-light-200 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-400 focus-visible:ring-p-purple-200"

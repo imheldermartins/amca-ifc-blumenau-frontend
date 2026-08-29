@@ -17,6 +17,7 @@ const dependencies = vi.hoisted(() => ({
   saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
   saveViewSnapshot: vi.fn(),
+  previewColumnResize: vi.fn(),
 }))
 
 vi.mock('@/contexts/FeedbackContext', () => ({
@@ -36,6 +37,10 @@ vi.mock('@/services/PageWriteService', () => ({
     saveCell: dependencies.saveCell,
     saveViewSnapshot: dependencies.saveViewSnapshot,
   },
+}))
+
+vi.mock('@/services/SocketService', () => ({
+  socketService: { previewColumnResize: dependencies.previewColumnResize },
 }))
 
 vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
@@ -311,6 +316,66 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
 })
 
 describe('usePageDatabase — snapshot da view', () => {
+  it('envia preview efêmero e o remove quando chega o snapshot confirmado', async () => {
+    const viewId = '01KXVZ0000VIEW00000000001'
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: {
+        [viewId]: {
+          view: 'table',
+          name: 'Tabela',
+          filters: '',
+          orderedHeaderCols: [COLUMN_ID],
+          columnWidths: { [COLUMN_ID]: 180 },
+        },
+      },
+    })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => {
+      result.current.handlers.onColumnWidthPreview(viewId, COLUMN_ID, 320)
+      result.current.realtimeOptions.onColumnResize?.({
+        pageId: PAGE_ID,
+        viewId,
+        columnId: COLUMN_ID,
+        width: 320,
+        originUserId: '01KXVZ0000USER00000000001',
+      })
+    })
+
+    expect(dependencies.previewColumnResize).toHaveBeenCalledWith({
+      pageId: PAGE_ID,
+      viewId,
+      columnId: COLUMN_ID,
+      width: 320,
+    })
+    expect(result.current.columnWidthPreviews).toEqual({ [viewId]: { [COLUMN_ID]: 320 } })
+
+    act(() => {
+      result.current.realtimeOptions.onEvent?.({
+        type: 'view-updated',
+        payload: {
+          pageId: PAGE_ID,
+          data: {
+            [viewId]: {
+              view: 'table',
+              name: 'Tabela',
+              filters: '',
+              orderedHeaderCols: [COLUMN_ID],
+              columnWidths: { [COLUMN_ID]: 300 },
+            },
+          },
+          updatedAt: '2026-08-29T12:00:00.000Z',
+          originUserId: '01KXVZ0000USER00000000001',
+        },
+      })
+    })
+
+    expect(result.current.columnWidthPreviews).toEqual({})
+    expect(result.current.database?.settings[viewId].columnWidths).toEqual({ [COLUMN_ID]: 300 })
+  })
+
   it('nunca envia a coluna title para as rotas genéricas de page_columns', async () => {
     const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
     await waitFor(() => expect(result.current.database).not.toBeNull())

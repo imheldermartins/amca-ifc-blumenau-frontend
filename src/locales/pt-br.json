@@ -32,6 +32,7 @@
     "campo-obrigatorio": "Campo obrigatório.",
     "email-invalido": "Informe um e-mail válido.",
     "minimo-caracteres": "Mínimo de {{count}} caracteres.",
+    "senhas-nao-coincidem": "As senhas não coincidem.",
     "telefone-invalido": "Informe um telefone válido com DDD.",
     "cpf-invalido": "CPF inválido."
   },
@@ -82,6 +83,8 @@
       "campo-email-placeholder": "voce@exemplo.com",
       "campo-senha": "Senha",
       "campo-senha-placeholder": "Crie uma senha",
+      "campo-confirmar-senha": "Confirmar senha",
+      "campo-confirmar-senha-placeholder": "Digite a senha novamente",
       "botao-criar-conta": "Criar conta",
       "criando-conta": "Criando conta...",
       "ja-tem-conta": "Já tem uma conta?",

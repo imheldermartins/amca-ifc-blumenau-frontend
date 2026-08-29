@@ -114,6 +114,10 @@ export interface CubsDatabaseProps {
    * snapshot. A presença da prop é o que habilita o resize.
    */
   onColumnWidthChange?: (viewId: string, columnWidths: Record<string, number>) => void
+  /** Frame efêmero do drag para sincronização visual em realtime. */
+  onColumnWidthPreview?: (viewId: string, columnId: string, width: number) => void
+  /** Overrides efêmeros recebidos, agrupados por view e coluna. */
+  columnWidthPreviews?: Record<string, Record<string, number>>
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
@@ -158,6 +162,8 @@ export function CubsDatabase({
   onColumnConfigChange,
   onColumnReset,
   onColumnWidthChange,
+  onColumnWidthPreview,
+  columnWidthPreviews,
   loading,
   emptyLabel,
   placeholderLabel = 'Em breve.',
@@ -219,6 +225,14 @@ export function CubsDatabase({
     () => reorderByIds(rows, currentView.orderedRows ?? []),
     [rows, currentView],
   )
+  const previewWidths = columnWidthPreviews?.[currentViewId]
+  const displayedColumnWidths = useMemo(
+    () =>
+      previewWidths
+        ? { ...(currentView.columnWidths ?? {}), ...previewWidths }
+        : currentView.columnWidths,
+    [currentView.columnWidths, previewWidths],
+  )
 
   const handleColumnRename = useCallback(
     (columnId: string, name: string) => {
@@ -265,13 +279,13 @@ export function CubsDatabase({
         viewMenuItems={viewMenuItems}
       />
 
-      <div className="mt-1.5 pb-6">
+      <div className="mt-3.5 pb-6">
         {currentView.view === 'table' ? (
           <TableView
             key={currentViewId}
             columns={orderedColumns}
             rows={orderedRows}
-            columnWidths={currentView.columnWidths}
+            columnWidths={displayedColumnWidths}
             cellErrors={cellErrors}
             loading={loading}
             emptyLabel={emptyLabel}
@@ -299,6 +313,12 @@ export function CubsDatabase({
             onColumnWidthChange={
               onColumnWidthChange
                 ? (widths) => onColumnWidthChange(currentViewId, widths)
+                : undefined
+            }
+            onColumnWidthPreview={
+              onColumnWidthPreview
+                ? (columnId, width) =>
+                    onColumnWidthPreview(currentViewId, columnId, width)
                 : undefined
             }
             onAddRow={onAddRow}

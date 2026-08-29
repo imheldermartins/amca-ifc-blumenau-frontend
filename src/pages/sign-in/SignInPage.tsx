@@ -65,9 +65,9 @@ export function SignInPage() {
                 autoComplete="email"
                 placeholder={i18n('pages.sign-in.campo-email-placeholder')}
                 rules={combineRules(validators.required(), validators.email())}
-                startAdornment={<Icon icon="lucide:mail" className="size-4 text-dark-100" />}
+                startAdornment={<Icon icon="lucide:mail" className="size-4 text-p-purple-300" />}
                 className="gap-1.5 text-light-100"
-                inputClassName="h-11 rounded-xl border-light-500 bg-light-100 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
+                inputClassName="h-11 !bg-purple-800 rounded-xl border-light-500 bg-light-100 placeholder:text-p-purple-300 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
                 errorClassName="text-p-red-300"
                 errorInputClassName="border-p-red-300 focus-visible:border-p-red-300 focus-visible:ring-p-red-300/30"
               />
@@ -78,9 +78,9 @@ export function SignInPage() {
                 autoComplete="current-password"
                 placeholder={i18n('pages.sign-in.campo-senha-placeholder')}
                 rules={validators.required()}
-                startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-dark-100" />}
+                startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-p-purple-300" />}
                 className="gap-1.5 text-light-100"
-                inputClassName="h-11 rounded-xl border-light-500 bg-light-100 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
+                inputClassName="h-11 !bg-purple-800 rounded-xl border-light-500 bg-light-100 placeholder:text-p-purple-300 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
                 errorClassName="text-p-red-300"
                 errorInputClassName="border-p-red-300 focus-visible:border-p-red-300 focus-visible:ring-p-red-300/30"
               />

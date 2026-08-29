@@ -88,7 +88,7 @@ export function AppLayout() {
 
   return (
     <div className='flex h-dvh flex-col overflow-hidden bg-background'>
-      <header className='z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center py-0.5 px-6 bg-background'>
+      <header className='z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center py-1 px-6 bg-background'>
         <div className='min-w-0 justify-self-start'>
           <Button
             variant='text'
