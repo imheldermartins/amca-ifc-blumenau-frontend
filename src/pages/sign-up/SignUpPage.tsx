@@ -1,9 +1,9 @@
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { Button, PALETTE, TextField, cn } from 'cubs-components'
+import { Icon } from '@iconify/react'
+import { Button, TextField } from 'cubs-components'
 
-import { Typography } from '@components/Typography'
 import { useAuth } from '@contexts/AuthContext'
 import { DEFAULT_WORKSPACE_ID } from '@/contexts/WorkspaceContext'
 import { i18n } from '@/lib/i18n'
@@ -42,71 +42,97 @@ export function SignUpPage() {
     : null
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-2xl border border-divider-contrast bg-glass p-5 shadow-2xl shadow-black/15 backdrop-blur-xl">
-        <Typography variant="h2" as="h1">
-          {i18n('pages.sign-up.crie-sua-conta')}
-        </Typography>
-        <Typography variant="subtitle" className="mt-1">
-          {i18n('pages.sign-up.subtitulo')}
-        </Typography>
+    <main className="relative isolate flex min-h-dvh items-center justify-center overflow-hidden bg-light-100 px-5 py-12 text-dark-700">
+      <section className="w-full max-w-105">
+        <header>
+          <h1 className="text-3xl font-bold tracking-tight text-dark-900 sm:text-4xl">
+            {i18n('pages.sign-up.crie-sua-conta')}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-dark-100">
+            {i18n('pages.sign-up.subtitulo')}
+          </p>
+        </header>
 
-        <FormProvider {...form}>
-          <form
-            className="mt-5 flex flex-col gap-3"
-            onSubmit={form.handleSubmit((values) => signUp.mutate(values))}
-            noValidate
-          >
-            <TextField
-              name="name"
-              label={i18n('pages.sign-up.campo-nome')}
-              type="text"
-              autoComplete="name"
-              placeholder={i18n('pages.sign-up.campo-nome-placeholder')}
-              rules={validators.required()}
-            />
-            <TextField
-              name="email"
-              label={i18n('pages.sign-up.campo-email')}
-              type="email"
-              autoComplete="email"
-              placeholder={i18n('pages.sign-up.campo-email-placeholder')}
-              rules={combineRules(validators.required(), validators.email())}
-            />
-            <TextField
-              name="password"
-              label={i18n('pages.sign-up.campo-senha')}
-              type="password"
-              autoComplete="new-password"
-              placeholder={i18n('pages.sign-up.campo-senha-placeholder')}
-              rules={combineRules(validators.required(), validators.minLength(6))}
-            />
+        <div className="mt-8">
+          <FormProvider {...form}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={form.handleSubmit((values) => signUp.mutate(values))}
+              noValidate
+            >
+              <TextField
+                name="name"
+                label={i18n('pages.sign-up.campo-nome')}
+                type="text"
+                autoComplete="name"
+                placeholder={i18n('pages.sign-up.campo-nome-placeholder')}
+                rules={validators.required()}
+                startAdornment={<Icon icon="lucide:user-round" className="size-4 text-light-900" />}
+                className="gap-1.5 text-dark-100"
+                inputClassName="h-11 rounded-xl border-light-300 bg-light-200 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-400 focus-visible:ring-p-purple-200"
+                errorClassName="text-p-red-600"
+                errorInputClassName="border-p-red-600 focus-visible:border-p-red-600 focus-visible:ring-p-red-300/30"
+              />
+              <TextField
+                name="email"
+                label={i18n('pages.sign-up.campo-email')}
+                type="email"
+                autoComplete="email"
+                placeholder={i18n('pages.sign-up.campo-email-placeholder')}
+                rules={combineRules(validators.required(), validators.email())}
+                startAdornment={<Icon icon="lucide:mail" className="size-4 text-light-900" />}
+                className="gap-1.5 text-dark-100"
+                inputClassName="h-11 rounded-xl border-light-300 bg-light-200 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-400 focus-visible:ring-p-purple-200"
+                errorClassName="text-p-red-600"
+                errorInputClassName="border-p-red-600 focus-visible:border-p-red-600 focus-visible:ring-p-red-300/30"
+              />
+              <TextField
+                name="password"
+                label={i18n('pages.sign-up.campo-senha')}
+                type="password"
+                autoComplete="new-password"
+                placeholder={i18n('pages.sign-up.campo-senha-placeholder')}
+                rules={combineRules(validators.required(), validators.minLength(6))}
+                startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-light-900" />}
+                className="gap-1.5 text-dark-100"
+                inputClassName="h-11 rounded-xl border-light-300 bg-light-200 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-400 focus-visible:ring-p-purple-200"
+                errorClassName="text-p-red-600"
+                errorInputClassName="border-p-red-600 focus-visible:border-p-red-600 focus-visible:ring-p-red-300/30"
+              />
 
-            {serverError && (
-              <Typography variant="body" className={PALETTE.red.text}>
-                {serverError}
-              </Typography>
-            )}
+              {serverError && (
+                <p role="alert" className="text-sm text-p-red-600">
+                  {serverError}
+                </p>
+              )}
 
-            <Button type="submit" variant="filled" color="purple" disabled={signUp.isPending}>
-              {signUp.isPending
-                ? i18n('pages.sign-up.criando-conta')
-                : i18n('pages.sign-up.botao-criar-conta')}
-            </Button>
-          </form>
-        </FormProvider>
-
-        <Typography variant="subtitle" className="mt-5 text-center">
-          {i18n('pages.sign-up.ja-tem-conta')}{' '}
-          <Link
-            to="/$lang/sign-in"
-            params={{ lang }}
-            className={cn('font-medium hover:underline', PALETTE.purple.text)}
-          >
-            {i18n('pages.sign-up.link-entrar')}
-          </Link>
-        </Typography>
-      </div>
+              <Button
+                type="submit"
+                variant="filled"
+                color="purple"
+                disabled={signUp.isPending}
+                className="mt-1 h-11 w-full rounded-xl"
+              >
+                {signUp.isPending
+                  ? i18n('pages.sign-up.criando-conta')
+                  : i18n('pages.sign-up.botao-criar-conta')}
+              </Button>
+            </form>
+          </FormProvider>
+        </div>
+        <div className="mt-7 text-center text-sm text-dark-100">
+          <>
+            {i18n('pages.sign-up.ja-tem-conta')}{' '}
+            <Link
+              to="/$lang/sign-in"
+              params={{ lang }}
+              className="font-semibold text-p-purple-600 hover:underline"
+            >
+              {i18n('pages.sign-up.link-entrar')}
+            </Link>
+          </>
+        </div>
+      </section>
     </main>
   )
 }

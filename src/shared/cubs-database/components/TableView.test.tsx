@@ -123,3 +123,85 @@ describe('TableView — zebra', () => {
     expect(secondRow.className).toContain('bg-background')
   })
 })
+
+describe('TableView — adição guiada', () => {
+  it('expõe os dois eixos como botões e encaminha os cliques', () => {
+    const onAddRow = vi.fn()
+    const onAddColumn = vi.fn()
+
+    render(
+      <TableView
+        columns={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[]}
+        onAddRow={onAddRow}
+        onAddColumn={onAddColumn}
+        labels={{ addRow: 'Nova linha', addColumn: 'Nova coluna' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nova linha' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Nova coluna' }))
+
+    expect(onAddRow).toHaveBeenCalledOnce()
+    expect(onAddColumn).toHaveBeenCalledOnce()
+  })
+
+  it('faz o indicador acompanhar e limitar o ponteiro no eixo do trilho', () => {
+    render(
+      <TableView
+        columns={[{ id: 'column-1', title: 'Nome', type: 'text' }]}
+        rows={[]}
+        onAddRow={() => undefined}
+        onAddColumn={() => undefined}
+        labels={{ addRow: 'Nova linha', addColumn: 'Nova coluna' }}
+      />,
+    )
+
+    const rowControl = screen.getByRole('button', { name: 'Nova linha' })
+    const columnControl = screen.getByRole('button', { name: 'Nova coluna' })
+    const rowIndicator = rowControl.querySelector<HTMLElement>('[data-guided-add-indicator]')
+    const columnIndicator = columnControl.querySelector<HTMLElement>('[data-guided-add-indicator]')
+
+    expect(rowControl.className).toContain('dark:hover:bg-contrast')
+    expect(columnControl.className).toContain('dark:hover:bg-contrast')
+    expect(rowIndicator?.style.left).toBe('14px')
+    expect(columnIndicator?.style.top).toBe('14px')
+
+    vi.spyOn(rowControl, 'getBoundingClientRect').mockReturnValue({
+      left: 10,
+      top: 20,
+      width: 200,
+      height: 36,
+      right: 210,
+      bottom: 56,
+      x: 10,
+      y: 20,
+      toJSON: () => ({}),
+    })
+    vi.spyOn(columnControl, 'getBoundingClientRect').mockReturnValue({
+      left: 210,
+      top: 20,
+      width: 36,
+      height: 160,
+      right: 246,
+      bottom: 180,
+      x: 210,
+      y: 20,
+      toJSON: () => ({}),
+    })
+
+    fireEvent(rowControl, new MouseEvent('pointermove', { bubbles: true, clientX: 90, clientY: 38 }))
+    fireEvent(
+      columnControl,
+      new MouseEvent('pointermove', { bubbles: true, clientX: 228, clientY: 999 }),
+    )
+
+    expect(rowIndicator?.style.left).toBe('80px')
+    expect(columnIndicator?.style.top).toBe('146px')
+
+    fireEvent.pointerLeave(rowControl)
+    fireEvent.pointerLeave(columnControl)
+    expect(rowIndicator?.style.left).toBe('14px')
+    expect(columnIndicator?.style.top).toBe('14px')
+  })
+})

@@ -37,7 +37,7 @@ function SwitchView({ checked, onCheckedChange, label, disabled, className }: Sw
       >
         <span
           className={cn(
-            'size-4 rounded-full bg-white shadow-sm transition-transform',
+            'size-4 rounded-full bg-light-100 shadow-sm transition-transform',
             checked ? 'translate-x-4' : 'translate-x-0',
           )}
         />

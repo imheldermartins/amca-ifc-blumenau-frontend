@@ -12,8 +12,8 @@ export type TextFieldSize = 'sm' | 'md'
  * Superfície onde o campo está pousado — decide o par fundo/borda.
  *
  * `contrast` usa `divider-contrast` e NÃO `divider` de propósito: sobre
- * `bg-contrast` os dois tons são o MESMO (zinc-200/zinc-800) e a borda sumiria
- * nos dois temas. É o par que a sidebar já usa para superfície elevada.
+ * `bg-contrast` os dois tokens de superfície/divisor se aproximam e a borda
+ * sumiria nos dois temas. É o par que a sidebar já usa para superfície elevada.
  *
  * `plain` é o campo SEM cara de campo: borda transparente (o layout não pula),
  * sem fundo e sem anel de focus — para inputs embutidos onde o chrome de
@@ -48,6 +48,10 @@ interface TextFieldBaseProps extends Omit<ComponentProps<'input'>, 'name' | 'siz
   endAdornment?: ReactNode
   /** Classe do `<input>`; a `className` vai no container. */
   inputClassName?: string
+  /** Sobrescreve a cor da mensagem de erro para a superfície do caller. */
+  errorClassName?: string
+  /** Classes aplicadas ao input somente enquanto houver erro. */
+  errorInputClassName?: string
 }
 
 interface TextFieldViewProps extends TextFieldBaseProps {
@@ -66,6 +70,8 @@ function TextFieldView({
   endAdornment,
   className,
   inputClassName,
+  errorClassName,
+  errorInputClassName,
   onChange,
   ...props
 }: TextFieldViewProps) {
@@ -104,9 +110,10 @@ function TextFieldView({
           // O "x" nativo do WebKit duplicaria um botão de limpar passado como
           // endAdornment. Só afeta type="search".
           '[&::-webkit-search-cancel-button]:hidden',
-          errorMessage &&
-            cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500'),
           inputClassName,
+          errorMessage &&
+            (errorInputClassName ??
+              cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500')),
         )}
       />
       {endAdornment && (
@@ -120,7 +127,10 @@ function TextFieldView({
       {label}
       {field}
       {errorMessage && (
-        <span role="alert" className={cn('text-xs font-normal', PALETTE.red.text)}>
+        <span
+          role="alert"
+          className={cn('text-xs font-normal', errorClassName ?? PALETTE.red.text)}
+        >
           {errorMessage}
         </span>
       )}

@@ -8,14 +8,14 @@ export type ButtonVariant = 'filled' | 'outlined' | 'text'
 /**
  * Cor do botão: qualquer cor da paleta (./lib/palette) OU `from-theme`,
  * que não usa um hue e sim os tokens neutros do tema — `foreground` no texto
- * e `active` no fundo (base zinc, acompanha light/dark).
+ * e `active` no fundo (escala histórica light/dark do Cub's).
  */
 export type ButtonColor = PaletteColor | 'from-theme'
 
 export interface ButtonProps extends ComponentProps<'button'> {
   /** Estilo visual do botão. */
   variant?: ButtonVariant
-  /** Cor da paleta, ou `from-theme` (neutro, base zinc). Padrão: purple. */
+  /** Cor da paleta, ou `from-theme` (neutro, base light/dark). Padrão: purple. */
   color?: ButtonColor
 }
 

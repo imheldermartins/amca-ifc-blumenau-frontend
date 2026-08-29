@@ -114,6 +114,10 @@ export interface CubsDatabaseProps {
    * snapshot. A presença da prop é o que habilita o resize.
    */
   onColumnWidthChange?: (viewId: string, columnWidths: Record<string, number>) => void
+  /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
+  onAddRow?: () => void
+  /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
+  onAddColumn?: () => void
   /** Fetch inicial em andamento → skeleton. */
   loading?: boolean
   emptyLabel?: string
@@ -143,6 +147,8 @@ export function CubsDatabase({
   onCellChange,
   onCellEditConflict,
   onColumnOptionsChange,
+  onAddRow,
+  onAddColumn,
   onRowOrderChange,
   onColumnOrderChange,
   onSelectionChange,
@@ -295,6 +301,8 @@ export function CubsDatabase({
                 ? (widths) => onColumnWidthChange(currentViewId, widths)
                 : undefined
             }
+            onAddRow={onAddRow}
+            onAddColumn={onAddColumn}
             labels={labels}
           />
         ) : (

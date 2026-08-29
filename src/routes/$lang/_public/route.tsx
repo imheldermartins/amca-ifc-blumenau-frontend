@@ -1,6 +1,6 @@
+import { useLayoutEffect } from 'react'
 import { Navigate, Outlet, createFileRoute, useParams } from '@tanstack/react-router'
 
-import { ThemeToggle } from '@components/ThemeToggle'
 import { useAuth } from '@/contexts/AuthContext'
 import { DEFAULT_WORKSPACE_ID } from '@/contexts/WorkspaceContext'
 
@@ -20,8 +20,21 @@ function PublicLayout() {
   const { lang } = useParams({ strict: false })
   const { user, restoring } = useAuth()
 
+  // As telas públicas têm temas fixos (light no cadastro, purple no login),
+  // sem alternância. A preferência continua intacta: ao sair daqui, o tema
+  // anterior da área autenticada é restaurado.
+  useLayoutEffect(() => {
+    const root = document.documentElement
+    const wasDark = root.classList.contains('dark')
+    root.classList.remove('dark')
+
+    return () => {
+      root.classList.toggle('dark', wasDark)
+    }
+  }, [])
+
   // Enquanto confere a sessão, não decide: mostrar o login e depois pular para
-  // a workspace (se houver sessão) seria um flash. Só o ThemeToggle aparece.
+  // a workspace (se houver sessão) seria um flash.
   if (!restoring && user) {
     return (
       <Navigate
@@ -31,10 +44,5 @@ function PublicLayout() {
     )
   }
 
-  return (
-    <>
-      <ThemeToggle className="fixed right-4 top-4 z-50" />
-      {restoring ? null : <Outlet />}
-    </>
-  )
+  return restoring ? null : <Outlet />
 }

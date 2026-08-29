@@ -1,9 +1,8 @@
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { Button, PALETTE, TextField, cn } from 'cubs-components'
-
-import { Typography } from '@components/Typography'
+import { Icon } from '@iconify/react'
+import { Button, TextField } from 'cubs-components'
 import { useAuth } from '@contexts/AuthContext'
 import { DEFAULT_WORKSPACE_ID } from '@/contexts/WorkspaceContext'
 import { i18n } from '@/lib/i18n'
@@ -41,63 +40,84 @@ export function SignInPage() {
     : null
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-2xl border border-divider-contrast bg-glass p-5 shadow-2xl shadow-black/15 backdrop-blur-xl">
-        <Typography variant="h2" as="h1">
-          {i18n('pages.sign-in.entre-seja-bem-vindo')}
-        </Typography>
-        <Typography variant="subtitle" className="mt-1">
-          {i18n('pages.sign-in.subtitulo')}
-        </Typography>
+    <main className="relative isolate flex min-h-dvh items-center justify-center overflow-hidden bg-linear-to-r from-p-purple-600 to-p-purple-700 px-5 py-12 text-light-100">
+      <section className="w-full max-w-105">
+        <header>
+          <h1 className="text-3xl font-bold tracking-tight text-light-100 sm:text-4xl">
+            {i18n('pages.sign-in.entre-seja-bem-vindo')}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-light-300">
+            {i18n('pages.sign-in.subtitulo')}
+          </p>
+        </header>
 
-        <FormProvider {...form}>
-          <form
-            className="mt-5 flex flex-col gap-3"
-            onSubmit={form.handleSubmit((values) => signIn.mutate(values))}
-            noValidate
-          >
-            <TextField
-              name="email"
-              label={i18n('pages.sign-in.campo-email')}
-              type="email"
-              autoComplete="email"
-              placeholder={i18n('pages.sign-in.campo-email-placeholder')}
-              rules={combineRules(validators.required(), validators.email())}
-            />
-            <TextField
-              name="password"
-              label={i18n('pages.sign-in.campo-senha')}
-              type="password"
-              autoComplete="current-password"
-              placeholder={i18n('pages.sign-in.campo-senha-placeholder')}
-              rules={validators.required()}
-            />
+        <div className="mt-8">
+          <FormProvider {...form}>
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={form.handleSubmit((values) => signIn.mutate(values))}
+              noValidate
+            >
+              <TextField
+                name="email"
+                label={i18n('pages.sign-in.campo-email')}
+                type="email"
+                autoComplete="email"
+                placeholder={i18n('pages.sign-in.campo-email-placeholder')}
+                rules={combineRules(validators.required(), validators.email())}
+                startAdornment={<Icon icon="lucide:mail" className="size-4 text-dark-100" />}
+                className="gap-1.5 text-light-100"
+                inputClassName="h-11 rounded-xl border-light-500 bg-light-100 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
+                errorClassName="text-p-red-300"
+                errorInputClassName="border-p-red-300 focus-visible:border-p-red-300 focus-visible:ring-p-red-300/30"
+              />
+              <TextField
+                name="password"
+                label={i18n('pages.sign-in.campo-senha')}
+                type="password"
+                autoComplete="current-password"
+                placeholder={i18n('pages.sign-in.campo-senha-placeholder')}
+                rules={validators.required()}
+                startAdornment={<Icon icon="lucide:lock-keyhole" className="size-4 text-dark-100" />}
+                className="gap-1.5 text-light-100"
+                inputClassName="h-11 rounded-xl border-light-500 bg-light-100 text-dark-700 placeholder:text-light-900 focus-visible:border-p-purple-300 focus-visible:ring-p-purple-200/60"
+                errorClassName="text-p-red-300"
+                errorInputClassName="border-p-red-300 focus-visible:border-p-red-300 focus-visible:ring-p-red-300/30"
+              />
 
-            {serverError && (
-              <Typography variant="body" className={PALETTE.red.text}>
-                {serverError}
-              </Typography>
-            )}
+              {serverError && (
+                <p role="alert" className="text-sm text-p-red-300">
+                  {serverError}
+                </p>
+              )}
 
-            <Button type="submit" variant="filled" color="purple" disabled={signIn.isPending}>
-              {signIn.isPending
-                ? i18n('pages.sign-in.entrando')
-                : i18n('pages.sign-in.botao-entrar')}
-            </Button>
-          </form>
-        </FormProvider>
-
-        <Typography variant="subtitle" className="mt-5 text-center">
-          {i18n('pages.sign-in.nao-tem-conta')}{' '}
-          <Link
-            to="/$lang/sign-up"
-            params={{ lang }}
-            className={cn('font-medium hover:underline', PALETTE.purple.text)}
-          >
-            {i18n('pages.sign-in.link-criar-conta')}
-          </Link>
-        </Typography>
-      </div>
+              <Button
+                type="submit"
+                variant="filled"
+                color="from-theme"
+                disabled={signIn.isPending}
+                className="mt-1 h-11 w-full rounded-xl bg-light-100 text-lg text-p-purple-600 shadow-p-purple-900/20 hover:bg-light-300"
+              >
+                {signIn.isPending
+                  ? i18n('pages.sign-in.entrando')
+                  : i18n('pages.sign-in.botao-entrar')}
+              </Button>
+            </form>
+          </FormProvider>
+        </div>
+        <div className="mt-7 text-center text-sm text-light-300">
+          <>
+            {i18n('pages.sign-in.nao-tem-conta')}{' '}
+            <Link
+              to="/$lang/sign-up"
+              params={{ lang }}
+              className="font-semibold text-light-100 hover:underline"
+            >
+              {i18n('pages.sign-in.link-criar-conta')}
+            </Link>
+          </>
+        </div>
+      </section>
     </main>
   )
 }

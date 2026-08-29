@@ -48,7 +48,7 @@ function CheckboxView({
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
         checked === false
           ? 'border-divider-contrast bg-background'
-          : 'border-p-purple bg-p-purple text-white shadow-sm shadow-p-purple-500/40',
+          : 'border-p-purple bg-p-purple text-light-100 shadow-sm shadow-p-purple-500/40',
         errorMessage && checked === false && PALETTE.red.border,
         !label && className,
       )}

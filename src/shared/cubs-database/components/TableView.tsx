@@ -23,6 +23,7 @@ import type {
 } from '../types'
 import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
+import { GuidedAddControl } from './GuidedAddControl'
 import { CONTROL_CELL_WIDTH, TableRow } from './TableRow'
 import type { TableRowLabels } from './TableRow'
 import { TYPE_ICON } from './columnTypeIcons'
@@ -70,6 +71,10 @@ export interface TableViewProps {
   onColumnReset?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
   onColumnWidthChange?: (columnWidths: Record<string, number>) => void
+  /** Clique no trilho horizontal de adição — UI somente nesta etapa. */
+  onAddRow?: () => void
+  /** Clique no trilho vertical de adição — UI somente nesta etapa. */
+  onAddColumn?: () => void
   labels?: TableRowLabels
 }
 
@@ -241,7 +246,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, labels }: TableViewProps) {
+export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
@@ -472,99 +477,126 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
         className="overflow-x-auto rounded-xl border border-divider bg-background shadow-sm"
         onMouseLeave={handleMouseLeave}
       >
-        <div role="row" className="flex w-max min-w-full border-b border-divider bg-contrast">
-          {/* Célula de controles do header: espaçador enquanto não há seleção
-              (o alinhamento com as linhas depende da MESMA largura) e caixa de
-              "selecionar todas" a partir da primeira linha marcada. */}
-          <div
-            className={cn('flex shrink-0 items-center px-2', CONTROL_CELL_WIDTH)}
-            aria-hidden={selection.ids.size === 0}
-          >
-            {selection.ids.size > 0 && (
-              <Checkbox
-                aria-label={labels?.selectAll ?? 'Selecionar todas'}
-                checked={headerCheckedState}
-                onCheckedChange={toggleSelectAll}
-                className="cursor-pointer"
-              />
-            )}
-          </div>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleColumnDragEnd}>
-            <SortableContext
-              items={localColumns.map((column) => column.id)}
-              strategy={horizontalListSortingStrategy}
-            >
-              {localColumns.map((column, columnIndex) => (
-                <SortableHeaderCell
-                  key={column.id}
-                  column={column}
-                  columnType={columnTypes[column.id]}
-                  width={localWidths[column.id]}
-                  sortable={columnsSortable}
-                  resizable={columnsResizable}
-                  isLast={columnIndex === localColumns.length - 1}
-                  diverging={divergingColumns[column.id]}
-                  dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
-                  resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
-                  onResize={handleColumnResize}
-                  onResizeEnd={handleColumnResizeEnd}
-                  onContextMenu={handleHeaderContextMenu}
-                  onHandleClick={handleColumnHandleClick}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        </div>
-
-        {loading ? (
-          <div aria-hidden>
-            {[0, 1, 2, 3].map((skeletonIndex) => (
+        <div className="relative w-max min-w-full">
+          <div className={cn(onAddColumn && 'pr-9')}>
+            <div role="row" className="flex w-max min-w-full border-b border-divider bg-contrast">
+              {/* Célula de controles do header: espaçador enquanto não há seleção
+                  (o alinhamento com as linhas depende da MESMA largura) e caixa de
+                  "selecionar todas" a partir da primeira linha marcada. */}
               <div
-                key={skeletonIndex}
-                className={cn('flex', skeletonIndex % 2 === 0 ? 'bg-contrast' : 'bg-background')}
+                className={cn('flex shrink-0 items-center px-2', CONTROL_CELL_WIDTH)}
+                aria-hidden={selection.ids.size === 0}
               >
+                {selection.ids.size > 0 && (
+                  <Checkbox
+                    aria-label={labels?.selectAll ?? 'Selecionar todas'}
+                    checked={headerCheckedState}
+                    onCheckedChange={toggleSelectAll}
+                    className="cursor-pointer"
+                  />
+                )}
+              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleColumnDragEnd}
+              >
+                <SortableContext
+                  items={localColumns.map((column) => column.id)}
+                  strategy={horizontalListSortingStrategy}
+                >
+                  {localColumns.map((column, columnIndex) => (
+                    <SortableHeaderCell
+                      key={column.id}
+                      column={column}
+                      columnType={columnTypes[column.id]}
+                      width={localWidths[column.id]}
+                      sortable={columnsSortable}
+                      resizable={columnsResizable}
+                      isLast={columnIndex === localColumns.length - 1}
+                      diverging={divergingColumns[column.id]}
+                      dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
+                      resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
+                      onResize={handleColumnResize}
+                      onResizeEnd={handleColumnResizeEnd}
+                      onContextMenu={handleHeaderContextMenu}
+                      onHandleClick={handleColumnHandleClick}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+
+            {loading ? (
+              <div aria-hidden>
+                {[0, 1, 2, 3].map((skeletonIndex) => (
+                  <div
+                    key={skeletonIndex}
+                    className={cn('flex', skeletonIndex % 2 === 0 ? 'bg-contrast' : 'bg-background')}
+                  >
+                    <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
+                    <div className="flex h-8 flex-1 items-center border-l border-divider px-2.5">
+                      <div className="h-3 w-1/3 animate-pulse rounded bg-active" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : localRows.length === 0 ? (
+              <div className="flex">
                 <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
-                <div className="flex h-8 flex-1 items-center border-l border-divider px-2.5">
-                  <div className="h-3 w-1/3 animate-pulse rounded bg-active" />
+                <div className="flex-1 border-l border-divider px-3 py-6 text-center text-sm opacity-60">
+                  {emptyLabel}
                 </div>
               </div>
-            ))}
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRowDragEnd}>
+                <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
+                  {localRows.map((row, rowIndex) => (
+                    <TableRow
+                      key={row.id}
+                      row={row}
+                      rowIndex={rowIndex}
+                      columns={localColumns}
+                      columnWidths={localWidths}
+                      columnTypes={columnTypes}
+                      cellErrors={cellErrors}
+                      zebra={rowIndex % 2 === 0}
+                      selected={selection.ids.has(row.id)}
+                      onSelectedChange={handleRowSelectedChange}
+                      sortable={rowsSortable}
+                      inShiftRange={inShiftRange(selection, rowIndex, shiftHeld)}
+                      onShiftHover={handleRowHover}
+                      onOpenRow={onOpenRow}
+                      onCellChange={onCellChange}
+                      onCellEditConflict={onCellEditConflict}
+                      onColumnOptionsChange={onColumnOptionsChange}
+                      labels={labels}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            )}
           </div>
-        ) : localRows.length === 0 ? (
-          <div className="flex">
-            <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
-            <div className="flex-1 border-l border-divider px-3 py-6 text-center text-sm opacity-60">
-              {emptyLabel}
+
+          {onAddColumn && (
+            <GuidedAddControl
+              axis="vertical"
+              label={labels?.addColumn ?? 'Adicionar coluna'}
+              onClick={onAddColumn}
+              className={cn('absolute right-0 top-0', onAddRow ? 'bottom-9' : 'bottom-0')}
+            />
+          )}
+
+          {onAddRow && (
+            <div className={cn(onAddColumn && 'pr-9')}>
+              <GuidedAddControl
+                axis="horizontal"
+                label={labels?.addRow ?? 'Adicionar linha'}
+                onClick={onAddRow}
+              />
             </div>
-          </div>
-        ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRowDragEnd}>
-            <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
-              {localRows.map((row, rowIndex) => (
-                <TableRow
-                  key={row.id}
-                  row={row}
-                  rowIndex={rowIndex}
-                  columns={localColumns}
-                  columnWidths={localWidths}
-                  columnTypes={columnTypes}
-                  cellErrors={cellErrors}
-                  zebra={rowIndex % 2 === 0}
-                  selected={selection.ids.has(row.id)}
-                  onSelectedChange={handleRowSelectedChange}
-                  sortable={rowsSortable}
-                  inShiftRange={inShiftRange(selection, rowIndex, shiftHeld)}
-                  onShiftHover={handleRowHover}
-                  onOpenRow={onOpenRow}
-                  onCellChange={onCellChange}
-                  onCellEditConflict={onCellEditConflict}
-                  onColumnOptionsChange={onColumnOptionsChange}
-                  labels={labels}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
+          )}
+        </div>
       </div>
 
       {columnMenu && menuColumn ? (

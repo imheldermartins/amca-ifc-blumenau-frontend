@@ -3,10 +3,10 @@
  * sombra neutra padrão; somente as LINHAS interativas abaixo recebem glow.
  */
 export const FLOATING_SURFACE_CLASSES =
-  'rounded-2xl border border-white/70 bg-glass p-1 ' +
-  'shadow-xl shadow-black/15 ' +
-  'ring-1 ring-white/60 backdrop-blur-2xl backdrop-saturate-150 ' +
-  'dark:border-divider-contrast dark:shadow-black/40 dark:ring-white/5'
+  'rounded-2xl border border-light-100/70 bg-glass p-1 ' +
+  'shadow-xl shadow-dark-900/15 ' +
+  'ring-1 ring-light-100/60 backdrop-blur-2xl backdrop-saturate-150 ' +
+  'dark:border-divider-contrast dark:shadow-dark-900/40 dark:ring-light-100/5'
 
 /** Linha interativa comum a menus planos e recursivos. */
 export const MENU_ROW_CLASSES =

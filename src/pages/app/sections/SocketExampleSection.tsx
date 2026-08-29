@@ -15,7 +15,10 @@ interface EchoFormValues {
 const STATUS_STYLES: Record<SocketStatus, { dot: string; labelKey: string }> = {
   connected: { dot: 'bg-emerald-300 dark:bg-emerald-500', labelKey: 'pages.app.exemplo-socket.status-conectado' },
   connecting: { dot: 'bg-amber-300 dark:bg-amber-500', labelKey: 'pages.app.exemplo-socket.status-conectando' },
-  disconnected: { dot: 'bg-zinc-400', labelKey: 'pages.app.exemplo-socket.status-desconectado' },
+  disconnected: {
+    dot: 'bg-light-900 dark:bg-dark-100',
+    labelKey: 'pages.app.exemplo-socket.status-desconectado',
+  },
   error: { dot: 'bg-rose-300 dark:bg-rose-500', labelKey: 'pages.app.exemplo-socket.status-erro' },
 }
 

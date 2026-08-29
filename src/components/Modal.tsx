@@ -66,12 +66,12 @@ export function Modal({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        {/* Scrim: zinc cru de propósito — não existe token de backdrop no tema
+        {/* Scrim: dark-900 cru de propósito — não existe token de backdrop no tema
             (mesma exceção do THEME.textMuted), e ele precisa escurecer nos DOIS
             temas, então não acompanha background/contrast. */}
         <Dialog.Overlay
           className={cn(
-            'fixed inset-0 z-50 bg-zinc-950/50 backdrop-blur-sm',
+            'fixed inset-0 z-50 bg-dark-900/50 backdrop-blur-sm',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
           )}
@@ -83,7 +83,7 @@ export function Modal({
             'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
             'w-[calc(100%-2rem)]',
             SIZES[size],
-            'rounded-2xl bg-background shadow-black/20 shadow-2xl',
+            'rounded-2xl bg-background shadow-dark-900/20 shadow-2xl',
             'flex max-h-[calc(100dvh-4rem)] flex-col',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',

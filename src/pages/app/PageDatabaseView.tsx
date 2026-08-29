@@ -63,6 +63,8 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
       dragOption: i18n('pages.app.cubs-database.arrastar-option'),
       dragColumn: i18n('pages.app.cubs-database.arrastar-coluna'),
       resizeColumn: i18n('pages.app.cubs-database.redimensionar-coluna'),
+      addRow: i18n('pages.app.cubs-database.adicionar-linha'),
+      addColumn: i18n('pages.app.cubs-database.adicionar-coluna'),
       renameColumn: i18n('pages.app.cubs-database.renomear-coluna'),
       columnTypes: {
         text: i18n('pages.app.cubs-database.tipos.text'),
@@ -110,6 +112,15 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
     console.log('[cubs-database] selection-change', selectedPagesIds)
   }, [])
 
+  // Controles visuais desta etapa. Os callbacks já delimitam a futura ponte
+  // de criação, mas ainda não fazem request nem alteram os dados da tabela.
+  const handleAddRow = useCallback(() => {
+    console.log('[cubs-database] guided-add-row')
+  }, [])
+  const handleAddColumn = useCallback(() => {
+    console.log('[cubs-database] guided-add-column')
+  }, [])
+
   // Mesma razão do `labels` acima: os rótulos saem do i18next, que o linter
   // não relaciona com o slug de idioma da rota.
   const viewMenuItems = useCallback(
@@ -153,6 +164,8 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
         onOpenRow={handleOpenRow}
         {...handlers}
         onSelectionChange={handleSelectionChange}
+        onAddRow={handleAddRow}
+        onAddColumn={handleAddColumn}
         labels={labels}
         viewMenuItems={viewMenuItems}
       />

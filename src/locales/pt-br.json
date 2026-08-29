@@ -60,7 +60,7 @@
       "criar-conta": "Criar conta"
     },
     "sign-in": {
-      "entre-seja-bem-vindo": "Entre Seja Bem-Vindo!",
+      "entre-seja-bem-vindo": "Entre e seja bem-vindo!",
       "subtitulo": "Acesse sua conta para continuar.",
       "campo-email": "E-mail",
       "campo-email-placeholder": "voce@exemplo.com",
@@ -92,6 +92,26 @@
     "app": {
       "ola-mundo": "Hello world",
       "descricao-outlet": "Esta área é renderizada dentro do Outlet da rota /app.",
+      "account-menu": {
+        "open": "Abrir menu da conta",
+        "user": "Usuário",
+        "settings": "Configurações",
+        "notifications": "Notificações",
+        "logout": "Logout"
+      },
+      "global-settings": {
+        "title": "Configurações globais",
+        "navigation": "Seções das configurações globais",
+        "profile": "Perfil do usuário",
+        "workspace": "Workspace",
+        "settings": "Configurações"
+      },
+      "sign-out": {
+        "title": "Confirmar logout",
+        "question": "Deseja realmente sair?",
+        "yes": "Sim",
+        "no": "Não"
+      },
       "exemplo-formulario": {
         "titulo": "Formulário (react-hook-form)",
         "descricao": "Máscaras, validação com mensagens prontas e prévia ao vivo via watch().",
@@ -145,6 +165,8 @@
         "arrastar-option": "Arrastar option",
         "arrastar-coluna": "Arrastar coluna",
         "redimensionar-coluna": "Redimensionar coluna",
+        "adicionar-linha": "Adicionar linha",
+        "adicionar-coluna": "Adicionar coluna",
         "selecionar-linha": "Selecionar linha",
         "selecionar-todas": "Selecionar todas as linhas",
         "renomear-coluna": "Renomear coluna",

@@ -74,7 +74,7 @@ A resolução é centralizada em [connection.ts](src/lib/connection.ts):
 
 1. `VITE_CUBS_SOCKET_URL` — só se o socket um dia morar em outro servidor;
 2. `VITE_CUBS_API_URL` — origem do backend; o socket **herda** daqui;
-3. sem env nenhuma — proxy do Vite em dev (`/api` e `/socket.io` → `:5000`).
+3. sem env nenhuma — proxy do Vite em dev (`/api` e `/socket.io` → `:3000`).
 
 ## Socket.io
 
@@ -234,11 +234,13 @@ O passo a passo também está comentado no topo de `src/lib/i18n.ts`.
 
 - [index.css](src/index.css) implementa **só a base** — nada de token
   por-componente:
-  - `background` (zinc-100 / zinc-950), `contrast` (zinc-200 / zinc-800),
-    `divider` (zinc-300 / zinc-700) e `foreground` (zinc-900 / zinc-100);
-  - os valores vêm da paleta do **próprio Tailwind** via `theme()` — nenhum
-    literal oklch escrito à mão;
-  - `rounded` (sem sufixo) é o raio padrão do projeto e vale `rounded-lg`;
+  - `background` (`light-100` / `dark-900`), `contrast`
+    (`light-200` / `dark-800`), `divider` (`light-300` / `dark-700`) e
+    `foreground` (`dark-700` / `light-300`);
+  - os valores vêm da escala histórica do **Cub's**, registrada como
+    `light-100..900` e `dark-100..900`; neutros genéricos do Tailwind não são
+    usados como fonte do tema;
+  - `rounded` (sem sufixo) é o raio padrão do projeto e vale `rounded-xl`;
   - dark mode por classe `.dark` na raiz; borda sem cor explícita usa o
     `divider` por padrão (`@layer base`).
   Componentes compõem a partir disso: `bg-contrast`, `border-divider`,
@@ -248,7 +250,7 @@ O passo a passo também está comentado no topo de `src/lib/i18n.ts`.
 - [palette.ts](src/shared/cubs-components/lib/palette.ts) — cores de destaque com chaves semânticas
   mapeando hues do Tailwind: `red → rose`, `blue → blue`, `purple → violet`,
   `green → emerald`. Regra de tema: tom `-300` no light e `-500` no dark
-  (texto sobre fundo colorido é sempre `zinc-950`; texto NA cor usa
+  (texto sobre fundo colorido usa `light-100`; texto NA cor usa
   `-600`/`-400` para leitura). Classes literais (Tailwind não compila classe
   montada em runtime) e helpers `paletteBgText` / `paletteBorderText`.
 - [Button.tsx](src/shared/cubs-components/Button.tsx) — variantes `filled`, `outlined` e

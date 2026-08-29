@@ -47,7 +47,7 @@ function ToastCard({ toast, onDismiss }: { toast: Toast; onDismiss: (id: string)
       role="status"
       aria-live={variant === 'error' ? 'assertive' : 'polite'}
       className={cn(
-        'pointer-events-auto flex w-80 items-start gap-2 rounded-xl border border-l-4 border-divider-contrast bg-glass p-2.5 shadow-2xl shadow-black/20 backdrop-blur-xl',
+        'pointer-events-auto flex w-80 items-start gap-2 rounded-xl border border-l-4 border-divider-contrast bg-glass p-2.5 shadow-2xl shadow-dark-900/20 backdrop-blur-xl',
         BORDER[variant],
       )}
     >

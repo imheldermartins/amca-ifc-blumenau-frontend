@@ -72,7 +72,7 @@ export function CollaboratingPage() {
                 params={{ lang: lang ?? 'pt-br', pageId: page.id }}
                 className={cn(
                   'flex h-full flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
-                  'shadow-lg shadow-black/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',
+                  'shadow-lg shadow-dark-900/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',
                 )}
               >
                 <span className="flex items-center gap-2">
