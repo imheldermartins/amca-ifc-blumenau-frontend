@@ -33,6 +33,7 @@ import type {
   PageTitleColumn,
   RowData,
 } from 'cubs-database'
+import { OPTION_COLORS } from 'cubs-components'
 
 // --- Formato cru das respostas da API ---
 
@@ -149,8 +150,6 @@ function isColumnMask(value: unknown): value is ColumnMask {
 }
 
 // --- Colunas ---
-
-const OPTION_COLORS: readonly OptionColor[] = ['red', 'orange', 'yellow', 'green', 'blue', 'grey']
 
 function isOptionColor(value: unknown): value is OptionColor {
   return OPTION_COLORS.includes(value as OptionColor)

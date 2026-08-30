@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ParsedDatabase } from '@/lib/databaseParser'
 import { FALLBACK_VIEW_ID } from '@/lib/databaseParser'
 import { AppError } from '@/lib/errors'
+import type { PageRealtimeChannel } from '@/services/PageRealtimeChannel'
 import { usePageDatabase } from './usePageDatabase'
 
 const dependencies = vi.hoisted(() => ({
@@ -37,10 +38,6 @@ vi.mock('@/services/PageWriteService', () => ({
     saveCell: dependencies.saveCell,
     saveViewSnapshot: dependencies.saveViewSnapshot,
   },
-}))
-
-vi.mock('@/services/SocketService', () => ({
-  socketService: { previewColumnResize: dependencies.previewColumnResize },
 }))
 
 vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
@@ -95,7 +92,7 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 describe('usePageDatabase — concorrência e ressincronização da célula', () => {
-  it('uma resposta de load antiga não apaga o snapshot mais novo após o ACK', async () => {
+  it('coalesce ACK e eventos estruturais em uma carga ativa e um único follow-up', async () => {
     const first = deferred<ParsedDatabase>()
     const afterJoin = deferred<ParsedDatabase>()
     dependencies.loadPage
@@ -106,7 +103,30 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
     const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
     await waitFor(() => expect(dependencies.loadPage).toHaveBeenCalledTimes(1))
 
-    act(() => result.current.realtimeOptions.onResync?.())
+    act(() => {
+      result.current.realtimeOptions.onResync?.()
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'row-created',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: ROW_ID,
+          updatedAt: '2026-08-30T12:00:00.000Z',
+          originUserId: 'user-1',
+        },
+      })
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'column-created',
+        payload: {
+          pageId: PAGE_ID,
+          columnId: COLUMN_ID,
+          updatedAt: '2026-08-30T12:00:00.001Z',
+          originUserId: 'user-1',
+        },
+      })
+    })
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    await act(async () => first.resolve(database('snapshot-antes-do-follow-up')))
     await waitFor(() => expect(dependencies.loadPage).toHaveBeenCalledTimes(2))
 
     await act(async () => afterJoin.resolve(database('autoritativo-após-join')))
@@ -115,13 +135,7 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
         'autoritativo-após-join',
       ),
     )
-
-    await act(async () => first.resolve(database('snapshot-antigo')))
-    await flushMutation()
-
-    expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe(
-      'autoritativo-após-join',
-    )
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(2)
   })
 
   it('um evento recebido durante reload invalida o snapshot stale em voo', async () => {
@@ -334,6 +348,9 @@ describe('usePageDatabase — snapshot da view', () => {
     await waitFor(() => expect(result.current.database).not.toBeNull())
 
     act(() => {
+      result.current.realtimeOptions.onChannelChange?.({
+        previewColumnResize: dependencies.previewColumnResize,
+      } as unknown as PageRealtimeChannel)
       result.current.handlers.onColumnWidthPreview(viewId, COLUMN_ID, 320)
       result.current.realtimeOptions.onColumnResize?.({
         pageId: PAGE_ID,
@@ -345,7 +362,6 @@ describe('usePageDatabase — snapshot da view', () => {
     })
 
     expect(dependencies.previewColumnResize).toHaveBeenCalledWith({
-      pageId: PAGE_ID,
       viewId,
       columnId: COLUMN_ID,
       width: 320,

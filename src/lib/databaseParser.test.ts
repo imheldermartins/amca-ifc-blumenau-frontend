@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FALLBACK_VIEW_ID, parseDatabase } from './databaseParser'
+import { FALLBACK_VIEW_ID, parseDatabase, parseHeaderCols } from './databaseParser'
 
 const VIEW_ID = '01KXVZ0000VIEW00000000001'
 
@@ -83,5 +83,32 @@ describe('databaseParser — coluna mestra de título', () => {
       key: 'title',
       column_name: 'Título',
     })
+  })
+})
+
+describe('databaseParser — cores das opções', () => {
+  it('preserva pink e purple recebidos do backend', () => {
+    const [, column] = parseHeaderCols(
+      [
+        {
+          id: 'column-1',
+          name: 'Status',
+          type: 'select',
+          data: {
+            options: [
+              { id: 'pink-option', value: 'Rosa', color: 'pink' },
+              { id: 'purple-option', value: 'Roxa', color: 'purple' },
+            ],
+          },
+          parent_id: 'page-1',
+        },
+      ],
+      'Título',
+    )
+
+    expect(column.options).toEqual([
+      { id: 'pink-option', label: 'Rosa', color: 'pink' },
+      { id: 'purple-option', label: 'Roxa', color: 'purple' },
+    ])
   })
 })

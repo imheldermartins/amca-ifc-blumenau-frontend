@@ -9,7 +9,7 @@ export interface ColorPickerProps {
   value?: OptionColor
   /** Escolheu uma cor (fecha o popover). */
   onPick: (color: OptionColor) => void
-  /** Cores oferecidas; default = as 6 do sistema. */
+  /** Cores oferecidas; default = as 8 do sistema. */
   colors?: readonly OptionColor[]
   /** Nome acessível do gatilho (o campo não tem label visível). */
   label?: string
@@ -21,7 +21,7 @@ export interface ColorPickerProps {
  * gradient`, inline porque é uma cor de UI, não um token do tema) que abre um
  * `Popover` com as cores em flex. Clicar numa cor emite `onPick` e fecha.
  *
- * As cores são o vocabulário `OptionColor` do sistema (6) — o mesmo que o
+ * As cores são o vocabulário `OptionColor` do sistema (8) — o mesmo que o
  * backend aceita. É usado no editor de options do select, mas fica no pacote
  * (genérico) para servir outras telas.
  */
@@ -52,14 +52,17 @@ export function ColorPicker({
           style={
             value
               ? undefined
-              : { backgroundImage: 'conic-gradient(#f43f5e,#f59e0b,#eab308,#10b981,#3b82f6,#8b5cf6,#f43f5e)' }
+              : {
+                  backgroundImage:
+                    'conic-gradient(#f43f5e,#ec4899,#f59e0b,#eab308,#10b981,#3b82f6,#8b5cf6,#f43f5e)',
+                }
           }
         >
           {value && <span className={cn('block size-full rounded-full', OPTION_COLOR_SWATCH[value])} />}
         </button>
       }
     >
-      <div className="flex items-center gap-1.5 p-1">
+      <div className="grid grid-cols-4 gap-1.5 p-1">
         {colors.map((color) => (
           <button
             key={color}

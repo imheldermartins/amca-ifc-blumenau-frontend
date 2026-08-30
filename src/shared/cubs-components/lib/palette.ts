@@ -2,7 +2,8 @@
  * Paleta de cores de destaque do Cub's.
  *
  * As chaves são SEMÂNTICAS e mapeiam para hues do Tailwind:
- *   red → rose · blue → blue · purple → violet · green → emerald
+ *   red → rose · pink → pink · orange → orange · blue → blue ·
+ *   purple → violet · green → emerald
  *
  * Esse mapeamento está registrado como cor NATIVA do Tailwind no CSS do app
  * consumidor (escala `p-*`; ver o contrato de tokens no README do pacote).
@@ -25,7 +26,7 @@
  */
 import { clsx } from 'clsx'
 
-export const PALETTE_COLORS = ['blue', 'red', 'purple', 'green'] as const
+export const PALETTE_COLORS = ['blue', 'red', 'pink', 'orange', 'purple', 'green'] as const
 
 export type PaletteColor = (typeof PALETTE_COLORS)[number]
 
@@ -64,6 +65,24 @@ export const PALETTE: Record<PaletteColor, PaletteEntry> = {
     textOnFilled: 'text-light-100',
     border: 'border-p-red-600 dark:border-p-red-500',
     shadow: 'shadow-lg shadow-p-red-600/25 dark:shadow-p-red-500/25',
+  },
+  pink: {
+    bg: 'bg-p-pink-500',
+    bgHover: 'hover:bg-p-pink-400 dark:hover:bg-p-pink-600',
+    bgSoft: 'hover:bg-p-pink-600/25 dark:hover:bg-p-pink-500/20',
+    text: 'text-p-pink-600 dark:text-p-pink-400',
+    textOnFilled: 'text-light-100',
+    border: 'border-p-pink-600 dark:border-p-pink-500',
+    shadow: 'shadow-lg shadow-p-pink-600/25 dark:shadow-p-pink-500/25',
+  },
+  orange: {
+    bg: 'bg-p-orange-500',
+    bgHover: 'hover:bg-p-orange-400 dark:hover:bg-p-orange-600',
+    bgSoft: 'hover:bg-p-orange-600/25 dark:hover:bg-p-orange-500/20',
+    text: 'text-p-orange-600 dark:text-p-orange-400',
+    textOnFilled: 'text-light-100',
+    border: 'border-p-orange-600 dark:border-p-orange-500',
+    shadow: 'shadow-lg shadow-p-orange-600/25 dark:shadow-p-orange-500/25',
   },
   purple: {
     bg: 'bg-p-purple-500',

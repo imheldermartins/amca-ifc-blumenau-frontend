@@ -78,33 +78,42 @@ A resolução é centralizada em [connection.ts](src/lib/connection.ts):
 
 ## Socket.io
 
-- [SocketService](src/services/SocketService.ts): conexão tipada
-  (`ServerToClientEvents`/`ClientToServerEvents`) e autenticada — o handshake
-  envia o access token, que o backend valida com o mesmo JWT das rotas HTTP.
-  Se o handshake tomar "Não autorizado" (access token expirado), o client
-  renova o par via `/auth/refresh` e reconecta sozinho.
+- [SocketService](src/services/SocketService.ts): somente conexão autenticada,
+  reconexão e ciclo de vida por consumidores. O handshake envia o access token;
+  em "Não autorizado", renova via `/auth/refresh` e reconecta uma vez.
+- [PageRealtimeChannel](src/services/PageRealtimeChannel.ts): join/leave da
+  room `page-database:{pageId}`, filtro, listeners v1, cleanup e resize
+  efêmero. `usePageRealtime` é apenas sua adaptação ao React; views não abrem
+  sockets próprios.
 - [useSocket](src/hooks/useSocket.ts): conecta enquanto o componente estiver
   montado (acquire/release) e expõe status + mensagem de erro ao vivo.
-- Exemplo vivo em `/app` ([SocketExampleSection](src/pages/app/sections/SocketExampleSection.tsx)):
-  status da conexão, presença (`presence:count`) e echo de ida e volta
-  (`echo:send` → `echo:reply`). O contrato de eventos é espelhado em
-  `cubs-backend/src/core/socket/socket-server.ts` — ao criar um evento novo,
-  atualize os dois lados.
+- `presence:count` e `echo:send` → `echo:reply` continuam no `SystemChannel`
+  como compatibilidade/diagnóstico v1 e têm testes no backend. O contrato gerado é
+  [realtime-contract-v1.ts](src/services/realtime-contract-v1.ts); a fonte
+  canônica fica no backend. Rode lá `npm run realtime:contract:sync` após uma
+  evolução e `npm run realtime:contract:check` no gate.
+
+Escritas de domínio continuam 100% HTTP. Depois do commit, o backend propaga
+célula, título de linha/página, coluna e snapshot para a room da página. O
+autor recebe o próprio eco. Criações/exclusões estruturais e reconexões
+coalescem um refetch autoritativo depois do ACK. A arquitetura completa está na
+[ADR realtime v1](../cubs-backend/docs/adr/0001-realtime-v1.md).
 
 ### Como testar a conexão socket
 
-1. **Pela UI**: logado, abra `/pt-br/app` — o painel "Socket.io" mostra o
-   status ao vivo. "Conectado" + "Conexões ativas: N" = handshake autenticado
-   ok. Digite algo e clique "Enviar echo": a resposta volta carimbada com o
-   seu userId (extraído do JWT no servidor).
+1. **Pela UI**: logado, abra uma página. Na aba Network → WS, confirme o
+   handshake, `join-page-database` e o ACK `joined-page-database`.
 2. **Pelo console do browser (F12)**: os logs padronizados `[cubs:socket]`
    contam a história — falha com causa e dica, renovação de token e
    reconexão. Na aba Network → filtro WS dá para ver o frame de upgrade e as
    mensagens trafegando.
-3. **Sem browser** (o handshake engine.io responde por HTTP puro):
-   `curl "http://localhost:5000/socket.io/?EIO=4&transport=polling"` —
+3. **Teste automatizado real**: no backend,
+   `npm test -- src/core/socket/socket-server.integration.test.ts` sobe porta
+   efêmera e conecta owner, collaborator e usuário sem acesso.
+4. **Sem browser** (o handshake engine.io responde por HTTP puro):
+   `curl "http://localhost:3000/socket.io/?EIO=4&transport=polling"` —
    HTTP 200 com um JSON `{"sid":...}` prova que o servidor socket está de pé.
-4. **Falhas comuns**: backend fora do ar → "websocket error" (o socket.io
+5. **Falhas comuns**: backend fora do ar → "websocket error" (o socket.io
    re-tenta sozinho); token expirado → "Não autorizado" (o client renova e
    reconecta); porta/env errada → confira `VITE_CUBS_API_URL` no `.env`.
 
@@ -115,7 +124,7 @@ Toda falha de serviço vira um [AppError](src/lib/errors.ts) com `scope`
 
 ```
 [cubs:api] POST /auth/login → 401: Credenciais inválidas
-[cubs:socket] Falha ao conectar em http://localhost:5000: Não autorizado. Verifique...
+[cubs:socket] Falha ao conectar em http://localhost:3000: Não autorizado. Verifique...
 ```
 
 O `ApiService` rejeita sempre `AppError` (com `status` HTTP normalizado) —

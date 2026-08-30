@@ -217,8 +217,21 @@ describe('TableView — adição guiada', () => {
 
     expect(onAddRow).toHaveBeenCalledOnce()
     expect(onAddColumn).toHaveBeenCalledOnce()
-    expect(screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova linha' }))).toBe(false)
-    expect(screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova coluna' }))).toBe(false)
+    expect(
+      screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova linha' })),
+    ).toBe(false)
+    expect(
+      screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova coluna' })),
+    ).toBe(false)
+
+    const guidedControls = screen
+      .getByRole('button', { name: 'Nova linha' })
+      .closest<HTMLElement>('[data-guided-add-controls]')
+    if (!guidedControls) throw new Error('Moldura dos controles guiados não renderizada')
+    expect(guidedControls.className).toContain('gap-2')
+    expect(screen.getByRole('table').className).toContain('rounded-xl')
+    expect(screen.getByRole('button', { name: 'Nova linha' }).className).toContain('rounded-xl')
+    expect(screen.getByRole('button', { name: 'Nova coluna' }).className).toContain('rounded-xl')
   })
 
   it('faz o indicador acompanhar e limitar o ponteiro no eixo do trilho', () => {

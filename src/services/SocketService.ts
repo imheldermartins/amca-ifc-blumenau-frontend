@@ -5,102 +5,14 @@ import { AppError, logError } from '@/lib/errors'
 import { apiService } from '@/services/ApiService'
 import { sessionStore } from '@/services/sessionStore'
 
-/**
- * Contrato de eventos com o backend (espelha src/core/socket/socket-server.ts
- * do cubs-backend). Ao criar um evento novo, atualize os DOIS lados.
- */
-export interface EchoReply {
-  message: string
-  userId: string
-  at: string
-}
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+} from '@/services/realtime-contract-v1'
 
-/**
- * Base de todo evento DURÁVEL de sala (a sala é a página; ver
- * `usePageRealtime`). O preview de resize é efêmero e não entra neste relógio.
- *
- * `updatedAt` é a guarda de ordem: evento mais VELHO que o dado em memória é
- * descartado (chegada fora de ordem não desfaz edição mais nova).
- * `originUserId` identifica quem escreveu para auditoria/feedback. Ele não
- * filtra a audiência: owner, collaborators e o próprio autor recebem o eco
- * autoritativo do commit.
- */
-export interface RealtimeBase {
-  pageId: string
-  updatedAt: string
-  originUserId: string
-}
-
-export interface CellUpdatedPayload extends RealtimeBase {
-  rowId: string
-  columnId: string
-  /** Já sem o envelope `{value}`; `null` = célula limpa. */
-  value: unknown
-}
-
-export interface ColumnUpdatedPayload extends RealtimeBase {
-  columnId: string
-  /** A coluna INTEIRA como ficou (o client substitui, não remenda). */
-  column: unknown
-}
-
-/** Frame efêmero do resize; a largura durável chega depois em `view-updated`. */
-export interface ColumnResizingPayload {
-  pageId: string
-  viewId: string
-  columnId: string
-  width: number
-  originUserId: string
-}
-
-export type ResizeColumnCommand = Omit<ColumnResizingPayload, 'originUserId'>
-
-export interface ViewUpdatedPayload extends RealtimeBase {
-  /** O `pages.data` inteiro — snapshot é retrato completo. */
-  data: unknown
-}
-
-export interface RowPayload extends RealtimeBase {
-  rowId: string
-}
-
-/**
- * O TÍTULO de uma linha mudou. Evento próprio porque `pages.title` não é uma
- * `page_columns`: é campo da própria página, e do lado de cá vira a coluna
- * sintética de título (ver `TITLE_COLUMN_ID`).
- */
-export interface RowUpdatedPayload extends RealtimeBase {
-  rowId: string
-  title: string | null
-}
-
-export interface PresencePayload {
-  pageId: string
-  count: number
-}
-
-export interface ServerToClientEvents {
-  'presence:count': (count: number) => void
-  'echo:reply': (payload: EchoReply) => void
-  // --- Sala da página (espelha realtime-service.ts do cubs-backend) ---
-  'joined-page-database': (payload: { pageId: string }) => void
-  'page-database-denied': (payload: { pageId: string }) => void
-  'page-presence': (payload: PresencePayload) => void
-  'cell-updated': (payload: CellUpdatedPayload) => void
-  'row-updated': (payload: RowUpdatedPayload) => void
-  'column-updated': (payload: ColumnUpdatedPayload) => void
-  'column-resizing': (payload: ColumnResizingPayload) => void
-  'view-updated': (payload: ViewUpdatedPayload) => void
-  'row-created': (payload: RowPayload) => void
-  'row-deleted': (payload: RowPayload) => void
-}
-
-export interface ClientToServerEvents {
-  'echo:send': (message: string) => void
-  'join-page-database': (payload: { pageId: string }) => void
-  'leave-page-database': (payload: { pageId: string }) => void
-  'resize-column': (payload: ResizeColumnCommand) => void
-}
+// Reexports preservam os imports existentes enquanto a fonte do contrato
+// passa a ser a cópia gerada e portátil do backend.
+export type * from '@/services/realtime-contract-v1'
 
 export type CubsSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -168,15 +80,6 @@ export class SocketService {
   disconnect(): void {
     this.consumers = 0
     this.socket?.disconnect()
-  }
-
-  /**
-   * Publica só a animação do drag. `volatile` evita criar fila de frames
-   * atrasados numa conexão lenta; o `view-updated` do PUT confirma o estado.
-   */
-  previewColumnResize(payload: ResizeColumnCommand): void {
-    if (!this.socket?.connected) return
-    this.socket.volatile.emit('resize-column', payload)
   }
 
   private attachLogging(socket: CubsSocket): void {

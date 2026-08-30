@@ -40,15 +40,16 @@
   --glow-purple-background: theme(--color-violet-400);
 
   /* Tom "cheio" (bare) de cada cor de destaque, JÁ theme-aware: 600 no light.
-     Mapeia os nomes semânticos aos hues do Tailwind (red→rose, blue→blue,
+     Mapeia os nomes semânticos aos hues do Tailwind (red→rose, pink→pink,
      purple→violet, green→emerald). É o que faz bg-p-red / text-p-red /
      border-p-red / shadow-p-red seguirem as regras sem precisar de sufixo. */
   --p-red: theme(--color-rose-600);
+  --p-pink: theme(--color-pink-600);
   --p-blue: theme(--color-blue-600);
   --p-purple: theme(--color-violet-600);
   --p-green: theme(--color-emerald-600);
-  /* Cores de option de coluna select (orange→orange, yellow→amber,
-     grey→escala histórica light/dark do Cub's). */
+  /* Cores adicionais: orange também integra a palette geral; yellow e grey
+     completam o vocabulário das options de select. */
   --p-orange: theme(--color-orange-600);
   --p-yellow: theme(--color-amber-600);
   --p-grey: var(--color-dark-100);
@@ -66,6 +67,7 @@
 
   /* No dark, o tom cheio cai para 500 (regra de superfície/borda da palette). */
   --p-red: theme(--color-rose-500);
+  --p-pink: theme(--color-pink-500);
   --p-blue: theme(--color-blue-500);
   --p-purple: theme(--color-violet-500);
   --p-green: theme(--color-emerald-500);
@@ -118,6 +120,7 @@
      preenchido, ou `text-p-red` para texto na cor. shadow-p-red só define a
      COR da sombra; combine com um tamanho (ex.: `shadow-xl shadow-p-red`). */
   --color-p-red: var(--p-red);
+  --color-p-pink: var(--p-pink);
   --color-p-blue: var(--p-blue);
   --color-p-purple: var(--p-purple);
   --color-p-green: var(--p-green);
@@ -128,7 +131,7 @@
 
 /*
  * Escala COMPLETA das cores de destaque como cores nativas do Tailwind, com os
- * nomes semânticos do projeto apontando para os hues (red→rose, blue→blue,
+ * nomes semânticos do projeto apontando para os hues (red→rose, pink→pink,
  * purple→violet, green→emerald). Isto gera p-red-50 ... p-red-950 em TODOS os
  * utilitários de cor (bg-, text-, border-, ring-, shadow-, from-, ...), então
  * dá para controlar o tom por tema quando precisar de precisão:
@@ -152,6 +155,18 @@
   --color-p-red-800: var(--color-rose-800);
   --color-p-red-900: var(--color-rose-900);
   --color-p-red-950: var(--color-rose-950);
+
+  --color-p-pink-50: var(--color-pink-50);
+  --color-p-pink-100: var(--color-pink-100);
+  --color-p-pink-200: var(--color-pink-200);
+  --color-p-pink-300: var(--color-pink-300);
+  --color-p-pink-400: var(--color-pink-400);
+  --color-p-pink-500: var(--color-pink-500);
+  --color-p-pink-600: var(--color-pink-600);
+  --color-p-pink-700: var(--color-pink-700);
+  --color-p-pink-800: var(--color-pink-800);
+  --color-p-pink-900: var(--color-pink-900);
+  --color-p-pink-950: var(--color-pink-950);
 
   --color-p-blue-50: var(--color-blue-50);
   --color-p-blue-100: var(--color-blue-100);
@@ -189,8 +204,8 @@
   --color-p-green-900: var(--color-emerald-900);
   --color-p-green-950: var(--color-emerald-950);
 
-  /* Cores de option de coluna select (chips da cubs-database):
-     orange→orange, yellow→amber, grey→light/dark histórico do Cub's. */
+  /* Cores adicionais da palette/chips: orange→orange, yellow→amber,
+     grey→light/dark histórico do Cub's. */
   --color-p-orange-50: var(--color-orange-50);
   --color-p-orange-100: var(--color-orange-100);
   --color-p-orange-200: var(--color-orange-200);

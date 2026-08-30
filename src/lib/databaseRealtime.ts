@@ -41,7 +41,7 @@ import type {
   ColumnUpdatedPayload,
   RowUpdatedPayload,
   ViewUpdatedPayload,
-} from '@/services/SocketService'
+} from '@/services/realtime-contract-v1'
 import { TITLE_COLUMN_ID, parseHeaderCols, parseViewSettings, type ApiPageColumn } from '@/lib/databaseParser'
 import type { ParsedDatabase } from '@/lib/databaseParser'
 
@@ -200,6 +200,97 @@ export interface ApplyResult {
   applied: boolean
 }
 
+interface ApplyContext {
+  database: ParsedDatabase
+  clock: RealtimeClock
+  titleLabel: string
+  unchanged: ApplyResult
+}
+
+type DatabaseRealtimeEventType = DatabaseRealtimeEvent['type']
+type EventFor<T extends DatabaseRealtimeEventType> = Extract<
+  DatabaseRealtimeEvent,
+  { type: T }
+>
+type RealtimeEventHandler<T extends DatabaseRealtimeEventType> = (
+  context: ApplyContext,
+  payload: EventFor<T>['payload'],
+) => ApplyResult
+type RealtimeEventHandlerRegistry = {
+  [T in DatabaseRealtimeEventType]: RealtimeEventHandler<T>
+}
+
+/**
+ * Registro fechado dos eventos que alteram o `ParsedDatabase` canônico.
+ * Adicionar um evento ao union sem registrar seu handler quebra o typecheck.
+ */
+const DATABASE_REALTIME_HANDLERS = {
+  'cell-updated': ({ database, clock, unchanged }, payload) => {
+    const { rowId, columnId, value, updatedAt } = payload
+    const key = cellKey(rowId, columnId)
+    if (!isFresh(clock, key, updatedAt)) return unchanged
+
+    // Linha desconhecida: quem chegou depois (row-created) recarrega a base;
+    // inventar uma linha vazia aqui mostraria um registro sem as outras células.
+    const next = writeCell(database, rowId, columnId, value)
+    if (!next) return unchanged
+
+    return { database: next, clock: { ...clock, [key]: updatedAt }, applied: true }
+  },
+
+  'row-updated': ({ database, clock, unchanged }, payload) => {
+    // O TÍTULO da linha é campo da página e cai na coluna sintética, o
+    // mesmo lugar onde o parser o colocou na leitura inicial.
+    const { rowId, title, updatedAt } = payload
+    const key = cellKey(rowId, TITLE_COLUMN_ID)
+    if (!isFresh(clock, key, updatedAt)) return unchanged
+
+    const next = writeCell(database, rowId, TITLE_COLUMN_ID, title)
+    if (!next) return unchanged
+
+    return { database: next, clock: { ...clock, [key]: updatedAt }, applied: true }
+  },
+
+  'column-updated': ({ database, clock, titleLabel, unchanged }, payload) => {
+    const { columnId, column, updatedAt } = payload
+    const key = columnKey(columnId)
+    if (!isFresh(clock, key, updatedAt)) return unchanged
+    if (!column || typeof column !== 'object') return unchanged
+
+    const columnIndex = database.headerCols.findIndex((header) => header.id === columnId)
+    if (columnIndex < 0) return unchanged
+
+    // A coluna vem no formato da API, então reusa o adaptador do fetch
+    // inicial. `parseHeaderCols` traz a sintética primeiro; aqui interessa a
+    // coluna real, daí o `[1]`.
+    const [, parsed] = parseHeaderCols([column as ApiPageColumn], titleLabel)
+    if (!parsed) return unchanged
+
+    const headerCols = database.headerCols.slice()
+    headerCols[columnIndex] = { ...parsed, id: columnId }
+    return {
+      database: { ...database, headerCols },
+      clock: { ...clock, [key]: updatedAt },
+      applied: true,
+    }
+  },
+
+  'view-updated': ({ database, clock, titleLabel, unchanged }, payload) => {
+    const { data, updatedAt } = payload
+    if (!isFresh(clock, VIEW_KEY, updatedAt)) return unchanged
+
+    const settings = parseViewSettings(data as Record<string, unknown> | null, titleLabel)
+    // Snapshot vazio/ilegível não apaga as tabs de quem está vendo.
+    if (Object.keys(settings).length === 0) return unchanged
+
+    return {
+      database: { ...database, settings },
+      clock: { ...clock, [VIEW_KEY]: updatedAt },
+      applied: true,
+    }
+  },
+} satisfies RealtimeEventHandlerRegistry
+
 /**
  * Aplica um evento à base. Devolve SEMPRE novos objetos quando muda (imutável,
  * para o React perceber) e o MESMO objeto quando não muda — descartar o evento
@@ -218,75 +309,13 @@ export function applyRealtimeEvent(
 ): ApplyResult {
   const unchanged: ApplyResult = { database, clock, applied: false }
 
-  switch (event.type) {
-    case 'cell-updated': {
-      const { rowId, columnId, value, updatedAt } = event.payload
-      const key = cellKey(rowId, columnId)
-      if (!isFresh(clock, key, updatedAt)) return unchanged
-
-      // Linha desconhecida: quem chegou depois (row-created) recarrega a base;
-      // inventar uma linha vazia aqui mostraria um registro sem as outras
-      // células.
-      const next = writeCell(database, rowId, columnId, value)
-      if (!next) return unchanged
-
-      return { database: next, clock: { ...clock, [key]: updatedAt }, applied: true }
-    }
-
-    case 'row-updated': {
-      // O TÍTULO da linha não é uma coluna: é campo da própria página. Ele
-      // chega por um evento próprio e cai na coluna sintética de título — o
-      // mesmo lugar onde o parser o colocou na leitura inicial.
-      const { rowId, title, updatedAt } = event.payload
-      const key = cellKey(rowId, TITLE_COLUMN_ID)
-      if (!isFresh(clock, key, updatedAt)) return unchanged
-
-      const next = writeCell(database, rowId, TITLE_COLUMN_ID, title)
-      if (!next) return unchanged
-
-      return { database: next, clock: { ...clock, [key]: updatedAt }, applied: true }
-    }
-
-    case 'column-updated': {
-      const { columnId, column, updatedAt } = event.payload
-      const key = columnKey(columnId)
-      if (!isFresh(clock, key, updatedAt)) return unchanged
-      if (!column || typeof column !== 'object') return unchanged
-
-      const columnIndex = database.headerCols.findIndex((header) => header.id === columnId)
-      if (columnIndex < 0) return unchanged
-
-      // A coluna vem no formato da API, então reusa o MESMO adaptador do fetch
-      // inicial (nome, options com cor, format) — sem um segundo tradutor que
-      // divergiria do primeiro. O `parseHeaderCols` devolve a coluna sintética
-      // de título na frente; aqui interessa só a real, daí o `[1]`.
-      const [, parsed] = parseHeaderCols([column as ApiPageColumn], titleLabel)
-      if (!parsed) return unchanged
-
-      const headerCols = database.headerCols.slice()
-      headerCols[columnIndex] = { ...parsed, id: columnId }
-
-      return {
-        database: { ...database, headerCols },
-        clock: { ...clock, [key]: updatedAt },
-        applied: true,
-      }
-    }
-
-    case 'view-updated': {
-      const { data, updatedAt } = event.payload
-      if (!isFresh(clock, VIEW_KEY, updatedAt)) return unchanged
-
-      const settings = parseViewSettings(data as Record<string, unknown> | null, titleLabel)
-      // Snapshot vazio/ilegível não apaga as tabs de quem está vendo: sem view
-      // a tabela não teria como se desenhar.
-      if (Object.keys(settings).length === 0) return unchanged
-
-      return {
-        database: { ...database, settings },
-        clock: { ...clock, [VIEW_KEY]: updatedAt },
-        applied: true,
-      }
-    }
-  }
+  const context: ApplyContext = { database, clock, titleLabel, unchanged }
+  // TypeScript perde a correlação discriminante ao indexar um registry com
+  // uma union. O `satisfies` acima prova cada par evento/payload; este cast fica
+  // restrito à fronteira de despacho.
+  const handler = DATABASE_REALTIME_HANDLERS[event.type] as (
+    applyContext: ApplyContext,
+    payload: DatabaseRealtimeEvent['payload'],
+  ) => ApplyResult
+  return handler(context, event.payload)
 }

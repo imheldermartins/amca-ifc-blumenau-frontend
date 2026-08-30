@@ -28,8 +28,8 @@ import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/da
 import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
+import type { PageRealtimeChannel } from '@/services/PageRealtimeChannel'
 import { pageWriteService } from '@/services/PageWriteService'
-import { socketService } from '@/services/SocketService'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
 
@@ -108,10 +108,17 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // o otimismo de uma edição mais nova. O Map fica em ref porque coordena
   // callbacks assíncronos, mas não desenha nada.
   const cellMutationRevisionsRef = useRef<Map<string, number>>(new Map())
-  // Reloads podem se sobrepor (fetch inicial, ACK da sala, reconexão). Só a
-  // resposta da revisão mais nova pode substituir a base; caso contrário um
-  // fetch antigo encerraria depois e apagaria um evento já recebido.
+  // A revisão continua protegendo troca de página/unmount e qualquer resposta
+  // obsoleta. O coalescer abaixo impede sobreposição normal: há no máximo
+  // uma carga em voo e uma nova passagem pendente.
   const loadRevisionRef = useRef(0)
+  const loadInFlightRef = useRef<Promise<void> | null>(null)
+  const loadQueuedRef = useRef(false)
+  const loadScopeRef = useRef(0)
+  const loadScopePageIdRef = useRef<string | undefined>(undefined)
+  const mountedRef = useRef(true)
+  const currentPageIdRef = useRef(pageId)
+  currentPageIdRef.current = pageId
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
@@ -129,6 +136,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // desta sessão garante que um drag de linha seguido de um drag de coluna
   // chegue ao backend na mesma ordem em que atualizou a UI.
   const viewWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const pageRealtimeChannelRef = useRef<PageRealtimeChannel | null>(null)
   const columnResizePreviewTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
   )
@@ -146,6 +154,13 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   }, [cancelColumnWidthPreviewTimers])
 
   useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
     clearColumnWidthPreviews()
     settingsRef.current = {}
     materializedFallbackRef.current = { pageId }
@@ -153,12 +168,16 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     return cancelColumnWidthPreviewTimers
   }, [pageId, cancelColumnWidthPreviewTimers, clearColumnWidthPreviews])
 
-  const load = useCallback(() => {
+  const performLoad = useCallback(async (): Promise<void> => {
     if (!pageId) return
-    let active = true
     const revision = loadRevisionRef.current + 1
     loadRevisionRef.current = revision
-    const isCurrent = () => active && loadRevisionRef.current === revision
+    const scope = loadScopeRef.current
+    const isCurrent = () =>
+      mountedRef.current &&
+      currentPageIdRef.current === pageId &&
+      loadScopeRef.current === scope &&
+      loadRevisionRef.current === revision
     // Um evento recebido depois do início deste fetch torna a resposta
     // potencialmente stale. `applyRealtimeEvent` troca a referência do clock
     // sempre que aplica conteúdo, então ela funciona como versão causal.
@@ -166,27 +185,59 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
 
     setLoading(true)
     setFailed(false)
-    databaseService
-      .loadPage(pageId)
-      .then((loaded) => {
-        if (!isCurrent() || clockRef.current !== clockAtStart) return
-        clockRef.current = {}
-        settingsRef.current = loaded.settings
-        setDatabase(loaded)
-      })
-      .catch(() => {
-        if (isCurrent()) setFailed(true)
-      })
-      .finally(() => {
-        if (isCurrent()) setLoading(false)
-      })
-
-    return () => {
-      active = false
+    try {
+      const loaded = await databaseService.loadPage(pageId)
+      if (!isCurrent() || clockRef.current !== clockAtStart) return
+      clockRef.current = {}
+      settingsRef.current = loaded.settings
+      setDatabase(loaded)
+    } catch {
+      if (isCurrent()) setFailed(true)
+    } finally {
+      if (isCurrent()) setLoading(false)
     }
   }, [pageId])
 
-  useEffect(() => load(), [load])
+  /**
+   * Coalescência autoritativa: eventos estruturais/ACKs durante uma leitura
+   * não abrem requests paralelas. Eles reservam exatamente uma nova passagem
+   * depois da atual; novos sinais durante essa passagem podem reservar outra.
+   */
+  const reload = useCallback(() => {
+    if (!pageId) return
+
+    if (loadInFlightRef.current) {
+      loadQueuedRef.current = true
+      return
+    }
+
+    const scope = loadScopeRef.current
+    const start = () => {
+      const request = performLoad()
+      loadInFlightRef.current = request
+      void request.finally(() => {
+        if (loadScopeRef.current !== scope || loadInFlightRef.current !== request) return
+        loadInFlightRef.current = null
+        if (!loadQueuedRef.current) return
+        loadQueuedRef.current = false
+        start()
+      })
+    }
+
+    start()
+  }, [pageId, performLoad])
+
+  useEffect(() => {
+    // StrictMode repete effects em desenvolvimento. Resetar somente quando o
+    // id realmente muda conserva a garantia de uma request em voo também lá.
+    if (loadScopePageIdRef.current !== pageId) {
+      loadScopePageIdRef.current = pageId
+      loadScopeRef.current += 1
+      loadInFlightRef.current = null
+      loadQueuedRef.current = false
+    }
+    reload()
+  }, [pageId, reload])
 
   const handleRealtimeEvent = useCallback<NonNullable<UsePageRealtimeOptions['onEvent']>>(
     (event) => {
@@ -247,12 +298,11 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     )
   }, [])
 
-  // Linha criada/removida e reconexão caem no mesmo remédio: reler a base. É
-  // mais barato (e mais honesto) do que remendar meia linha ou tentar
-  // reconstruir os eventos perdidos enquanto o socket esteve fora.
-  const reload = useCallback(() => {
-    load()
-  }, [load])
+  const handleRealtimeChannelChange = useCallback<
+    NonNullable<UsePageRealtimeOptions['onChannelChange']>
+  >((channel) => {
+    pageRealtimeChannelRef.current = channel
+  }, [])
 
   // Traduz o erro HTTP numa notificação. A CLASSE do erro (`classifyWriteError`,
   // puro) vira o sufixo da chave i18n; o texto sai do locale.
@@ -501,10 +551,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onColumnWidthPreview: useCallback(
       (viewId: string, columnId: string, width: number) => {
-        if (!pageId) return
-        socketService.previewColumnResize({ pageId, viewId, columnId, width })
+        pageRealtimeChannelRef.current?.previewColumnResize({ viewId, columnId, width })
       },
-      [pageId],
+      [],
     ),
   }
 
@@ -516,9 +565,10 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     columnWidthPreviews,
     realtimeOptions: {
       onEvent: handleRealtimeEvent,
-      onRowsChanged: reload,
+      onStructureChanged: reload,
       onColumnResize: handleRemoteColumnResize,
       onResync: reload,
+      onChannelChange: handleRealtimeChannelChange,
     },
     handlers,
   }

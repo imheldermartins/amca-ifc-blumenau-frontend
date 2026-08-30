@@ -3,9 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CellUpdatedPayload,
+  ColumnPayload,
   ColumnResizingPayload,
-  CubsSocket,
-} from '@/services/SocketService'
+  PageUpdatedPayload,
+} from '@/services/realtime-contract-v1'
+import type { CubsSocket } from '@/services/SocketService'
 import { usePageRealtime } from './usePageRealtime'
 
 type Listener = (payload: never) => void
@@ -42,6 +44,10 @@ class FakeSocket {
 
   receive(event: string, payload?: unknown) {
     for (const listener of this.listeners.get(event) ?? []) listener(payload as never)
+  }
+
+  listenerCount(event: string) {
+    return this.listeners.get(event)?.size ?? 0
   }
 }
 
@@ -114,5 +120,81 @@ describe('usePageRealtime — sala e ressincronização', () => {
     const current = { ...payload, pageId: PAGE_ID }
     act(() => socket.receive('column-resizing', current))
     expect(onColumnResize).toHaveBeenCalledWith(current)
+  })
+
+  it('encaminha page-updated e mudanças estruturais sem conhecer o tipo da view', () => {
+    const onPageUpdated = vi.fn()
+    const onStructureChanged = vi.fn()
+    renderHook(() =>
+      usePageRealtime(PAGE_ID, { onPageUpdated, onStructureChanged }),
+    )
+    const socket = socketState.socket as unknown as FakeSocket
+    const meta = {
+      updatedAt: '2026-08-30T12:00:00.000Z',
+      originUserId: '01KXVZ0000USER00000000001',
+    }
+    const page: PageUpdatedPayload = {
+      pageId: PAGE_ID,
+      title: 'Título remoto',
+      ...meta,
+    }
+    const column: ColumnPayload = {
+      pageId: PAGE_ID,
+      columnId: '01KXVZ0000COLUMN00000001',
+      ...meta,
+    }
+
+    act(() => {
+      socket.receive('page-updated', page)
+      socket.receive('column-created', column)
+      socket.receive('column-deleted', { ...column, pageId: OTHER_PAGE_ID })
+    })
+
+    expect(onPageUpdated).toHaveBeenCalledWith(page)
+    expect(onStructureChanged).toHaveBeenCalledWith({
+      type: 'column-created',
+      payload: column,
+    })
+    expect(onStructureChanged).toHaveBeenCalledTimes(1)
+  })
+
+  it('atualiza callbacks sem refazer join e limpa listeners ao trocar de página', () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender, unmount } = renderHook(
+      ({ pageId, onEvent }) => usePageRealtime(pageId, { onEvent }),
+      { initialProps: { pageId: PAGE_ID, onEvent: first } },
+    )
+    const socket = socketState.socket as unknown as FakeSocket
+    const payload: CellUpdatedPayload = {
+      pageId: PAGE_ID,
+      rowId: '01KXVZ0000ROW000000000001',
+      columnId: '01KXVZ0000COLUMN00000001',
+      value: 'atual',
+      updatedAt: '2026-08-30T12:00:00.000Z',
+      originUserId: '01KXVZ0000USER00000000001',
+    }
+
+    rerender({ pageId: PAGE_ID, onEvent: second })
+    expect(
+      socket.emitted.filter(({ event }) => event === 'join-page-database'),
+    ).toHaveLength(1)
+    act(() => socket.receive('cell-updated', payload))
+    expect(first).not.toHaveBeenCalled()
+    expect(second).toHaveBeenCalledTimes(1)
+
+    rerender({ pageId: OTHER_PAGE_ID, onEvent: second })
+    expect(socket.emitted).toContainEqual({
+      event: 'leave-page-database',
+      payload: { pageId: PAGE_ID },
+    })
+    expect(socket.emitted).toContainEqual({
+      event: 'join-page-database',
+      payload: { pageId: OTHER_PAGE_ID },
+    })
+    expect(socket.listenerCount('cell-updated')).toBe(1)
+
+    unmount()
+    expect(socket.listenerCount('cell-updated')).toBe(0)
   })
 })

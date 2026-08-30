@@ -35,7 +35,7 @@ function base(): ParsedDatabase {
   }
 }
 
-function cellEvent(value: string, updatedAt: string, originUserId: string) {
+function cellEvent(value: unknown, updatedAt: string, originUserId: string) {
   return {
     type: 'cell-updated' as const,
     payload: {
@@ -112,6 +112,30 @@ describe('applyRealtimeEvent — guarda de ordem', () => {
     }
 
     expect(applyRealtimeEvent(base(), {}, evento, 'Título').applied).toBe(false)
+  })
+
+  it.each([false, 0, ''])('preserva valor falsy confirmado: %j', (value) => {
+    const result = applyRealtimeEvent(
+      base(),
+      {},
+      cellEvent(value, '2026-07-21T10:00:00Z', OUTRO),
+      'Título',
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.database.rows[0].cells[COLUNA]?.value).toBe(value)
+  })
+
+  it('remove a célula quando o evento confirmado carrega null', () => {
+    const result = applyRealtimeEvent(
+      base(),
+      {},
+      cellEvent(null, '2026-07-21T10:00:00Z', OUTRO),
+      'Título',
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.database.rows[0].cells[COLUNA]).toBeUndefined()
   })
 })
 
@@ -195,5 +219,86 @@ describe('row-updated — o título da linha é campo da página, não coluna', 
 
     expect(result.applied).toBe(true)
     expect(result.database.rows[0].cells[TITLE_COLUMN_ID]?.value).toBe('Novo título')
+  })
+})
+
+describe('handlers registrados de coluna e snapshot', () => {
+  it('substitui a definição completa com type, options, mask, format e currency', () => {
+    const result = applyRealtimeEvent(
+      base(),
+      {},
+      {
+        type: 'column-updated',
+        payload: {
+          pageId: 'page-1',
+          columnId: COLUNA,
+          column: {
+            id: COLUNA,
+            name: 'Situação',
+            type: 'select',
+            parent_id: 'page-1',
+            data: {
+              options: [{ id: 'option-1', value: 'Em andamento', color: 'blue' }],
+              mask: 'cpf',
+              format: 'currency',
+              currency: 'BRL',
+            },
+          },
+          updatedAt: '2026-07-21T10:00:00Z',
+          originUserId: OUTRO,
+        },
+      },
+      'Título',
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.database.headerCols[1]).toEqual({
+      id: COLUNA,
+      title: 'Situação',
+      type: 'select',
+      options: [{ id: 'option-1', label: 'Em andamento', color: 'blue' }],
+      mask: 'cpf',
+      format: 'currency',
+      currency: 'BRL',
+    })
+    expect(result.clock[`column:${COLUNA}`]).toBe('2026-07-21T10:00:00Z')
+  })
+
+  it('substitui o snapshot completo mesmo quando a view atual pode ser outra', () => {
+    const viewId = '01KXVZ0000VIEW000000000001'
+    const result = applyRealtimeEvent(
+      base(),
+      {},
+      {
+        type: 'view-updated',
+        payload: {
+          pageId: 'page-1',
+          data: {
+            [viewId]: {
+              view: 'board',
+              name: 'Quadro',
+              filters: 'status:aberto',
+              orderedHeaderCols: [TITLE_COLUMN_ID, COLUNA],
+              title: { key: 'title', column_name: 'Tarefa', mask: 'cep' },
+            },
+          },
+          updatedAt: '2026-07-21T10:00:00Z',
+          originUserId: OUTRO,
+        },
+      },
+      'Título',
+    )
+
+    expect(result.applied).toBe(true)
+    expect(result.database.settings).toEqual({
+      [viewId]: {
+        view: 'board',
+        name: 'Quadro',
+        filters: 'status:aberto',
+        orderedHeaderCols: [TITLE_COLUMN_ID, COLUNA],
+        title: { key: 'title', column_name: 'Tarefa', mask: 'cep' },
+      },
+    })
+    expect(result.clock.view).toBe('2026-07-21T10:00:00Z')
   })
 })
