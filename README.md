@@ -99,6 +99,56 @@ autor recebe o próprio eco. Criações/exclusões estruturais e reconexões
 coalescem um refetch autoritativo depois do ACK. A arquitetura completa está na
 [ADR realtime v1](../cubs-backend/docs/adr/0001-realtime-v1.md).
 
+### Identidade e configurações da página
+
+O [PageShell](src/components/PageShell.tsx) busca os vínculos da página e
+compõe o usuário autenticado com eles. [Avatar](src/components/Avatar.tsx)
+renderiza a projeção criada por
+[userVisualIdentity](src/lib/userVisualIdentity.ts), sem persistência adicional:
+nome simples usa uma inicial, nome composto usa a primeira e a última, e três
+caracteres aparecem somente para resolver colisões. As cores são distribuídas
+de modo determinístico e não se repetem enquanto houver opções livres na
+paleta. A pilha do cabeçalho destaca o usuário atual, mostra até três
+identidades e resume o restante com `+N`.
+
+O trigger abre [PageSettingsModal](src/components/PageSettingsModal.tsx), que
+segue o padrão de navegação lateral das configurações globais. O fragmento
+`#collaborators` é um deep link real: abre diretamente a aba, acompanha
+back/forward e é removido ao fechar sem apagar hashes de outras interfaces.
+Owner não é fabricado pela rota de colaboradores; o shell adiciona o usuário
+da sessão e deduplica os vínculos.
+
+O mesmo shell mantém o título, o horário relativo derivado de `pages.updated_at`
+e o seletor do conteúdo. `files` monta a `CubsDatabase` atual; `document` e
+`workflow` possuem placeholders próprios para receber, respectivamente, o
+editor de blocos e o canvas de nós sem duplicar o cabeçalho, colaboradores ou
+a assinatura realtime da página.
+
+### Filtros e agrupamentos da view
+
+`DataViewType.filters` é um `ViewFiltersV2` atômico: `clauses` e `groupBy`
+guardam ULIDs canônicos, `passthrough` preserva extensões e `updatedAt` é
+carimbado exclusivamente pela API. Strings v1 continuam sendo lidas e são
+reconciliadas de forma idempotente, sem migration de tabela.
+
+A toolbar da `CubsDatabase` oferece select pesquisável com checkbox e drag de
+prioridade, popover “Onde coluna condição valor” dirigido por `mappedFilters`
+e chips removíveis. Na tabela, grupos viram faixas roxas recolhíveis e linhas
+indentadas; o drag de linha fica desativado enquanto há agrupamento.
+
+O estado copiável usa somente keys legíveis, por exemplo
+`?view=docentes&fv=2&group=area&f.nome.contains=Ana`; ULIDs de view, coluna e
+option não vazam para a URL. Aliases mantêm links antigos e são
+canonicalizados com `replace`. A URL é soberana para a visualização. Quando
+diverge de filtros/grupos salvos, a confirmação decide se ela também vira o
+novo padrão; “Não” preserva o banco.
+
+Filtros e grupos persistem juntos por
+`PUT /pages/:id/views/:viewId/filters`, com debounce trailing de 250 ms e no
+máximo uma request em voo mais a versão final pendente. Um `view-updated`
+remoto não interrompe a análise atual: a toolbar mostra “Filtros alterados ·
+Atualizar”. Não há polling.
+
 ### Como testar a conexão socket
 
 1. **Pela UI**: logado, abra uma página. Na aba Network → WS, confirme o

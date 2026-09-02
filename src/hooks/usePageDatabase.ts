@@ -11,6 +11,7 @@ import {
   type DataViewSettings,
   type DataViewType,
   type PageTitleColumn,
+  type ViewFiltersV2,
 } from 'cubs-database'
 
 import { useFeedback } from '@/contexts/FeedbackContext'
@@ -72,6 +73,7 @@ export interface UsePageDatabaseResult {
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
+    onViewFiltersChange: (viewId: string, filters: ViewFiltersV2) => Promise<ViewFiltersV2>
   }
 }
 
@@ -124,18 +126,18 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
   // state só somaria um render por evento descartado.
   const clockRef = useRef<RealtimeClock>({})
-  // O snapshot COMPLETO das views é o que uma escrita de view precisa
-  // reenviar: `PUT /pages/:id` substitui `data` INTEIRO, então mandar só a
-  // view editada apagaria as outras.
+  // Espelho canônico das views usado pelos patches por view, pelos filtros e
+  // pela materialização inicial do fallback. Escritas normais não reenviam o
+  // `pages.data` inteiro.
   const settingsRef = useRef<DataViewSettings>({})
   // A view fallback é uma sentinela estável de leitura, mas não é um ULID
   // válido. A primeira personalização materializa uma view real e este ref
   // mantém a tradução disponível para callbacks do render anterior.
   const materializedFallbackRef = useRef<{ pageId?: string; viewId?: string }>({ pageId })
-  // Snapshot é substituição do `pages.data` inteiro. Serializar as escritas
-  // desta sessão garante que um drag de linha seguido de um drag de coluna
-  // chegue ao backend na mesma ordem em que atualizou a UI.
+  // Serializar os patches desta sessão preserva a ordem entre drag de linha,
+  // coluna e largura sem transformar cada edição em snapshot completo.
   const viewWriteQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const filterKeyReconcileInFlightRef = useRef<Set<string>>(new Set())
   const pageRealtimeChannelRef = useRef<PageRealtimeChannel | null>(null)
   const columnResizePreviewTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
     new Map(),
@@ -191,6 +193,43 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       clockRef.current = {}
       settingsRef.current = loaded.settings
       setDatabase(loaded)
+
+      if (
+        loaded.needsFilterKeyReconcile &&
+        !filterKeyReconcileInFlightRef.current.has(pageId)
+      ) {
+        filterKeyReconcileInFlightRef.current.add(pageId)
+        const reconcileClock = clockRef.current
+        void databaseService
+          .reconcileFilterKeys(pageId)
+          .then((reconciled) => {
+            if (
+              !mountedRef.current ||
+              currentPageIdRef.current !== pageId ||
+              clockRef.current !== reconcileClock
+            ) {
+              return
+            }
+            setDatabase((current) => {
+              if (!current) return current
+              const settings =
+                Object.keys(reconciled.settings).length > 0
+                  ? reconciled.settings
+                  : current.settings
+              settingsRef.current = settings
+              return {
+                ...current,
+                settings,
+                headerCols: reconciled.headerCols,
+                needsFilterKeyReconcile: false,
+              }
+            })
+          })
+          .catch(() => undefined)
+          .finally(() => {
+            filterKeyReconcileInFlightRef.current.delete(pageId)
+          })
+      }
     } catch {
       if (isCurrent()) setFailed(true)
     } finally {
@@ -328,58 +367,109 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     [notifyWriteError, reload],
   )
 
-  /**
-   * Aplica e persiste uma personalização da view como snapshot completo.
-   *
-   * Além do otimismo visível, `settingsRef` muda SINCRONAMENTE: duas ações
-   * rápidas partem sempre do resultado da anterior, mesmo antes de o React
-   * renderizar ou de o primeiro PUT voltar. Para páginas ainda no fallback,
-   * a primeira ação troca a sentinela por um ULID real.
-   */
-  const saveViewSnapshot = useCallback(
-    (viewId: string, patch: Partial<DataViewType>) => {
-      if (!pageId) return
+  const enqueueViewWrite = useCallback(<T,>(write: () => Promise<T>): Promise<T> => {
+    const request = viewWriteQueueRef.current.catch(() => undefined).then(write)
+    viewWriteQueueRef.current = request.catch(() => undefined)
+    return request
+  }, [])
 
-      let resolvedViewId = viewId
-      let baseSettings = settingsRef.current
-
-      if (viewId === FALLBACK_VIEW_ID) {
-        const materialized = materializedFallbackRef.current
-        resolvedViewId =
-          materialized.pageId === pageId && materialized.viewId
-            ? materialized.viewId
-            : ulid()
-
-        if (!materialized.viewId || materialized.pageId !== pageId) {
-          const fallback = baseSettings[FALLBACK_VIEW_ID]
-          if (!fallback) return
-          const { [FALLBACK_VIEW_ID]: _fallback, ...savedViews } = baseSettings
-          baseSettings = { ...savedViews, [resolvedViewId]: fallback }
-          materializedFallbackRef.current = { pageId, viewId: resolvedViewId }
-        }
+  const prepareViewWrite = useCallback(
+    (viewId: string): {
+      viewId: string
+      materializedNow: boolean
+      settings: DataViewSettings
+    } | null => {
+      if (!pageId) return null
+      if (viewId !== FALLBACK_VIEW_ID) {
+        return settingsRef.current[viewId]
+          ? { viewId, materializedNow: false, settings: settingsRef.current }
+          : null
       }
 
-      const current = baseSettings[resolvedViewId]
-      if (!current) return
+      const previous = materializedFallbackRef.current
+      if (previous.pageId === pageId && previous.viewId) {
+        return settingsRef.current[previous.viewId]
+          ? { viewId: previous.viewId, materializedNow: false, settings: settingsRef.current }
+          : null
+      }
 
-      const settings: DataViewSettings = {
-        ...baseSettings,
-        [resolvedViewId]: { ...current, ...patch },
+      const fallback = settingsRef.current[FALLBACK_VIEW_ID]
+      if (!fallback) return null
+      const resolvedViewId = ulid()
+      const { [FALLBACK_VIEW_ID]: _fallback, ...savedViews } = settingsRef.current
+      const settings = { ...savedViews, [resolvedViewId]: fallback }
+      materializedFallbackRef.current = { pageId, viewId: resolvedViewId }
+      settingsRef.current = settings
+      setDatabase((current) => (current ? { ...current, settings } : current))
+      return { viewId: resolvedViewId, materializedNow: true, settings }
+    },
+    [pageId],
+  )
+
+  /**
+   * Views existentes usam PATCH por caminho JSON. O PUT do snapshot completo
+   * permanece somente para materializar a sentinela fallback uma única vez.
+   */
+  const saveViewPatch = useCallback(
+    (viewId: string, patch: Partial<DataViewType>) => {
+      if (!pageId) return
+      const prepared = prepareViewWrite(viewId)
+      if (!prepared) return
+      const current = prepared.settings[prepared.viewId]
+      if (!current) return
+      const settings = {
+        ...prepared.settings,
+        [prepared.viewId]: { ...current, ...patch },
       }
       settingsRef.current = settings
       setDatabase((database) => (database ? { ...database, settings } : database))
 
-      // Cada chamada captura o snapshot já mesclado. O writer ainda recebe o
-      // patch para preservar sua API/guard-rail, mas o `baseSettings` desta
-      // chamada já contém todas as alterações concluídas anteriormente.
-      viewWriteQueueRef.current = viewWriteQueueRef.current
-        .catch(() => undefined)
-        .then(() =>
-          pageWriteService.saveViewSnapshot(pageId, baseSettings, resolvedViewId, patch),
-        )
-        .catch(handleWriteError)
+      void enqueueViewWrite(() =>
+        prepared.materializedNow
+          ? pageWriteService.saveViewSnapshot(
+              pageId,
+              settings,
+              prepared.viewId,
+              {},
+            )
+          : pageWriteService.patchView(pageId, prepared.viewId, patch),
+      ).catch(handleWriteError)
     },
-    [pageId, handleWriteError],
+    [enqueueViewWrite, handleWriteError, pageId, prepareViewWrite],
+  )
+
+  const saveViewFilters = useCallback(
+    async (viewId: string, filters: ViewFiltersV2): Promise<ViewFiltersV2> => {
+      if (!pageId) throw new Error('Página ausente')
+      const prepared = prepareViewWrite(viewId)
+      if (!prepared) throw new Error('View ausente')
+
+      const response = await enqueueViewWrite(async () => {
+        if (prepared.materializedNow) {
+          await pageWriteService.saveViewSnapshot(
+            pageId,
+            prepared.settings,
+            prepared.viewId,
+            {},
+          )
+        }
+        return pageWriteService.saveViewFilters(pageId, prepared.viewId, filters)
+      })
+
+      if (mountedRef.current && currentPageIdRef.current === pageId) {
+        const current = settingsRef.current[prepared.viewId]
+        if (current) {
+          const settings = {
+            ...settingsRef.current,
+            [prepared.viewId]: { ...current, filters: response.filters },
+          }
+          settingsRef.current = settings
+          setDatabase((database) => (database ? { ...database, settings } : database))
+        }
+      }
+      return response.filters
+    },
+    [enqueueViewWrite, pageId, prepareViewWrite],
   )
 
   /**
@@ -493,9 +583,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       (viewId: string, column: PageTitleColumn) => {
         // A coluna mestra não existe em `page_columns`: nome e máscara são
         // a prévia daquela view e entram no snapshot da própria página.
-        saveViewSnapshot(viewId, { title: column })
+        saveViewPatch(viewId, { title: column })
       },
-      [saveViewSnapshot],
+      [saveViewPatch],
     ),
     onColumnTypeChange: useCallback(
       (columnId: string, type: ColumnDataType) => {
@@ -533,27 +623,31 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {
-        saveViewSnapshot(viewId, { orderedRows })
+        saveViewPatch(viewId, { orderedRows })
       },
-      [saveViewSnapshot],
+      [saveViewPatch],
     ),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
-        saveViewSnapshot(viewId, { orderedHeaderCols })
+        saveViewPatch(viewId, { orderedHeaderCols })
       },
-      [saveViewSnapshot],
+      [saveViewPatch],
     ),
     onColumnWidthChange: useCallback(
       (viewId: string, columnWidths: Record<string, number>) => {
-        saveViewSnapshot(viewId, { columnWidths })
+        saveViewPatch(viewId, { columnWidths })
       },
-      [saveViewSnapshot],
+      [saveViewPatch],
     ),
     onColumnWidthPreview: useCallback(
       (viewId: string, columnId: string, width: number) => {
         pageRealtimeChannelRef.current?.previewColumnResize({ viewId, columnId, width })
       },
       [],
+    ),
+    onViewFiltersChange: useCallback(
+      (viewId: string, filters: ViewFiltersV2) => saveViewFilters(viewId, filters),
+      [saveViewFilters],
     ),
   }
 

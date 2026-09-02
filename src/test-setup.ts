@@ -11,4 +11,16 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+// Radix Popper (Select/Tooltip) observa o tamanho do conteúdo para posicionar
+// o portal. JSDOM não implementa ResizeObserver; a suíte só precisa da
+// interface estável, pois não calcula layout real.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    constructor(_callback: ResizeObserverCallback) {}
+    observe(_target: Element, _options?: ResizeObserverOptions) {}
+    unobserve(_target: Element) {}
+    disconnect() {}
+  }
+}
+
 export {}

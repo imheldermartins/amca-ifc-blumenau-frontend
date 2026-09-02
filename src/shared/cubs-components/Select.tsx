@@ -5,6 +5,7 @@ import { useController, useFormContext, type RegisterOptions } from 'react-hook-
 import { PALETTE } from './lib/palette'
 import { FLOATING_SURFACE_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
+import { Tooltip } from './Tooltip'
 
 export interface SelectOption {
   value: string
@@ -39,6 +40,7 @@ function SelectView({
   errorMessage,
   'aria-label': ariaLabel,
 }: SelectViewProps) {
+  const selectedLabel = options.find((option) => option.value === value)?.label
   const field = (
     <RadixSelect.Root
       // Radix trata '' como "sem valor"; passar undefined é o que faz o
@@ -47,24 +49,27 @@ function SelectView({
       onValueChange={onValueChange}
       disabled={disabled}
     >
-      <RadixSelect.Trigger
-        aria-label={ariaLabel}
-        aria-invalid={errorMessage ? true : undefined}
-        className={cn(
-          'inline-flex h-9 w-full items-center justify-between gap-2 rounded border border-divider',
-          'bg-background px-2.5 text-sm font-normal',
-          'focus-visible:border-divider-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
-          'disabled:cursor-not-allowed disabled:opacity-50',
-          'data-[placeholder]:text-dark-100 dark:data-[placeholder]:text-light-900',
-          errorMessage &&
-            cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500'),
-        )}
-      >
-        <RadixSelect.Value placeholder={placeholder} />
-        <RadixSelect.Icon asChild>
-          <Icon icon="lucide:chevron-down" fontSize={16} className="shrink-0 opacity-60" />
-        </RadixSelect.Icon>
-      </RadixSelect.Trigger>
+      <Tooltip content={selectedLabel ?? placeholder}>
+        <RadixSelect.Trigger
+          aria-label={ariaLabel}
+          aria-invalid={errorMessage ? true : undefined}
+          className={cn(
+            'inline-flex h-9 min-w-0 w-full items-center justify-between gap-2 rounded border border-divider',
+            'bg-background px-2.5 text-sm font-normal',
+            selectedLabel && selectedLabel.length > 24 && 'text-xs',
+            'focus-visible:border-divider-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
+            'disabled:cursor-not-allowed disabled:opacity-50',
+            'data-[placeholder]:text-dark-100 dark:data-[placeholder]:text-light-900',
+            errorMessage &&
+              cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500'),
+          )}
+        >
+          <RadixSelect.Value className="min-w-0 flex-1 truncate text-left whitespace-nowrap" placeholder={placeholder} />
+          <RadixSelect.Icon asChild>
+            <Icon icon="lucide:chevron-down" fontSize={16} className="shrink-0 opacity-60" />
+          </RadixSelect.Icon>
+        </RadixSelect.Trigger>
+      </Tooltip>
 
       <RadixSelect.Portal>
         {/* Mesmo "glass" do ContextMenu — as duas superfícies flutuantes do
@@ -89,7 +94,16 @@ function SelectView({
                   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
                 )}
               >
-                <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
+                <Tooltip content={option.label} side="right">
+                  <span
+                    className={cn(
+                      'min-w-0 flex-1 truncate whitespace-nowrap',
+                      option.label.length > 24 && 'text-xs',
+                    )}
+                  >
+                    <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
+                  </span>
+                </Tooltip>
                 <RadixSelect.ItemIndicator asChild>
                   <Icon icon="lucide:check" fontSize={14} className="shrink-0 text-p-purple" />
                 </RadixSelect.ItemIndicator>

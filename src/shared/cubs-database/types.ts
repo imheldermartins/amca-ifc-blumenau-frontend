@@ -20,6 +20,13 @@ export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
 import type { OptionColor } from 'cubs-components'
 export type { OptionColor }
 
+/** Identidade legível usada somente nas fronteiras públicas (URL). */
+export interface PublicKeyMetadata {
+  key: string
+  /** Keys antigas continuam resolvendo links já compartilhados. */
+  aliases: string[]
+}
+
 /**
  * Uma option de coluna `select`. A célula guarda o `id` da option — NUNCA o
  * texto: renomear a option não invalida os valores já gravados. Quem renderiza
@@ -30,6 +37,7 @@ export interface ColumnOption {
   id: string
   label: string
   color?: OptionColor
+  publicKey?: PublicKeyMetadata
 }
 
 /** Formato de exibição de uma coluna `numeric` — decide a máscara do editor. */
@@ -73,6 +81,7 @@ export interface PageTitleColumn {
   key: 'title'
   column_name: string
   mask?: ColumnMask
+  publicKey?: PublicKeyMetadata
 }
 
 /**
@@ -139,16 +148,44 @@ export interface CellEditorProps {
 /** Modos de visualização disponíveis (só 'table' implementado por enquanto). */
 export type DataViewKind = 'table' | 'board' | 'calendar'
 
+export type FilterCondition =
+  | 'equals'
+  | 'contains'
+  | 'greaterThan'
+  | 'lessThan'
+  | 'between'
+
+export interface ViewFilterClause {
+  /** Identidade canônica persistida. A URL nunca expõe este valor. */
+  columnId: string
+  condition: FilterCondition
+  /** Select persiste ids canônicos de options; demais tipos mantêm valor cru. */
+  values: string[]
+}
+
+/** Par desconhecido preservado sem perder repetições ou ordem. */
+export type ViewFiltersPassthrough = [key: string, value: string]
+
+/** Documento atômico de filtros e agrupamentos persistido na view. */
+export interface ViewFiltersV2 {
+  version: 2
+  /** Carimbo autoritativo do servidor; `null` enquanto legado/não confirmado. */
+  updatedAt: string | null
+  clauses: ViewFilterClause[]
+  /** IDs canônicos de coluna na ordem de prioridade. */
+  groupBy: string[]
+  passthrough: ViewFiltersPassthrough[]
+}
+
 /** Uma view salva: como exibir os dados. */
 export interface DataViewType {
   view: DataViewKind
   /** Nome exibido na tab da topbar. */
   name: string
-  /**
-   * Filtros serializados como string — o objetivo é, no futuro, fazer parsing
-   * direto para a query da URL (ex.: `status=published&depth=0`).
-   */
-  filters: string
+  /** Key legível da view usada por `?view=`; a identidade persistida segue ULID. */
+  urlKey: PublicKeyMetadata
+  /** Documento canônico e atômico de filtros + agrupamentos. */
+  filters: ViewFiltersV2
   /**
    * Prévia da coluna mestra `pages.title` nesta view. O valor de cada linha
    * continua em `page.title`; somente nome de coluna e máscara moram aqui.
@@ -205,6 +242,8 @@ export interface HeaderCol {
    */
   key?: 'title'
   title: string
+  /** Key legível da coluna para o codec da URL. */
+  publicKey?: PublicKeyMetadata
   /**
    * Ausente = INFERIDO dos valores da coluna (`inferColumnType`). A lib não
    * assume nada sobre por que o type falta — se a base tem colunas sem type

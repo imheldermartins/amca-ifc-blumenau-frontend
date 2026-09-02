@@ -1,4 +1,10 @@
-import type { DataViewSettings, HeaderCol, RowData } from './types'
+import type {
+  DataViewSettings,
+  HeaderCol,
+  RowData,
+  ViewFiltersPassthrough,
+  ViewFiltersV2,
+} from './types'
 
 export interface MockableDataset {
   tableName: string
@@ -13,6 +19,16 @@ export const MOCK_VIEW_IDS = {
   board: '01JZFM3T4VBH6K8M2N4P6Q8R0S',
   calendar: '01JZFM3T4VCX3Y5Z7A9B2C4D6E',
 } as const
+
+function mockFilters(passthrough: ViewFiltersPassthrough[] = []): ViewFiltersV2 {
+  return {
+    version: 2,
+    updatedAt: null,
+    clauses: [],
+    groupBy: [],
+    passthrough,
+  }
+}
 
 // const COL = {
 //   title: 'col-title',
@@ -35,7 +51,8 @@ export const mockableData = {
       [MOCK_VIEW_IDS.table]: {
         view: 'table',
         name: 'Tabela',
-        filters: '',
+        urlKey: { key: 'tabela', aliases: [] },
+        filters: mockFilters(),
         orderedHeaderCols: [
           '01KXVP2382G5ABC7K14NSY1BH2',
           '01KXVP2384NCBVJPGW1X15BE0K',
@@ -63,13 +80,15 @@ export const mockableData = {
       [MOCK_VIEW_IDS.board]: {
         view: 'board',
         name: 'Kanban',
-        filters: 'status=published',
+        urlKey: { key: 'kanban', aliases: [] },
+        filters: mockFilters([['status', 'published']]),
         orderedHeaderCols: [],
       },
       [MOCK_VIEW_IDS.calendar]: {
         view: 'calendar',
         name: 'Calendário',
-        filters: 'order=updated_at',
+        urlKey: { key: 'calendario', aliases: [] },
+        filters: mockFilters([['order', 'updated_at']]),
         orderedHeaderCols: [],
       },
     },

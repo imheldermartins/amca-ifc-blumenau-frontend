@@ -75,7 +75,6 @@ export function AppLayout() {
   }
 
   const navItems = [
-    // { name: i18n('common.navigation.home'), href: workspaceHref, icon: 'lucide:workflow' },
     { name: i18n('common.navigation.home'), href: workspaceHref, icon: 'lucide:grip' },
     {
       name: i18n('common.navigation.colaborando'),
@@ -131,7 +130,7 @@ export function AppLayout() {
             collapsed ? 'w-14 items-center' : 'w-48 items-start',
           )}
         >
-          <div className='w-full flex-1'>
+          <div className={cn('flex-1', collapsed ? 'w-9 transition-[width] delay-300 duration-150' : 'w-full')}>
             <nav>
               <ul className={cn('flex flex-col gap-1')}>
                 {navItems.map((item, index) => (

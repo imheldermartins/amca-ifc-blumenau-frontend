@@ -12,6 +12,7 @@ import './index.css'
 
 import { AuthProvider } from '@/contexts/AuthContext'
 import { FeedbackProvider } from '@/contexts/FeedbackContext'
+import { parseQuerySearch, stringifyQuerySearch } from '@/lib/queryParams'
 import { routeTree } from './routeTree.gen'
 
 const queryClient = new QueryClient()
@@ -19,6 +20,8 @@ const queryClient = new QueryClient()
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
+  parseSearch: parseQuerySearch,
+  stringifySearch: stringifyQuerySearch,
 })
 
 declare module '@tanstack/react-router' {

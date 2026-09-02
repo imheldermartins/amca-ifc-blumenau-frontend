@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -130,6 +130,80 @@ describe('TableView — menu da coluna', () => {
     expect(screen.getByText('Máscara')).not.toBeNull()
     expect(screen.queryByText('Mudar tipo')).toBeNull()
     expect(screen.queryByText('Resetar tipo')).toBeNull()
+  })
+})
+
+describe('TableView — agrupamento e seleção visível', () => {
+  const columns = [
+    { id: 'name', title: 'Nome', type: 'text' as const },
+    { id: 'area', title: 'Área', type: 'text' as const },
+  ]
+
+  it('indenta linhas agrupadas e não ativa sortable de linha', () => {
+    render(
+      <TableView
+        columns={columns}
+        rows={[
+          { id: '1', cells: { name: { value: 'Ana' }, area: { value: 'Admin' } } },
+        ]}
+        groupBy={['area']}
+        onRowOrderChange={() => undefined}
+      />,
+    )
+
+    const row = screen.getAllByRole('row')[1]
+    const controlCell = row.querySelector('[role="cell"]') as HTMLElement
+    const drag = screen.getByRole('button', { name: 'Arrastar linha' })
+    expect(controlCell.style.paddingLeft).toBe('10px')
+    expect(drag.hasAttribute('aria-describedby')).toBe(false)
+  })
+
+  it('remove da seleção ids que um filtro tirou da lista visível', async () => {
+    const onSelectionChange = vi.fn()
+    const rows = [
+      { id: '1', cells: { name: { value: 'Ana' }, area: { value: 'Admin' } } },
+      { id: '2', cells: { name: { value: 'Bia' }, area: { value: 'Tech' } } },
+    ]
+    const { rerender } = render(
+      <TableView
+        columns={columns}
+        rows={rows}
+        onSelectionChange={onSelectionChange}
+      />,
+    )
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[0])
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith(['1']))
+
+    rerender(
+      <TableView
+        columns={columns}
+        rows={[rows[1]]}
+        onSelectionChange={onSelectionChange}
+      />,
+    )
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith([]))
+  })
+
+  it('usa a ordem visual achatada dos grupos na seleção com Shift', async () => {
+    const onSelectionChange = vi.fn()
+    render(
+      <TableView
+        columns={columns}
+        rows={[
+          { id: '1', cells: { name: { value: 'Ana' }, area: { value: 'A' } } },
+          { id: '2', cells: { name: { value: 'Bia' }, area: { value: 'B' } } },
+          { id: '3', cells: { name: { value: 'Caio' }, area: { value: 'A' } } },
+        ]}
+        groupBy={['area']}
+        onSelectionChange={onSelectionChange}
+      />,
+    )
+
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'Selecionar linha' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1], { shiftKey: true })
+
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith(['1', '3']))
   })
 })
 

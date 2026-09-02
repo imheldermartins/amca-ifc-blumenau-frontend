@@ -140,6 +140,10 @@ export class ApiService {
     return this.http.put<T>(url, body).then((response) => response.data)
   }
 
+  patch<T>(url: string, body?: unknown): Promise<T> {
+    return this.http.patch<T>(url, body).then((response) => response.data)
+  }
+
   delete<T>(url: string): Promise<T> {
     return this.http.delete<T>(url).then((response) => response.data)
   }

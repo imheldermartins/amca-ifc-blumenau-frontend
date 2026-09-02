@@ -64,27 +64,32 @@ export function CollaboratingPage() {
           </span>
         </div>
       ) : (
-        <ul className="mt-5 grid gap-2.5 sm:grid-cols-2">
+        <ul className="mt-5 grid gap-3 grid-cols-6">
           {pages.map((page) => (
             <li key={page.id}>
               <Link
                 to="/$lang/page/$pageId"
                 params={{ lang: lang ?? 'pt-br', pageId: page.id }}
                 className={cn(
-                  'flex h-full flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
+                  'flex h-48 flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
                   'shadow-lg shadow-dark-900/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',
                 )}
               >
-                <span className="flex items-center gap-2">
-                  <Icon icon="lucide:table" fontSize={16} className="shrink-0 text-p-purple" />
-                  <Typography variant="h3" as="span" className="truncate">
-                    {page.title ?? i18n('pages.app.pagina.sem-titulo')}
+                <div className='flex-1 flex flex-col'>
+                  <span className="flex items-center gap-2">
+                    <Icon icon="lucide:table" fontSize={16} className="shrink-0 text-p-purple" />
+                    <Typography variant="h3" as="span" className="text-md whitespace-normal line-clamp-2">
+                      {page.title ?? i18n('pages.app.pagina.sem-titulo')}
+                    </Typography>
+                  </span>
+                  <Typography variant="caption" as="span" className="opacity-70">
+                    {i18n('pages.app.colaborando.dono', {
+                      owner: page.owner_name ?? page.owner_email,
+                    })}
                   </Typography>
-                </span>
+                </div>
                 <Typography variant="caption" as="span" className="opacity-70">
-                  {i18n('pages.app.colaborando.dono', {
-                    owner: page.owner_name ?? page.owner_email,
-                  })}
+                  Atualizado há 10 dias
                 </Typography>
               </Link>
             </li>

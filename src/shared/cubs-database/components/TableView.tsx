@@ -22,11 +22,13 @@ import type {
   HeaderCol,
   RowData,
 } from '../types'
+import { buildTableGroups } from '../tableGroups'
 import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
 import { GuidedAddControls } from './GuidedAddControls'
 import { CONTROL_CELL_WIDTH, TableRow } from './TableRow'
 import type { TableRowLabels } from './TableRow'
+import { TableGroupAccordion } from './TableGroupAccordion'
 import { CUBS_SCROLLBAR_CLASS_NAME } from './scrollbarStyles'
 import { VirtualScroller } from './VirtualScroller'
 import { TYPE_ICON } from './columnTypeIcons'
@@ -41,6 +43,8 @@ import {
 export interface TableViewProps {
   columns: HeaderCol[]
   rows: RowData[]
+  /** Colunas de agrupamento, da prioridade externa para a interna. */
+  groupBy?: string[]
   /**
    * `columnWidths` da view: largura em px por ID de coluna. Uma única fonte
    * para header e células — sem isso as duas grades divergem.
@@ -296,7 +300,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const tableContentRef = useRef<HTMLDivElement>(null)
@@ -343,7 +347,23 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
   const [tableScrollLeft, setTableScrollLeft] = useState(0)
   const suppressHandleMenuRef = useRef<string | null>(null)
 
-  const rowIds = useMemo(() => localRows.map((row) => row.id), [localRows])
+  const validGroupBy = useMemo(
+    () => groupBy.filter((id) => localColumns.some((column) => column.id === id)),
+    [groupBy, localColumns],
+  )
+  const displayRows = useMemo(() => {
+    if (validGroupBy.length === 0) return localRows
+    const flatten = (groups: ReturnType<typeof buildTableGroups>): RowData[] =>
+      groups.flatMap((group) =>
+        group.children.length > 0 ? flatten(group.children) : group.rows,
+      )
+    return flatten(buildTableGroups(localRows, validGroupBy))
+  }, [localRows, validGroupBy])
+  const rowIds = useMemo(() => displayRows.map((row) => row.id), [displayRows])
+  const rowIndexById = useMemo(
+    () => new Map(displayRows.map((row, index) => [row.id, index])),
+    [displayRows],
+  )
 
   const columnTypes = useMemo(
     () => resolveColumnTypes(localColumns, localRows),
@@ -364,7 +384,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     return map
   }, [localColumns, localRows, onColumnReset])
 
-  const rowsSortable = Boolean(onRowOrderChange)
+  const rowsSortable = Boolean(onRowOrderChange) && validGroupBy.length === 0
   const columnsSortable = Boolean(onColumnOrderChange)
   const columnsResizable = Boolean(onColumnWidthChange)
 
@@ -373,6 +393,10 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
   // executa duas vezes). O ref pula o disparo do mount — montar a tabela não
   // é "a seleção mudou".
   const mountedRef = useRef(false)
+  useEffect(() => {
+    dispatch({ type: 'reconcile', rowIds })
+  }, [rowIds])
+
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true
@@ -396,7 +420,7 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
    * última. `indeterminate` é o caso "algumas" (estado de apresentação de um
    * agregado, exatamente o que o Checkbox do pacote reserva ao modo state).
    */
-  const allSelected = localRows.length > 0 && selection.ids.size === localRows.length
+  const allSelected = displayRows.length > 0 && selection.ids.size === displayRows.length
   const headerCheckedState: CheckedState = allSelected ? true : 'indeterminate'
 
   const toggleSelectAll = useCallback(
@@ -566,6 +590,34 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
     if (columnMenu) onColumnReset?.(columnMenu.columnId)
   }, [columnMenu, onColumnReset])
 
+  const renderTableRow = (row: RowData, indentLevel = 0) => {
+    const rowIndex = rowIndexById.get(row.id)
+    if (rowIndex === undefined) return null
+    return (
+      <TableRow
+        key={row.id}
+        row={row}
+        rowIndex={rowIndex}
+        columns={localColumns}
+        columnWidths={localWidths}
+        columnTypes={columnTypes}
+        cellErrors={cellErrors}
+        zebra={rowIndex % 2 === 0}
+        selected={selection.ids.has(row.id)}
+        onSelectedChange={handleRowSelectedChange}
+        sortable={rowsSortable}
+        indentLevel={indentLevel}
+        inShiftRange={inShiftRange(selection, rowIndex, shiftHeld)}
+        onShiftHover={handleRowHover}
+        onOpenRow={onOpenRow}
+        onCellChange={onCellChange}
+        onCellEditConflict={onCellEditConflict}
+        onColumnOptionsChange={onColumnOptionsChange}
+        labels={labels}
+      />
+    )
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <div
@@ -661,31 +713,25 @@ export function TableView({ columns, rows, columnWidths, cellErrors, loading, em
                   {emptyLabel}
                 </div>
               </div>
+            ) : validGroupBy.length > 0 ? (
+              <TableGroupAccordion
+                rows={localRows}
+                groupBy={validGroupBy}
+                columns={localColumns}
+                columnTypes={columnTypes}
+                labels={{
+                  empty: labels?.groupEmpty ?? 'Sem valor',
+                  true: labels?.groupTrue ?? 'Sim',
+                  false: labels?.groupFalse ?? 'Não',
+                  rows: (count) =>
+                    `${count} ${count === 1 ? (labels?.groupRow ?? 'linha') : (labels?.groupRows ?? 'linhas')}`,
+                }}
+                renderRow={renderTableRow}
+              />
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRowDragEnd}>
                 <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
-                  {localRows.map((row, rowIndex) => (
-                    <TableRow
-                      key={row.id}
-                      row={row}
-                      rowIndex={rowIndex}
-                      columns={localColumns}
-                      columnWidths={localWidths}
-                      columnTypes={columnTypes}
-                      cellErrors={cellErrors}
-                      zebra={rowIndex % 2 === 0}
-                      selected={selection.ids.has(row.id)}
-                      onSelectedChange={handleRowSelectedChange}
-                      sortable={rowsSortable}
-                      inShiftRange={inShiftRange(selection, rowIndex, shiftHeld)}
-                      onShiftHover={handleRowHover}
-                      onOpenRow={onOpenRow}
-                      onCellChange={onCellChange}
-                      onCellEditConflict={onCellEditConflict}
-                      onColumnOptionsChange={onColumnOptionsChange}
-                      labels={labels}
-                    />
-                  ))}
+                  {localRows.map((row) => renderTableRow(row))}
                 </SortableContext>
               </DndContext>
             )}

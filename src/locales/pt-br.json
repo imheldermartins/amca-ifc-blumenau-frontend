@@ -109,6 +109,21 @@
         "workspace": "Workspace",
         "settings": "Configurações"
       },
+      "page-settings": {
+        "title": "Configurações da página",
+        "navigation": "Seções das configurações da página",
+        "general": "Geral",
+        "collaborators": "Colaboradores",
+        "open-collaborators": "Abrir colaboradores da página ({{count}} pessoas com acesso)",
+        "active-connections": "Conexões ativas nesta página: {{count}}",
+        "page-name": "Nome da página",
+        "page-id": "ID da página",
+        "current-user": "Seu acesso",
+        "you": "(você)",
+        "people-with-access": "Colaboradores vinculados",
+        "collaborators-empty": "Esta página não possui outros colaboradores.",
+        "collaborators-error": "Não foi possível carregar os colaboradores."
+      },
       "sign-out": {
         "title": "Confirmar logout",
         "question": "Deseja realmente sair?",
@@ -151,7 +166,22 @@
       "pagina": {
         "sem-titulo": "Página sem título",
         "indisponivel": "Página indisponível",
-        "espectadores": "{{count}} pessoas com esta página aberta"
+        "espectadores": "{{count}} pessoas com esta página aberta",
+        "updated-at": "Atualizado {{relative}}",
+        "views": {
+          "navigation": "Visualização do conteúdo da página",
+          "files": "Base de dados",
+          "document": {
+            "label": "Documento",
+            "title": "Editor de blocos em breve",
+            "description": "Esta visualização será conectada ao editor de blocos da página."
+          },
+          "workflow": {
+            "label": "Workflow",
+            "title": "Canvas em breve",
+            "description": "Esta visualização receberá o fluxo visual composto por nós."
+          }
+        }
       },
       "colaborando": {
         "titulo": "Colaborando",
@@ -203,11 +233,61 @@
           "telefone": "Telefone",
           "data": "Data (dd/mm/aaaa)"
         },
+        "agrupar": {
+          "trigger": "Agrupar por",
+          "buscar": "Buscar coluna",
+          "vazio": "Nenhuma coluna encontrada",
+          "arrastar": "Alterar prioridade",
+          "selecionar": "Selecionar coluna",
+          "prioridade": "Prioridade",
+          "sem-valor": "Sem valor",
+          "sim": "Sim",
+          "nao": "Não",
+          "linha": "linha",
+          "linhas": "linhas"
+        },
+        "filtros": {
+          "trigger": "Filtros",
+          "onde": "Onde",
+          "coluna": "Coluna",
+          "condicao": "Condição",
+          "valor": "Valor",
+          "valor-inicial": "Data inicial",
+          "valor-final": "Data final",
+          "adicionar": "Adicionar filtro",
+          "remover": "Remover filtro",
+          "url-ajustada-titulo": "Filtros da URL ajustados",
+          "url-ajustada-descricao": "Um filtro ou agrupamento apontava para uma opção removida ou ambígua e foi retirado da URL.",
+          "sync": {
+            "atualizado": "Atualizado",
+            "atualizado-em": "Atualizado {{time}}",
+            "alterados": "Filtros alterados",
+            "alterados-em": "Filtros alterados {{time}}",
+            "atualizar": "Atualizar",
+            "salvando": "Salvando…",
+            "falha": "Não foi possível salvar os filtros.",
+            "tentar-novamente": "Tentar novamente"
+          },
+          "condicoes": {
+            "igual": "Igual a",
+            "contem": "Contém",
+            "maior": "Maior que",
+            "menor": "Menor que",
+            "entre": "Entre"
+          }
+        },
         "erro": "Não foi possível carregar a base.",
         "menu": {
           "renomear": "Renomear view",
           "duplicar": "Duplicar view",
           "excluir": "Excluir view"
+        },
+        "url-filters": {
+          "title": "Filtros e agrupamentos da URL",
+          "question": "Deseja substituir os filtros e agrupamentos salvos pelos desta URL?",
+          "description": "A URL já está sendo aplicada nesta visualização. Ao confirmar, ela também será salva como o novo padrão.",
+          "yes": "Sim",
+          "no": "Não"
         }
       }
     }

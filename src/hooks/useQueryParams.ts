@@ -8,6 +8,7 @@ import {
   readNumber,
   readText,
   replaceQuery,
+  replaceQueryNamespace,
   type QueryPatch,
   type QueryRecord,
   type QueryValue,
@@ -63,6 +64,12 @@ export interface QueryParams<TKey extends string = string> {
   toggle(key: TKey, options?: QueryWriteOptions): void
   /** Substitui a query inteira — o que não estiver em `next` é apagado. */
   reset(next: QueryPatch<TKey>, options?: QueryWriteOptions): void
+  /** Substitui somente as chaves pertencentes ao namespace informado. */
+  replaceNamespace(
+    belongsToNamespace: (key: string) => boolean,
+    next: QueryPatch<TKey>,
+    options?: QueryWriteOptions,
+  ): void
   clear(options?: QueryWriteOptions): void
 }
 
@@ -139,6 +146,20 @@ export function useQueryParams<TKey extends string = string>(): QueryParams<TKey
     [update],
   )
 
+  const replaceNamespace = useCallback(
+    (
+      belongsToNamespace: (key: string) => boolean,
+      next: QueryPatch<TKey>,
+      options?: QueryWriteOptions,
+    ) => {
+      update(
+        (previous) => replaceQueryNamespace(previous, belongsToNamespace, next),
+        options,
+      )
+    },
+    [update],
+  )
+
   const set = useCallback(
     (
       keyOrPatch: TKey | QueryPatch<TKey>,
@@ -174,8 +195,9 @@ export function useQueryParams<TKey extends string = string>(): QueryParams<TKey
         write({ [key]: readBoolean(search[key]) === true ? undefined : true } as QueryPatch<TKey>, options)
       },
       reset,
+      replaceNamespace,
       clear: (options) => reset({}, options),
     }),
-    [search, set, write, reset],
+    [search, set, write, reset, replaceNamespace],
   )
 }

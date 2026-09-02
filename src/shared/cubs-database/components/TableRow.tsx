@@ -36,6 +36,11 @@ export interface TableRowLabels extends ColumnHeaderMenuLabels {
   addRow?: string
   /** Label do trilho guiado que adicionará uma coluna. */
   addColumn?: string
+  groupEmpty?: string
+  groupTrue?: string
+  groupFalse?: string
+  groupRow?: string
+  groupRows?: string
 }
 
 export interface TableRowProps {
@@ -61,6 +66,8 @@ export interface TableRowProps {
   onSelectedChange: (rowIndex: number, checked: boolean, shiftKey: boolean) => void
   /** true = drag de LINHA habilitado (o handle vira activator do sortable). */
   sortable?: boolean
+  /** Nível visual quando a linha está dentro de grupos aninhados. */
+  indentLevel?: number
   /** true = a linha está na área coberta pelo shift → wash roxo. */
   inShiftRange?: boolean
   /** Mouse entrou na linha — o TableView rastreia o alvo do intervalo. */
@@ -93,7 +100,7 @@ export interface TableRowProps {
  * memoiza `labels` — um único literal inline em qualquer nível acima anula
  * este memo.
  */
-export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, indentLevel = 0, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -124,6 +131,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
     >
       <div
         role="cell"
+        style={indentLevel > 0 ? { paddingLeft: Math.min(indentLevel, 4) * 10 } : undefined}
         className={cn(
           'flex shrink-0 items-center gap-1',
           CONTROL_CELL_WIDTH,

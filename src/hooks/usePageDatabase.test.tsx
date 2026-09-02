@@ -18,6 +18,9 @@ const dependencies = vi.hoisted(() => ({
   saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
   saveViewSnapshot: vi.fn(),
+  patchView: vi.fn(),
+  saveViewFilters: vi.fn(),
+  reconcileFilterKeys: vi.fn(),
   previewColumnResize: vi.fn(),
 }))
 
@@ -26,7 +29,10 @@ vi.mock('@/contexts/FeedbackContext', () => ({
 }))
 
 vi.mock('@/services/DatabaseService', () => ({
-  databaseService: { loadPage: dependencies.loadPage },
+  databaseService: {
+    loadPage: dependencies.loadPage,
+    reconcileFilterKeys: dependencies.reconcileFilterKeys,
+  },
 }))
 
 vi.mock('@/services/PageWriteService', () => ({
@@ -37,6 +43,8 @@ vi.mock('@/services/PageWriteService', () => ({
     saveColumnConfig: dependencies.saveColumnConfig,
     saveCell: dependencies.saveCell,
     saveViewSnapshot: dependencies.saveViewSnapshot,
+    patchView: dependencies.patchView,
+    saveViewFilters: dependencies.saveViewFilters,
   },
 }))
 
@@ -45,6 +53,14 @@ vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 const ROW_ID = '01KXVZ0000ROW000000000001'
 const COLUMN_ID = '01KXVZ0000COLUMN00000001'
+
+const emptyFilters = () => ({
+  version: 2 as const,
+  updatedAt: null,
+  clauses: [],
+  groupBy: [],
+  passthrough: [],
+})
 
 function database(value: string): ParsedDatabase {
   return {
@@ -87,6 +103,11 @@ beforeEach(() => {
   vi.resetAllMocks()
   dependencies.loadPage.mockResolvedValue(database('inicial'))
   dependencies.saveViewSnapshot.mockResolvedValue(undefined)
+  dependencies.patchView.mockResolvedValue(undefined)
+  dependencies.saveViewFilters.mockImplementation(
+    (_pageId, _viewId, filters) => Promise.resolve({ viewId: _viewId, filters }),
+  )
+  dependencies.reconcileFilterKeys.mockResolvedValue({ settings: {}, headerCols: [] })
 })
 
 afterEach(() => cleanup())
@@ -330,6 +351,35 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
 })
 
 describe('usePageDatabase — snapshot da view', () => {
+  it('salva filtros pelo endpoint atômico e adota o timestamp do servidor', async () => {
+    const viewId = '01KXVZ0000VIEW00000000001'
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: {
+        [viewId]: {
+          view: 'table',
+          name: 'Tabela',
+          urlKey: { key: 'tabela', aliases: [] },
+          filters: emptyFilters(),
+          orderedHeaderCols: [COLUMN_ID],
+        },
+      },
+    })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    const filters = { ...emptyFilters(), groupBy: [COLUMN_ID] }
+    const confirmed = { ...filters, updatedAt: '2026-09-01T17:00:00.000Z' }
+    dependencies.saveViewFilters.mockResolvedValueOnce({ viewId, filters: confirmed })
+    await act(async () => {
+      await result.current.handlers.onViewFiltersChange(viewId, filters)
+    })
+
+    expect(dependencies.saveViewFilters).toHaveBeenCalledWith(PAGE_ID, viewId, filters)
+    expect(dependencies.saveViewSnapshot).not.toHaveBeenCalled()
+    expect(result.current.database?.settings[viewId].filters).toEqual(confirmed)
+  })
+
   it('envia preview efêmero e o remove quando chega o snapshot confirmado', async () => {
     const viewId = '01KXVZ0000VIEW00000000001'
     dependencies.loadPage.mockResolvedValueOnce({
@@ -338,7 +388,8 @@ describe('usePageDatabase — snapshot da view', () => {
         [viewId]: {
           view: 'table',
           name: 'Tabela',
-          filters: '',
+          urlKey: { key: 'tabela', aliases: [] },
+          filters: emptyFilters(),
           orderedHeaderCols: [COLUMN_ID],
           columnWidths: { [COLUMN_ID]: 180 },
         },
@@ -377,7 +428,8 @@ describe('usePageDatabase — snapshot da view', () => {
             [viewId]: {
               view: 'table',
               name: 'Tabela',
-              filters: '',
+              urlKey: { key: 'tabela', aliases: [] },
+              filters: emptyFilters(),
               orderedHeaderCols: [COLUMN_ID],
               columnWidths: { [COLUMN_ID]: 300 },
             },
@@ -416,7 +468,8 @@ describe('usePageDatabase — snapshot da view', () => {
         ['01KXVZ0000VIEW00000000001']: {
           view: 'table',
           name: 'Tabela',
-          filters: '',
+          urlKey: { key: 'tabela', aliases: [] },
+          filters: emptyFilters(),
           title: { key: 'title', column_name: 'Título' },
           orderedHeaderCols: ['page_title', COLUMN_ID],
         },
@@ -439,8 +492,8 @@ describe('usePageDatabase — snapshot da view', () => {
       column_name: 'Docente',
       mask: 'cpf',
     })
-    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1))
-    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(1))
+    expect(dependencies.patchView.mock.calls[0][2]).toEqual({
       title: { key: 'title', column_name: 'Docente', mask: 'cpf' },
     })
   })
@@ -456,7 +509,8 @@ describe('usePageDatabase — snapshot da view', () => {
         [FALLBACK_VIEW_ID]: {
           view: 'table',
           name: 'Tabela',
-          filters: '',
+          urlKey: { key: 'tabela', aliases: [] },
+          filters: emptyFilters(),
           orderedHeaderCols: [COLUMN_ID],
         },
       },
@@ -481,20 +535,19 @@ describe('usePageDatabase — snapshot da view', () => {
 
     await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1))
     expect(dependencies.saveViewSnapshot.mock.calls[0][2]).toBe(materializedId)
-    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({
+    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({})
+    expect(dependencies.saveViewSnapshot.mock.calls[0][1][materializedId]).toMatchObject({
       orderedRows: ['row-2', ROW_ID],
     })
 
     // O segundo PUT não ultrapassa o primeiro, e sua base já carrega a ordem
     // de linhas — portanto não pode apagá-la ao salvar a ordem de colunas.
-    expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1)
+    expect(dependencies.patchView).not.toHaveBeenCalled()
     firstWrite.resolve(undefined)
-    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(2))
-    expect(dependencies.saveViewSnapshot.mock.calls[1][1][materializedId]).toMatchObject({
-      orderedRows: ['row-2', ROW_ID],
-    })
-    expect(dependencies.saveViewSnapshot.mock.calls[1][3]).toEqual({
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(1))
+    expect(dependencies.patchView.mock.calls[0][2]).toEqual({
       orderedHeaderCols: ['page_title', COLUMN_ID],
     })
+    expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1)
   })
 })

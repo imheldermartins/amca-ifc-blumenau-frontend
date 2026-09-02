@@ -238,7 +238,15 @@ describe('handlers registrados de coluna e snapshot', () => {
             type: 'select',
             parent_id: 'page-1',
             data: {
-              options: [{ id: 'option-1', value: 'Em andamento', color: 'blue' }],
+              publicKey: { key: 'situacao', aliases: ['status'] },
+              options: [
+                {
+                  id: 'option-1',
+                  value: 'Em andamento',
+                  color: 'blue',
+                  publicKey: { key: 'em_andamento', aliases: [] },
+                },
+              ],
               mask: 'cpf',
               format: 'currency',
               currency: 'BRL',
@@ -256,7 +264,15 @@ describe('handlers registrados de coluna e snapshot', () => {
       id: COLUNA,
       title: 'Situação',
       type: 'select',
-      options: [{ id: 'option-1', label: 'Em andamento', color: 'blue' }],
+      publicKey: { key: 'situacao', aliases: ['status'] },
+      options: [
+        {
+          id: 'option-1',
+          label: 'Em andamento',
+          color: 'blue',
+          publicKey: { key: 'em_andamento', aliases: [] },
+        },
+      ],
       mask: 'cpf',
       format: 'currency',
       currency: 'BRL',
@@ -277,9 +293,21 @@ describe('handlers registrados de coluna e snapshot', () => {
             [viewId]: {
               view: 'board',
               name: 'Quadro',
-              filters: 'status:aberto',
+              urlKey: { key: 'quadro', aliases: [] },
+              filters: {
+                version: 2,
+                updatedAt: '2026-07-21T10:00:00Z',
+                clauses: [],
+                groupBy: [COLUNA],
+                passthrough: [],
+              },
               orderedHeaderCols: [TITLE_COLUMN_ID, COLUNA],
-              title: { key: 'title', column_name: 'Tarefa', mask: 'cep' },
+              title: {
+                key: 'title',
+                column_name: 'Tarefa',
+                mask: 'cep',
+                publicKey: { key: 'tarefa', aliases: [] },
+              },
             },
           },
           updatedAt: '2026-07-21T10:00:00Z',
@@ -294,9 +322,21 @@ describe('handlers registrados de coluna e snapshot', () => {
       [viewId]: {
         view: 'board',
         name: 'Quadro',
-        filters: 'status:aberto',
+        urlKey: { key: 'quadro', aliases: [] },
+        filters: {
+          version: 2,
+          updatedAt: '2026-07-21T10:00:00Z',
+          clauses: [],
+          groupBy: [COLUNA],
+          passthrough: [],
+        },
         orderedHeaderCols: [TITLE_COLUMN_ID, COLUNA],
-        title: { key: 'title', column_name: 'Tarefa', mask: 'cep' },
+        title: {
+          key: 'title',
+          column_name: 'Tarefa',
+          mask: 'cep',
+          publicKey: { key: 'tarefa', aliases: [] },
+        },
       },
     })
     expect(result.clock.view).toBe('2026-07-21T10:00:00Z')

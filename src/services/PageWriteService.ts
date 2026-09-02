@@ -4,6 +4,7 @@ import type {
   ColumnOption,
   DataViewSettings,
   DataViewType,
+  ViewFiltersV2,
 } from 'cubs-database'
 
 import { TITLE_COLUMN_ID } from '@/lib/databaseParser'
@@ -106,13 +107,9 @@ export class PageWriteService {
   }
 
   /**
-   * Personalização de UMA view — e aqui mora a armadilha do snapshot:
-   *
-   * > `PUT /pages/:id` substitui `data` INTEIRO. Não há rota por view.
-   *
-   * Por isso a assinatura exige o `settings` ATUAL (todas as views): a função
-   * faz o read-modify-write, aplicando o patch só na view editada e reenviando
-   * as demais intactas. Mandar apenas a editada APAGARIA as outras.
+   * Materialização inicial do fallback: cria o snapshot completo uma única vez.
+   * Personalizações posteriores usam `patchView`, e filtros/grupos usam
+   * `saveViewFilters`, evitando read-modify-write concorrente de `pages.data`.
    */
   saveViewSnapshot(
     pageId: string,
@@ -127,6 +124,48 @@ export class PageWriteService {
 
     const data: DataViewSettings = { ...settings, [viewId]: { ...current, ...patch } }
     return apiService.put(`/pages/${pageId}`, { data })
+  }
+
+  /**
+   * Personalização atômica de uma view já materializada. Filtros e urlKey são
+   * deliberadamente excluídos: filtros têm endpoint próprio e a key pública é
+   * carimbada/reconciliada pelo servidor ao renomear.
+   */
+  patchView(
+    pageId: string,
+    viewId: string,
+    patch: Partial<DataViewType>,
+  ): Promise<{ viewId: string; view: DataViewType }> {
+    const body: Record<string, unknown> = {}
+    if (patch.view !== undefined) body.view = patch.view
+    if (patch.name !== undefined) body.name = patch.name
+    if (patch.orderedHeaderCols !== undefined) {
+      body.orderedHeaderCols = patch.orderedHeaderCols
+    }
+    if (patch.orderedRows !== undefined) body.orderedRows = patch.orderedRows
+    if (patch.columnWidths !== undefined) body.columnWidths = patch.columnWidths
+    if (patch.title !== undefined) {
+      body.title = {
+        key: patch.title.key,
+        column_name: patch.title.column_name,
+        ...(patch.title.mask && { mask: patch.title.mask }),
+      }
+    }
+    return apiService.patch(`/pages/${pageId}/views/${viewId}`, body)
+  }
+
+  /** Documento canônico; `updatedAt` nunca é aceito do cliente. */
+  saveViewFilters(
+    pageId: string,
+    viewId: string,
+    filters: ViewFiltersV2,
+  ): Promise<{ viewId: string; filters: ViewFiltersV2 }> {
+    return apiService.put(`/pages/${pageId}/views/${viewId}/filters`, {
+      version: 2,
+      clauses: filters.clauses,
+      groupBy: filters.groupBy,
+      passthrough: filters.passthrough,
+    })
   }
 }
 

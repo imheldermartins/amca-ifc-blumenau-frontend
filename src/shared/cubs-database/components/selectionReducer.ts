@@ -29,6 +29,8 @@ export type SelectionAction =
   | { type: 'set-row'; rowIndex: number; checked: boolean; shiftKey: boolean; rowIds: string[] }
   /** "Selecionar todas" do header (ou limpar tudo). */
   | { type: 'select-all'; checked: boolean; rowIds: string[] }
+  /** Remove ids que deixaram de estar visíveis após filtro/troca de view. */
+  | { type: 'reconcile'; rowIds: string[] }
   | { type: 'hover'; rowIndex: number | null }
 
 export const EMPTY_SELECTION: SelectionState = {
@@ -66,6 +68,13 @@ export function selectionReducer(
       // "limpar tudo" acontece no clique seguinte, com todas já marcadas.
       const ids = action.checked ? new Set(action.rowIds) : new Set<string>()
       return { ids, anchorIndex: null, hoverIndex: state.hoverIndex }
+    }
+
+    case 'reconcile': {
+      const visible = new Set(action.rowIds)
+      const ids = new Set([...state.ids].filter((id) => visible.has(id)))
+      if (ids.size === state.ids.size) return state
+      return { ids, anchorIndex: null, hoverIndex: null }
     }
 
     case 'hover': {

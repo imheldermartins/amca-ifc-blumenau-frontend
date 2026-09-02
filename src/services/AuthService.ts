@@ -1,12 +1,11 @@
 import { AppError } from '@/lib/errors'
 import { apiService } from '@/services/ApiService'
 import { sessionStore } from '@/services/sessionStore'
+import type { UserIdentity } from '@/types/user'
 
-export interface AuthUser {
+export interface AuthUser extends UserIdentity {
   /** ULID gerado pelo backend. */
   id: string
-  name: string | null
-  email: string
 }
 
 export interface SignUpInput {

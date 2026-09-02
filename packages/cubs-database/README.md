@@ -38,11 +38,15 @@ tokens do tema do Cub's (`bg-contrast`, `border-divider`, ...). Em outro
 projeto sem esses tokens, a tabela renderiza sem estilo. O plano é embutir CSS
 próprio da lib (ou tokens com fallback) antes da versão externa de verdade.
 
-## Estado atual (v0.6)
+## Estado atual (v0.9)
 
 - `settings: Record<ulid, DataViewType>` — views salvas (`view`, `name`,
-  `filters` como string p/ futura query da URL, `orderedHeaderCols` reordenando
-  colunas por id de forma imutável).
+  `urlKey`, `filters: ViewFiltersV2`, `orderedHeaderCols`, `orderedRows?` e
+  `columnWidths?`). O pacote trabalha com IDs canônicos; o host converte
+  public keys/aliases na fronteira da URL.
+- Toolbar com agrupamento prioritário pesquisável, filtros dirigidos por
+  `mappedFilters`, chips e estado de sincronização; a tabela renderiza grupos
+  em accordion com etiqueta roxa sobre uma faixa neutra.
 - Topbar de views: tabs com scroll SÓ horizontal (vertical hidden);
   **ContextMenu abre com botão DIREITO** na tab (fundo glass
   `bg-glass backdrop-blur-md`); segurar/arrastar fica para o DnD futuro.

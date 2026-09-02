@@ -4,16 +4,15 @@
  * decisão de semântica mora aqui, então é aqui que se testa.
  *
  * ─── O que o TanStack já faz por baixo (e por que importa) ──────────────────
- * O router NÃO entrega a query como texto: o `parseSearch` padrão coage cada
- * valor antes de você ver.
+ * O app usa o parser deste módulo para manter a URL pública legível e cada
+ * valor como texto antes de você vê-lo.
  *
  *   ?name=Helder&age=20&ativo=true
- *   → { name: 'Helder', age: 20, ativo: true }   // number e boolean, não string
+ *   → { name: 'Helder', age: '20', ativo: 'true' }
  *
- * Chave repetida vira ARRAY (`?tag=a&tag=b` → `{ tag: ['a', 'b'] }`), e um
- * valor que seja JSON válido vira objeto. Ou seja: `search[key]` é `unknown` de
- * verdade — daí os leitores explícitos abaixo (`readText`, `readNumber`, ...)
- * em vez de confiar no tipo que veio.
+ * Chave repetida vira ARRAY (`?tag=a&tag=b` → `{ tag: ['a', 'b'] }`). O tipo
+ * continua `unknown` porque o router também aceita updates programáticos antes
+ * da serialização — daí os leitores explícitos abaixo.
  *
  * ─── A invariante do módulo: VAZIO É AUSENTE ────────────────────────────────
  * `null`, `undefined` e `''` são a mesma coisa nos dois sentidos:
@@ -30,8 +29,17 @@
  * Por isso `applyQueryPatch` normaliza todo vazio para `undefined`.
  */
 
-/** Valor aceito ao ESCREVER. `null`/`undefined`/`''` apagam a chave. */
-export type QueryValue = string | number | boolean | null | undefined
+export type QueryScalar = string | number | boolean
+
+/**
+ * Valor aceito ao ESCREVER. Arrays produzem chaves repetidas na URL;
+ * `null`/`undefined`/`''` e arrays vazios apagam a chave.
+ */
+export type QueryValue =
+  | QueryScalar
+  | readonly QueryScalar[]
+  | null
+  | undefined
 
 /** Escrita em lote — `{ name: 'Helder', age: 20 }` vira `?name=Helder&age=20`. */
 export type QueryPatch<TKey extends string = string> = Partial<Record<TKey, QueryValue>>
@@ -43,9 +51,51 @@ export type QueryPatch<TKey extends string = string> = Partial<Record<TKey, Quer
  */
 export type QueryRecord = Record<string, unknown>
 
+/**
+ * Parser público do router: não aplica JSON.parse e preserva chaves repetidas.
+ * Isso evita que `2`, `true` ou `001` mudem de tipo e garante round-trip sem
+ * aspas codificadas na URL.
+ */
+export function parseQuerySearch(search: string): QueryRecord {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  const result: QueryRecord = {}
+
+  for (const [key, value] of params.entries()) {
+    const previous = result[key]
+    if (previous === undefined) result[key] = value
+    else if (Array.isArray(previous)) previous.push(value)
+    else result[key] = [previous, value]
+  }
+
+  return result
+}
+
+/**
+ * Serializer público do router: arrays viram parâmetros repetidos e escalares
+ * são escritos como texto puro. Objetos não fazem parte de `QueryValue`, mas
+ * recebem JSON como fallback seguro para integrações futuras do router.
+ */
+export function stringifyQuerySearch(search: Record<string, unknown>): string {
+  const params = new URLSearchParams()
+
+  const append = (key: string, value: unknown) => {
+    if (value == null || value === '') return
+    if (typeof value === 'object') params.append(key, JSON.stringify(value))
+    else params.append(key, String(value))
+  }
+
+  for (const [key, value] of Object.entries(search)) {
+    if (Array.isArray(value)) value.forEach((item) => append(key, item))
+    else append(key, value)
+  }
+
+  const encoded = params.toString()
+  return encoded ? `?${encoded}` : ''
+}
+
 /** Vazio = ausente (ver invariante no topo). */
 function isBlank(value: QueryValue): boolean {
-  return value == null || value === ''
+  return value == null || value === '' || (Array.isArray(value) && value.length === 0)
 }
 
 /**
@@ -72,6 +122,23 @@ export function replaceQuery(current: QueryRecord, next: QueryPatch): QueryRecor
     cleared[key] = undefined
   }
 
+  return applyQueryPatch(cleared, next)
+}
+
+/**
+ * Substitui um namespace da query numa operação atômica, preservando todas as
+ * chaves externas. É a fronteira usada por filtros para trocar `fv`, `group`
+ * e todos os `f.*` sem várias navegações/renders intermediários.
+ */
+export function replaceQueryNamespace(
+  current: QueryRecord,
+  belongsToNamespace: (key: string) => boolean,
+  next: QueryPatch,
+): QueryRecord {
+  const cleared: QueryRecord = { ...current }
+  for (const key of Object.keys(current)) {
+    if (belongsToNamespace(key)) cleared[key] = undefined
+  }
   return applyQueryPatch(cleared, next)
 }
 

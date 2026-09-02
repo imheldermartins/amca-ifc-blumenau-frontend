@@ -4,6 +4,7 @@ const api = vi.hoisted(() => ({
   delete: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
+  patch: vi.fn(),
 }))
 
 vi.mock('@/services/ApiService', () => ({ apiService: api }))
@@ -20,6 +21,7 @@ describe('PageWriteService.saveCell', () => {
     api.delete.mockResolvedValue(undefined)
     api.post.mockResolvedValue(undefined)
     api.put.mockResolvedValue(undefined)
+    api.patch.mockResolvedValue(undefined)
   })
 
   it('cria apenas quando a célula está ausente (previousValue undefined)', async () => {
@@ -49,5 +51,58 @@ describe('PageWriteService.saveCell', () => {
     expect(api.delete).not.toHaveBeenCalled()
     expect(api.post).not.toHaveBeenCalled()
     expect(api.put).not.toHaveBeenCalled()
+  })
+})
+
+describe('PageWriteService — views atômicas', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.put.mockResolvedValue(undefined)
+    api.patch.mockResolvedValue(undefined)
+  })
+
+  it('não envia filtros, urlKey nem publicKey pelo PATCH de apresentação', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    const viewId = '01KXVZ0000VIEW00000000001'
+    await new PageWriteService().patchView(pageId, viewId, {
+      filters: {
+        version: 2,
+        updatedAt: null,
+        clauses: [],
+        groupBy: [],
+        passthrough: [],
+      },
+      urlKey: { key: 'tabela', aliases: [] },
+      title: {
+        key: 'title',
+        column_name: 'Docente',
+        publicKey: { key: 'docente', aliases: ['professor'] },
+      },
+      columnWidths: { [columnId]: 320 },
+    })
+
+    expect(api.patch).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}`, {
+      title: { key: 'title', column_name: 'Docente' },
+      columnWidths: { [columnId]: 320 },
+    })
+  })
+
+  it('remove updatedAt do documento enviado ao endpoint de filtros', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    const viewId = '01KXVZ0000VIEW00000000001'
+    await new PageWriteService().saveViewFilters(pageId, viewId, {
+      version: 2,
+      updatedAt: '2026-09-01T17:00:00.000Z',
+      clauses: [{ columnId, condition: 'contains', values: ['Ana'] }],
+      groupBy: [columnId],
+      passthrough: [['future', 'kept']],
+    })
+
+    expect(api.put).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}/filters`, {
+      version: 2,
+      clauses: [{ columnId, condition: 'contains', values: ['Ana'] }],
+      groupBy: [columnId],
+      passthrough: [['future', 'kept']],
+    })
   })
 })

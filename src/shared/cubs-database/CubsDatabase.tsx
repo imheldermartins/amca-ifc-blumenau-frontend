@@ -2,6 +2,11 @@ import { useCallback, useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { cn, type ContextMenuItem } from 'cubs-components'
 
+import {
+  DatabaseViewToolbar,
+  type DatabaseViewToolbarLabels,
+} from './components/DatabaseViewToolbar'
+import type { DatabaseViewToolbarSyncStatus } from './components/DatabaseViewSyncStatus'
 import { ViewTabsBar } from './components/ViewTabsBar'
 import { TableView } from './components/TableView'
 import type { TableRowLabels } from './components/TableRow'
@@ -16,14 +21,44 @@ import type {
   HeaderCol,
   PageTitleColumn,
   RowData,
+  ViewFiltersV2,
 } from './types'
 import { reorderByIds } from './utils'
+import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
 
 const FALLBACK_VIEW: DataViewType = {
   view: 'table',
   name: '',
-  filters: '',
+  urlKey: { key: 'view', aliases: [] },
+  filters: emptyViewFilters(),
   orderedHeaderCols: [],
+}
+
+const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
+  groupBy: 'Agrupar por',
+  filters: 'Filtros',
+  searchColumns: 'Buscar coluna',
+  noColumns: 'Nenhuma coluna encontrada',
+  dragGroup: 'Alterar prioridade',
+  selectGroup: 'Selecionar coluna',
+  priority: 'Prioridade',
+  where: 'Onde',
+  column: 'Coluna',
+  condition: 'Condição',
+  value: 'Valor',
+  valueFrom: 'Valor inicial',
+  valueTo: 'Valor final',
+  addFilter: 'Adicionar filtro',
+  removeFilter: 'Remover filtro',
+  true: 'Sim',
+  false: 'Não',
+  conditions: {
+    equals: 'Igual a',
+    contains: 'Contém',
+    greaterThan: 'Maior que',
+    lessThan: 'Menor que',
+    between: 'Entre',
+  },
 }
 
 export interface CubsDatabaseProps {
@@ -66,8 +101,8 @@ export interface CubsDatabaseProps {
   /**
    * As LINHAS foram reordenadas por drag. Chega o id da VIEW ativa + o array
    * COMPLETO de ids de página na nova ordem — é o `orderedRows` pronto para
-   * entrar no snapshot da view em `page.data` (read-modify-write, como tudo
-   * no snapshot). A presença da prop é o que habilita o drag de linha.
+   * o patch atômico daquela view em `page.data`. A presença da prop é o que
+   * habilita o drag de linha.
    */
   onRowOrderChange?: (viewId: string, orderedRows: string[]) => void
   /**
@@ -118,6 +153,20 @@ export interface CubsDatabaseProps {
   onColumnWidthPreview?: (viewId: string, columnId: string, width: number) => void
   /** Overrides efêmeros recebidos, agrupados por view e coluna. */
   columnWidthPreviews?: Record<string, Record<string, number>>
+  /**
+   * Documento soberano decodificado da URL para a view ativa. Ausente usa o
+   * snapshot salvo; presente não altera o snapshot sozinho — o app host
+   * decide a confirmação.
+   */
+  filtersOverride?: ViewFiltersV2
+  /** Persiste atomicamente filtros + agrupamentos + passthrough canônicos. */
+  onViewFiltersChange?: (viewId: string, filters: ViewFiltersV2) => void
+  /** Relógio/estado de persistência e refresh remoto da view ativa. */
+  filterSyncStatus?: DatabaseViewToolbarSyncStatus
+  /** Traduções dos controles de filtro/agrupamento; a lib não acessa i18n. */
+  toolbarLabels?: Partial<Omit<DatabaseViewToolbarLabels, 'conditions'>> & {
+    conditions?: Partial<DatabaseViewToolbarLabels['conditions']>
+  }
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
@@ -164,6 +213,10 @@ export function CubsDatabase({
   onColumnWidthChange,
   onColumnWidthPreview,
   columnWidthPreviews,
+  filtersOverride,
+  onViewFiltersChange,
+  filterSyncStatus,
+  toolbarLabels,
   loading,
   emptyLabel,
   placeholderLabel = 'Em breve.',
@@ -188,6 +241,7 @@ export function CubsDatabase({
         key: 'title',
         column_name: basePageTitleColumn?.title ?? '',
         ...(basePageTitleColumn?.mask && { mask: basePageTitleColumn.mask }),
+        ...(basePageTitleColumn?.publicKey && { publicKey: basePageTitleColumn.publicKey }),
       },
     [basePageTitleColumn, currentView.title],
   )
@@ -203,6 +257,7 @@ export function CubsDatabase({
               ...column,
               title: pageTitleColumn.column_name,
               mask: pageTitleColumn.mask,
+              publicKey: pageTitleColumn.publicKey ?? column.publicKey,
             }
           : column,
       ),
@@ -224,6 +279,23 @@ export function CubsDatabase({
   const orderedRows = useMemo(
     () => reorderByIds(rows, currentView.orderedRows ?? []),
     [rows, currentView],
+  )
+  const effectiveFilters = filtersOverride ?? currentView.filters
+  const parsedFilters = useMemo(() => parseViewFilters(effectiveFilters), [effectiveFilters])
+  const filteredRows = useMemo(
+    () => applyViewFilters(orderedRows, orderedColumns, parsedFilters.clauses),
+    [orderedColumns, orderedRows, parsedFilters.clauses],
+  )
+  const resolvedToolbarLabels = useMemo<DatabaseViewToolbarLabels>(
+    () => ({
+      ...DEFAULT_TOOLBAR_LABELS,
+      ...toolbarLabels,
+      conditions: {
+        ...DEFAULT_TOOLBAR_LABELS.conditions,
+        ...toolbarLabels?.conditions,
+      },
+    }),
+    [toolbarLabels],
   )
   const previewWidths = columnWidthPreviews?.[currentViewId]
   const displayedColumnWidths = useMemo(
@@ -256,6 +328,7 @@ export function CubsDatabase({
           key: 'title',
           column_name: pageTitleColumn.column_name,
           ...(mask && { mask }),
+          ...(pageTitleColumn.publicKey && { publicKey: pageTitleColumn.publicKey }),
         })
         return
       }
@@ -279,12 +352,26 @@ export function CubsDatabase({
         viewMenuItems={viewMenuItems}
       />
 
+      <DatabaseViewToolbar
+        columns={orderedColumns}
+        rows={orderedRows}
+        filters={effectiveFilters}
+        labels={resolvedToolbarLabels}
+        syncStatus={filterSyncStatus}
+        onChange={
+          onViewFiltersChange
+            ? (filters) => onViewFiltersChange(currentViewId, filters)
+            : undefined
+        }
+      />
+
       <div data-database-view-container className="mt-3.5 pb-6">
         {currentView.view === 'table' ? (
           <TableView
             key={currentViewId}
             columns={orderedColumns}
-            rows={orderedRows}
+            rows={filteredRows}
+            groupBy={parsedFilters.groupBy}
             columnWidths={displayedColumnWidths}
             cellErrors={cellErrors}
             loading={loading}

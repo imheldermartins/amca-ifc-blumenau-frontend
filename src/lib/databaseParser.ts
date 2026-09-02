@@ -31,7 +31,16 @@ import type {
   NumberFormat,
   OptionColor,
   PageTitleColumn,
+  PublicKeyMetadata,
   RowData,
+  ViewFiltersV2,
+} from 'cubs-database'
+import {
+  emptyViewFilters,
+  getFilterCondition,
+  parsePublicKeyMetadata,
+  parseViewFilters,
+  reconcilePublicKeys,
 } from 'cubs-database'
 import { OPTION_COLORS } from 'cubs-components'
 
@@ -44,6 +53,7 @@ export interface ApiSelectOption {
   id: string
   value: string
   color?: string
+  publicKey?: PublicKeyMetadata
 }
 
 export interface ApiPageColumnData {
@@ -51,6 +61,7 @@ export interface ApiPageColumnData {
   format?: 'percentage' | 'currency'
   currency?: string
   mask?: string
+  publicKey?: PublicKeyMetadata
 }
 
 /** GET /pages/parent/:id/columns */
@@ -68,6 +79,8 @@ export interface ApiPage {
   title: string | null
   data: Record<string, unknown> | null
   owner_id: string
+  /** `CURRENT_TIMESTAMP` do rqlite, serializado pela API. */
+  updated_at: string
 }
 
 /**
@@ -157,11 +170,19 @@ function isOptionColor(value: unknown): value is OptionColor {
 
 /** API → lib: `value` vira `label`; cor fora do vocabulário vira ausência. */
 function toColumnOptions(options: ApiSelectOption[]): ColumnOption[] {
-  return options.map((option) => ({
-    id: option.id,
-    label: option.value,
-    ...(isOptionColor(option.color) && { color: option.color }),
-  }))
+  return reconcilePublicKeys(
+    options.map((option) => ({
+      value: option,
+      label: option.value,
+      metadata: parsePublicKeyMetadata(option.publicKey),
+    })),
+    'opcao',
+  ).map(({ value: option, publicKey }) => ({
+      id: option.id,
+      label: option.value,
+      publicKey,
+      ...(isOptionColor(option.color) && { color: option.color }),
+    }))
 }
 
 /**
@@ -211,15 +232,29 @@ export function parseHeaderCols(
   titleLabel: string,
   dataset: ApiDatasetRow[] = [],
 ): HeaderCol[] {
+  const reconciledColumnScope = reconcilePublicKeys(
+    [
+      ...columns.map((column) => ({
+        value: column.id,
+        label: column.name ?? '',
+        metadata: parsePublicKeyMetadata(column.data?.publicKey),
+      })),
+      { value: TITLE_COLUMN_ID, label: titleLabel, metadata: null },
+    ],
+    'coluna',
+  )
+  const titlePublicKey = reconciledColumnScope.at(-1)!.publicKey
   const titleColumn: HeaderCol = {
     id: TITLE_COLUMN_ID,
     key: 'title',
     title: titleLabel,
     type: 'text',
+    publicKey: titlePublicKey,
   }
   const optionsByColumn = buildColumnOptions(columns, dataset)
 
-  const dataColumns = columns.map((column) => {
+  const dataColumns = columns.map((column, index) => {
+    const publicKey = reconciledColumnScope[index]!.publicKey
     const options = optionsByColumn.get(column.id)
     const format: NumberFormat | undefined =
       column.data?.format === 'percentage' || column.data?.format === 'currency'
@@ -234,6 +269,7 @@ export function parseHeaderCols(
     return {
       id: column.id,
       title: column.name ?? '',
+      publicKey,
       // O type declarado manda; um valor fora do vocabulário da lib cai na
       // inferência dela (HeaderCol.type ausente), em vez de virar tipo inválido.
       ...(isColumnType(column.type) && { type: column.type }),
@@ -316,6 +352,12 @@ function parsePageTitleColumn(raw: unknown): PageTitleColumn | undefined {
   return {
     key: 'title',
     column_name: candidate.column_name,
+    publicKey:
+      parsePublicKeyMetadata(candidate.publicKey) ??
+      reconcilePublicKeys(
+        [{ value: null, label: candidate.column_name }],
+        'coluna',
+      )[0]!.publicKey,
     ...(mask && { mask }),
   }
 }
@@ -329,11 +371,18 @@ function parseView(raw: unknown): DataViewType | null {
   const columnWidths = parseColumnWidths(candidate.columnWidths)
   const orderedRows = parseIdList(candidate.orderedRows)
   const title = parsePageTitleColumn(candidate.title)
+  const filters = parseViewFilters(candidate.filters as string | ViewFiltersV2 | null | undefined)
 
   return {
     view: candidate.view,
     name: typeof candidate.name === 'string' ? candidate.name : '',
-    filters: typeof candidate.filters === 'string' ? candidate.filters : '',
+    urlKey:
+      parsePublicKeyMetadata(candidate.urlKey) ??
+      reconcilePublicKeys(
+        [{ value: null, label: typeof candidate.name === 'string' ? candidate.name : '' }],
+        'view',
+      )[0]!.publicKey,
+    filters,
     ...(title && { title }),
     orderedHeaderCols: parseIdList(candidate.orderedHeaderCols),
     // Ausente e vazio são a MESMA coisa na leitura (ordem natural), então o
@@ -355,22 +404,44 @@ export function parseViewSettings(
 ): DataViewSettings {
   if (!data) return {}
 
-  const settings: DataViewSettings = {}
+  const parsedEntries: [string, DataViewType][] = []
   for (const [viewId, raw] of Object.entries(data)) {
     const view = parseView(raw)
     if (view) {
-      settings[viewId] =
+      parsedEntries.push([viewId,
         view.title || titleLabel === undefined
           ? view
           : {
               ...view,
               // Snapshot legado: materializa em memória a identidade
               // canônica. A próxima personalização a persistirá junto.
-              title: { key: 'title', column_name: titleLabel },
+              title: {
+                key: 'title',
+                column_name: titleLabel,
+                publicKey: reconcilePublicKeys(
+                  [{ value: null, label: titleLabel }],
+                  'coluna',
+                )[0]!.publicKey,
+              },
             }
+      ])
     }
   }
-  return settings
+
+  const keys = reconcilePublicKeys(
+    parsedEntries.map(([viewId, view]) => ({
+      value: [viewId, view] as const,
+      label: view.name,
+      metadata: view.urlKey,
+    })),
+    'view',
+  )
+  return Object.fromEntries(
+    keys.map(({ value: [viewId, view], publicKey }) => [
+      viewId,
+      { ...view, urlKey: publicKey },
+    ]),
+  )
 }
 
 /** View mínima para uma base que ainda não tem nenhuma salva. */
@@ -383,11 +454,16 @@ export function createFallbackViewSettings(
     [FALLBACK_VIEW_ID]: {
       view: 'table',
       name,
-      filters: '',
+      urlKey: reconcilePublicKeys([{ value: null, label: name }], 'view')[0]!.publicKey,
+      filters: emptyViewFilters(),
       ...(titleColumn && {
         title: {
           key: 'title',
           column_name: titleColumn.title,
+          publicKey:
+            titleColumn.publicKey ??
+            reconcilePublicKeys([{ value: null, label: titleColumn.title }], 'coluna')[0]!
+              .publicKey,
           ...(titleColumn.mask && { mask: titleColumn.mask }),
         },
       }),
@@ -402,6 +478,8 @@ export interface ParsedDatabase {
   settings: DataViewSettings
   headerCols: HeaderCol[]
   rows: RowData[]
+  /** Snapshot legado/inconsistente que requer o reconcile idempotente da API. */
+  needsFilterKeyReconcile?: boolean
 }
 
 export interface ParseDatabaseInput {
@@ -412,6 +490,135 @@ export interface ParseDatabaseInput {
   titleLabel: string
   /** Nome da tab quando a base ainda não tem view salva (vem do i18n). */
   fallbackViewName: string
+}
+
+function publicKeyScopeNeedsReconcile<T>(
+  values: readonly { value: T; label: string; metadata: PublicKeyMetadata | null }[],
+  fallback: 'coluna' | 'opcao' | 'view',
+): boolean {
+  return reconcilePublicKeys(values, fallback).some((entry) => entry.repaired)
+}
+
+function rawViewEntries(data: Record<string, unknown> | null | undefined) {
+  return Object.entries(data ?? {}).filter((entry): entry is [string, Record<string, unknown>] => {
+    const value = entry[1]
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && isViewKind((value as Record<string, unknown>).view))
+  })
+}
+
+/**
+ * Detecta o upgrade necessário sem bloquear a primeira pintura. O reconcile
+ * do servidor continua sendo a autoridade e é idempotente; esta função só
+ * decide se deve agendá-lo uma vez depois do load.
+ */
+export function needsFilterKeyReconcile(
+  page: ApiPage,
+  columns: ApiPageColumn[],
+): boolean {
+  const views = rawViewEntries(page.data)
+  if (
+    publicKeyScopeNeedsReconcile(
+      views.map(([id, view]) => ({
+        value: id,
+        label: typeof view.name === 'string' ? view.name : '',
+        metadata: parsePublicKeyMetadata(view.urlKey),
+      })),
+      'view',
+    )
+  ) {
+    return true
+  }
+
+  const realColumnCandidates = columns.map((column) => ({
+    value: column.id,
+    label: column.name ?? '',
+    metadata: parsePublicKeyMetadata(column.data?.publicKey),
+  }))
+  if (publicKeyScopeNeedsReconcile(realColumnCandidates, 'coluna')) return true
+
+  for (const column of columns) {
+    const options = column.data?.options ?? []
+    if (
+      publicKeyScopeNeedsReconcile(
+        options.map((option) => ({
+          value: option.id,
+          label: option.value,
+          metadata: parsePublicKeyMetadata(option.publicKey),
+        })),
+        'opcao',
+      )
+    ) {
+      return true
+    }
+  }
+
+  const definitions = new Map<string, { type: ColumnDataType; options?: Set<string> }>([
+    [TITLE_COLUMN_ID, { type: 'text' }],
+    ...columns.map((column) => [
+      column.id,
+      {
+        type: column.type,
+        ...(column.type === 'select' && {
+          options: new Set((column.data?.options ?? []).map((option) => option.id)),
+        }),
+      },
+    ] as const),
+  ])
+
+  for (const [, view] of views) {
+    const title = view.title
+    if (!title || typeof title !== 'object' || Array.isArray(title)) return true
+    const rawTitle = title as Record<string, unknown>
+    if (
+      rawTitle.key !== 'title' ||
+      typeof rawTitle.column_name !== 'string' ||
+      !parsePublicKeyMetadata(rawTitle.publicKey)
+    ) {
+      return true
+    }
+    const titleScope = [
+      ...realColumnCandidates,
+      {
+        value: TITLE_COLUMN_ID,
+        label: rawTitle.column_name,
+        metadata: parsePublicKeyMetadata(rawTitle.publicKey),
+      },
+    ]
+    if (publicKeyScopeNeedsReconcile(titleScope, 'coluna')) return true
+
+    if (!view.filters || typeof view.filters !== 'object' || Array.isArray(view.filters)) {
+      return true
+    }
+    const filters = parseViewFilters(view.filters as ViewFiltersV2)
+    const rawFilters = view.filters as Record<string, unknown>
+    if (
+      rawFilters.version !== 2 ||
+      !('updatedAt' in rawFilters) ||
+      !Array.isArray(rawFilters.clauses) ||
+      !Array.isArray(rawFilters.groupBy) ||
+      !Array.isArray(rawFilters.passthrough)
+    ) {
+      return true
+    }
+    // O parser é deliberadamente tolerante e poda cláusulas malformadas.
+    // Se isso aconteceu, o snapshot cru ainda precisa ser reparado pela API.
+    if (filters.clauses.length !== rawFilters.clauses.length) return true
+    if (filters.groupBy.some((columnId) => !definitions.has(columnId))) return true
+    for (const clause of filters.clauses) {
+      const definition = definitions.get(clause.columnId)
+      if (!definition) return true
+      const condition = getFilterCondition(definition.type, clause.condition)
+      if (!condition || !condition.accepts(clause.values)) return true
+      if (
+        definition.type === 'select' &&
+        clause.values.some((optionId) => !definition.options?.has(optionId))
+      ) {
+        return true
+      }
+    }
+  }
+
+  return false
 }
 
 /**
@@ -436,5 +643,6 @@ export function parseDatabase({
       Object.keys(settings).length > 0
         ? settings
         : createFallbackViewSettings(headerCols, fallbackViewName),
+    ...(needsFilterKeyReconcile(page, columns) && { needsFilterKeyReconcile: true }),
   }
 }

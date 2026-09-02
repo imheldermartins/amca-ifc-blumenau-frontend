@@ -1,10 +1,19 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
-import type { DataViewSettings, HeaderCol, RowData } from 'cubs-database'
+import type {
+  DatabaseViewToolbarSyncStatus,
+  DataViewSettings,
+  HeaderCol,
+  RowData,
+} from 'cubs-database'
 
 import { PageShell } from '@components/PageShell'
+import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
+import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
+import { useFeedback } from '@/contexts/FeedbackContext'
+import { formatRelativeTime } from '@/lib/formatRelativeTime'
 import { i18n } from '@/lib/i18n'
 
 export interface PageDatabaseViewProps {
@@ -43,6 +52,7 @@ const EMPTY_ROWS: RowData[] = []
 export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewProps) {
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
+  const feedback = useFeedback()
   const {
     database,
     loading,
@@ -52,9 +62,78 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
     realtimeOptions,
     handlers,
   } = usePageDatabase(pageId)
+  const [preferredViewId, setPreferredViewId] = useState('')
+  const [relativeNow, setRelativeNow] = useState(() => Date.now())
+  const lastDiagnosticRef = useRef('')
+  const settings = database?.settings ?? EMPTY_SETTINGS
+  const columns = database?.headerCols ?? EMPTY_COLUMNS
+  const viewQuery = useDatabaseViewQuery({
+    settings,
+    columns,
+    preferredViewId,
+    scopeKey: pageId,
+    onPersistFilters: handlers.onViewFiltersChange,
+  })
+  const changeView = viewQuery.changeView
 
   const broken = failed || failedToResolve
   const currentLang = lang ?? 'pt-br'
+
+  useEffect(() => {
+    const timer = setInterval(() => setRelativeNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
+    if (viewQuery.diagnostics.length === 0) {
+      lastDiagnosticRef.current = ''
+      return
+    }
+    const signature = JSON.stringify(viewQuery.diagnostics)
+    if (lastDiagnosticRef.current === signature) return
+    lastDiagnosticRef.current = signature
+    feedback({
+      title: i18n('pages.app.cubs-database.filtros.url-ajustada-titulo'),
+      description: i18n('pages.app.cubs-database.filtros.url-ajustada-descricao'),
+      variant: 'warning',
+    })
+  }, [feedback, viewQuery.diagnostics])
+
+  const filterSyncStatus = useMemo<DatabaseViewToolbarSyncStatus>(() => {
+    const relative = viewQuery.sync.updatedAt
+      ? formatRelativeTime(viewQuery.sync.updatedAt, relativeNow, 'pt-BR')
+      : null
+    if (viewQuery.sync.status === 'saving') {
+      return {
+        state: 'saving',
+        label: i18n('pages.app.cubs-database.filtros.sync.salvando'),
+      }
+    }
+    if (viewQuery.sync.status === 'remote-pending') {
+      return {
+        state: 'pending',
+        label: relative
+          ? i18n('pages.app.cubs-database.filtros.sync.alterados-em', { time: relative })
+          : i18n('pages.app.cubs-database.filtros.sync.alterados'),
+        actionLabel: i18n('pages.app.cubs-database.filtros.sync.atualizar'),
+        onAction: viewQuery.sync.applyRemote,
+      }
+    }
+    if (viewQuery.sync.status === 'error') {
+      return {
+        state: 'error',
+        label: i18n('pages.app.cubs-database.filtros.sync.falha'),
+        actionLabel: i18n('pages.app.cubs-database.filtros.sync.tentar-novamente'),
+        onAction: viewQuery.sync.retry,
+      }
+    }
+    return {
+      state: 'confirmed',
+      label: relative
+        ? i18n('pages.app.cubs-database.filtros.sync.atualizado-em', { time: relative })
+        : i18n('pages.app.cubs-database.filtros.sync.atualizado'),
+    }
+  }, [relativeNow, viewQuery.sync])
 
   // `currentLang` na lista de dependências é PROPOSITAL, e o linter reclama
   // porque não consegue ver a ligação: `i18n()` lê do singleton do i18next,
@@ -100,9 +179,53 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
         'phone-br': i18n('pages.app.cubs-database.mascaras.telefone'),
         date: i18n('pages.app.cubs-database.mascaras.data'),
       },
+      groupEmpty: i18n('pages.app.cubs-database.agrupar.sem-valor'),
+      groupTrue: i18n('pages.app.cubs-database.agrupar.sim'),
+      groupFalse: i18n('pages.app.cubs-database.agrupar.nao'),
+      groupRow: i18n('pages.app.cubs-database.agrupar.linha'),
+      groupRows: i18n('pages.app.cubs-database.agrupar.linhas'),
     }),
     // oxlint-disable-next-line react-hooks/exhaustive-deps
     [currentLang],
+  )
+
+  const toolbarLabels = useMemo(
+    () => ({
+      groupBy: i18n('pages.app.cubs-database.agrupar.trigger'),
+      filters: i18n('pages.app.cubs-database.filtros.trigger'),
+      searchColumns: i18n('pages.app.cubs-database.agrupar.buscar'),
+      noColumns: i18n('pages.app.cubs-database.agrupar.vazio'),
+      dragGroup: i18n('pages.app.cubs-database.agrupar.arrastar'),
+      selectGroup: i18n('pages.app.cubs-database.agrupar.selecionar'),
+      priority: i18n('pages.app.cubs-database.agrupar.prioridade'),
+      where: i18n('pages.app.cubs-database.filtros.onde'),
+      column: i18n('pages.app.cubs-database.filtros.coluna'),
+      condition: i18n('pages.app.cubs-database.filtros.condicao'),
+      value: i18n('pages.app.cubs-database.filtros.valor'),
+      valueFrom: i18n('pages.app.cubs-database.filtros.valor-inicial'),
+      valueTo: i18n('pages.app.cubs-database.filtros.valor-final'),
+      addFilter: i18n('pages.app.cubs-database.filtros.adicionar'),
+      removeFilter: i18n('pages.app.cubs-database.filtros.remover'),
+      true: i18n('pages.app.cubs-database.agrupar.sim'),
+      false: i18n('pages.app.cubs-database.agrupar.nao'),
+      conditions: {
+        equals: i18n('pages.app.cubs-database.filtros.condicoes.igual'),
+        contains: i18n('pages.app.cubs-database.filtros.condicoes.contem'),
+        greaterThan: i18n('pages.app.cubs-database.filtros.condicoes.maior'),
+        lessThan: i18n('pages.app.cubs-database.filtros.condicoes.menor'),
+        between: i18n('pages.app.cubs-database.filtros.condicoes.entre'),
+      },
+    }),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [currentLang],
+  )
+
+  const handleViewChange = useCallback(
+    (viewId: string) => {
+      setPreferredViewId(viewId)
+      changeView(viewId)
+    },
+    [changeView],
   )
 
   // Descer na árvore é abrir a filha como página — a MESMA view, outro id,
@@ -157,26 +280,39 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
   )
 
   return (
-    <PageShell pageId={pageId} {...realtimeOptions}>
-      <CubsDatabase
-        settings={database?.settings ?? EMPTY_SETTINGS}
-        headerCols={database?.headerCols ?? EMPTY_COLUMNS}
-        rows={database?.rows ?? EMPTY_ROWS}
-        cellErrors={cellErrors}
-        columnWidthPreviews={columnWidthPreviews}
-        loading={loading && !broken}
-        emptyLabel={i18n(
-          broken ? 'pages.app.cubs-database.erro' : 'pages.app.cubs-database.vazio',
-        )}
-        placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
-        onOpenRow={handleOpenRow}
-        {...handlers}
-        onSelectionChange={handleSelectionChange}
-        onAddRow={handleAddRow}
-        onAddColumn={handleAddColumn}
-        labels={labels}
-        viewMenuItems={viewMenuItems}
+    <>
+      <PageShell pageId={pageId} {...realtimeOptions}>
+        <CubsDatabase
+          settings={settings}
+          headerCols={columns}
+          rows={database?.rows ?? EMPTY_ROWS}
+          activeViewId={viewQuery.activeViewId}
+          filtersOverride={viewQuery.effectiveFilters}
+          cellErrors={cellErrors}
+          columnWidthPreviews={columnWidthPreviews}
+          loading={loading && !broken}
+          emptyLabel={i18n(
+            broken ? 'pages.app.cubs-database.erro' : 'pages.app.cubs-database.vazio',
+          )}
+          placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
+          onOpenRow={handleOpenRow}
+          {...handlers}
+          onViewChange={handleViewChange}
+          onViewFiltersChange={viewQuery.changeLocal}
+          onSelectionChange={handleSelectionChange}
+          onAddRow={handleAddRow}
+          onAddColumn={handleAddColumn}
+          labels={labels}
+          toolbarLabels={toolbarLabels}
+          filterSyncStatus={filterSyncStatus}
+          viewMenuItems={viewMenuItems}
+        />
+      </PageShell>
+      <ReplaceViewFiltersModal
+        open={viewQuery.conflict}
+        onReplace={viewQuery.acceptPersistence}
+        onKeepSaved={viewQuery.rejectPersistence}
       />
-    </PageShell>
+    </>
   )
 }

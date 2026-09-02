@@ -1,13 +1,21 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import type { ApiPage } from '@/lib/databaseParser'
+import type { AuthUser } from '@/services/AuthService'
+import type { ApiPageCollaborator } from '@/services/SharedPagesService'
 import { PageShell } from './PageShell'
 
 const dependencies = vi.hoisted(() => ({
   getPage: vi.fn(),
+  listCollaborators: vi.fn(),
   options: undefined as UsePageRealtimeOptions | undefined,
+  user: {
+    id: 'user-current',
+    name: 'Pessoa Atual',
+    email: 'atual@cubs.test',
+  } as AuthUser | null,
 }))
 
 vi.mock('@/hooks/usePageRealtime', () => ({
@@ -21,16 +29,25 @@ vi.mock('@/services/DatabaseService', () => ({
   databaseService: { getPage: dependencies.getPage },
 }))
 
+vi.mock('@/services/SharedPagesService', () => ({
+  sharedPagesService: { listCollaborators: dependencies.listCollaborators },
+}))
+
+vi.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: dependencies.user }),
+}))
+
 vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 
-function page(title: string): ApiPage {
+function page(title: string, id = PAGE_ID): ApiPage {
   return {
-    id: PAGE_ID,
+    id,
     title,
     data: null,
     owner_id: '01KXVZ0000USER00000000001',
+    updated_at: '2026-08-31 16:00:00',
   }
 }
 
@@ -44,13 +61,41 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  window.history.replaceState(window.history.state, '', window.location.pathname)
   dependencies.options = undefined
+  dependencies.user = {
+    id: 'user-current',
+    name: 'Pessoa Atual',
+    email: 'atual@cubs.test',
+  }
   dependencies.getPage.mockResolvedValue(page('Título inicial'))
+  dependencies.listCollaborators.mockResolvedValue([])
 })
 
 afterEach(() => cleanup())
 
 describe('PageShell — page-updated', () => {
+  it('mostra o updated_at da API e acompanha o timestamp do realtime', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-08-31T18:00:00.000Z').getTime())
+    render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
+
+    expect(await screen.findByText('pages.app.pagina.updated-at')).toBeTruthy()
+    const initialTime = screen.getByText('pages.app.pagina.updated-at').closest('time')
+    expect(initialTime?.getAttribute('datetime')).toBe('2026-08-31 16:00:00')
+
+    act(() => {
+      dependencies.options?.onPageUpdated?.({
+        pageId: PAGE_ID,
+        title: 'Título remoto',
+        updatedAt: '2026-08-31T17:58:00.000Z',
+        originUserId: 'user-1',
+      })
+    })
+    expect(screen.getByText('pages.app.pagina.updated-at').closest('time')?.getAttribute('datetime')).toBe(
+      '2026-08-31T17:58:00.000Z',
+    )
+  })
+
   it('atualiza o chrome com guarda própria e aceita empate de timestamp', async () => {
     render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
     await screen.findByText('Título inicial')
@@ -112,5 +157,123 @@ describe('PageShell — page-updated', () => {
     await act(async () => request.resolve(page('Snapshot stale')))
     await waitFor(() => expect(screen.queryByText('Snapshot stale')).toBeNull())
     expect(screen.getByText('Autoritativo do socket')).toBeTruthy()
+  })
+})
+
+describe('PageShell — visualizações de conteúdo', () => {
+  it('mantém a base ativa e troca somente o conteúdo abaixo do shell', async () => {
+    render(<PageShell pageId={PAGE_ID}>base atual</PageShell>)
+    await screen.findByText('Título inicial')
+
+    expect(screen.getByText('base atual')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'pages.app.pagina.views.files' }).getAttribute('aria-selected')).toBe('true')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.document.label' }))
+    expect(screen.queryByText('base atual')).toBeNull()
+    expect(screen.getByText('pages.app.pagina.views.document.title')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.workflow.label' }))
+    expect(screen.getByText('pages.app.pagina.views.workflow.title')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.files' }))
+    expect(screen.getByText('base atual')).toBeTruthy()
+  })
+})
+
+describe('PageShell — colaboradores e deep-link', () => {
+  it('compõe usuário atual primeiro, deduplica vínculos e abre #collaborators', async () => {
+    const collaborator: ApiPageCollaborator = {
+      id: 'user-other',
+      name: 'Outra Pessoa',
+      email: 'outra@cubs.test',
+    }
+    dependencies.listCollaborators.mockResolvedValue([
+      dependencies.user!,
+      collaborator,
+      collaborator,
+    ])
+    render(<PageShell pageId={PAGE_ID} />)
+
+    const trigger = await screen.findByRole('button', {
+      name: 'pages.app.page-settings.open-collaborators',
+    })
+    await waitFor(() => expect(trigger.dataset.participants).toBe('2'))
+    expect(screen.getAllByRole('img')[0].getAttribute('aria-label')).toBe('Pessoa Atual')
+
+    fireEvent.click(trigger)
+    expect(window.location.hash).toBe('#collaborators')
+    const dialog = await screen.findByRole('dialog', {
+      name: 'pages.app.page-settings.title',
+    })
+    expect(within(dialog).getAllByRole('img')).toHaveLength(2)
+    expect(within(dialog).getAllByText('Pessoa Atual')).toHaveLength(1)
+    expect(within(dialog).getAllByText('Outra Pessoa')).toHaveLength(1)
+  })
+
+  it('carrega #collaborators diretamente e ao fechar remove somente seu fragmento', async () => {
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}#collaborators`,
+    )
+    render(<PageShell pageId={PAGE_ID} />)
+
+    await screen.findByRole('dialog', { name: 'pages.app.page-settings.title' })
+    fireEvent.click(screen.getByRole('button', { name: 'common.fechar' }))
+    expect(window.location.hash).toBe('')
+  })
+
+  it('reage a hashchange sem apagar fragmento que pertence a outra interface', async () => {
+    render(<PageShell pageId={PAGE_ID} />)
+    act(() => {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}#collaborators`,
+      )
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    await screen.findByRole('dialog', { name: 'pages.app.page-settings.title' })
+
+    act(() => {
+      window.history.replaceState(
+        window.history.state,
+        '',
+        `${window.location.pathname}#profile`,
+      )
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'pages.app.page-settings.title' })).toBeNull(),
+    )
+    expect(window.location.hash).toBe('#profile')
+  })
+
+  it('descarta a resposta de colaboradores da página anterior', async () => {
+    const first = deferred<ApiPageCollaborator[]>()
+    const newer: ApiPageCollaborator = {
+      id: 'user-new',
+      name: 'Pessoa Nova',
+      email: 'nova@cubs.test',
+    }
+    const stale: ApiPageCollaborator = {
+      id: 'user-old',
+      name: 'Pessoa Antiga',
+      email: 'antiga@cubs.test',
+    }
+    dependencies.listCollaborators
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValueOnce([newer])
+    dependencies.getPage
+      .mockResolvedValueOnce(page('Página antiga'))
+      .mockResolvedValueOnce(page('Página nova', 'page-2'))
+
+    const { rerender } = render(<PageShell pageId={PAGE_ID} />)
+    rerender(<PageShell pageId="page-2" />)
+    await screen.findByRole('img', { name: 'Pessoa Nova' })
+
+    await act(async () => first.resolve([stale]))
+    expect(screen.queryByRole('img', { name: 'Pessoa Antiga' })).toBeNull()
+    expect(screen.getByRole('img', { name: 'Pessoa Nova' })).toBeTruthy()
   })
 })

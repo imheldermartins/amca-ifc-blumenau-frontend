@@ -1,6 +1,8 @@
 import { i18n } from '@/lib/i18n'
 import {
   parseDatabase,
+  parseHeaderCols,
+  parseViewSettings,
   type ApiDatasetRow,
   type ApiPage,
   type ApiPageColumn,
@@ -79,6 +81,24 @@ export class DatabaseService {
       titleLabel: i18n('pages.app.cubs-database.coluna-titulo'),
       fallbackViewName: i18n('pages.app.cubs-database.view-padrao'),
     })
+  }
+
+  /**
+   * Upgrade idempotente de snapshots legados. A resposta já contém os dois
+   * catálogos alteráveis, permitindo adotá-la sem uma segunda carga completa.
+   */
+  async reconcileFilterKeys(pageId: string): Promise<
+    Pick<ParsedDatabase, 'settings' | 'headerCols'>
+  > {
+    const response = await apiService.post<{
+      data: Record<string, unknown>
+      columns: ApiPageColumn[]
+    }>(`/pages/${pageId}/filter-keys/reconcile`)
+    const titleLabel = i18n('pages.app.cubs-database.coluna-titulo')
+    return {
+      settings: parseViewSettings(response.data, titleLabel),
+      headerCols: parseHeaderCols(response.columns, titleLabel),
+    }
   }
 
   /**
