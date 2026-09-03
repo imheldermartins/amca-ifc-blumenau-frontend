@@ -16,7 +16,7 @@ export interface UsePageRealtimeOptions {
   onEvent?: (event: DatabaseRealtimeEvent) => void
   /** Título/chrome da própria página aberta mudou. */
   onPageUpdated?: (payload: PageUpdatedPayload) => void
-  /** Linha ou coluna nasceu/morreu; o snapshot estrutural deve ser relido. */
+  /** Linha ou coluna nasceu/morreu; o consumidor escolhe merge ou resync. */
   onStructureChanged?: (event: PageStructureEvent) => void
   /**
    * Compatibilidade com consumidores v1 anteriores. Chamado apenas para

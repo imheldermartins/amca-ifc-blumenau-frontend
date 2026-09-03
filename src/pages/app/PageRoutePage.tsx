@@ -1,5 +1,6 @@
-import { useParams } from '@tanstack/react-router'
+import { useLocation, useParams } from '@tanstack/react-router'
 
+import { readPageNavigationTitle } from '@/lib/pageNavigation'
 import { PageDatabaseView } from '@/pages/app/PageDatabaseView'
 
 /**
@@ -9,6 +10,9 @@ import { PageDatabaseView } from '@/pages/app/PageDatabaseView'
  */
 export function PageRoutePage() {
   const { pageId } = useParams({ from: '/$lang/_private/page/$pageId' })
+  const initialTitle = useLocation({
+    select: (location) => readPageNavigationTitle(location.state, pageId),
+  })
 
-  return <PageDatabaseView pageId={pageId} />
+  return <PageDatabaseView pageId={pageId} initialTitle={initialTitle} />
 }

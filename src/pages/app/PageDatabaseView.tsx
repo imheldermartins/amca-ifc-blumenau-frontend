@@ -15,10 +15,13 @@ import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { useFeedback } from '@/contexts/FeedbackContext'
 import { formatRelativeTime } from '@/lib/formatRelativeTime'
 import { i18n } from '@/lib/i18n'
+import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
 
 export interface PageDatabaseViewProps {
   /** Página a exibir; `undefined` = ainda sendo resolvida (workspace). */
   pageId?: string
+  /** Título já conhecido pela tela que abriu esta página. */
+  initialTitle?: string | null
   /** Erro ANTES de ter um pageId (ex.: a workspace não resolveu a entrada). */
   failedToResolve?: boolean
 }
@@ -49,7 +52,7 @@ const EMPTY_ROWS: RowData[] = []
  * inline desce até TODAS as células e invalida o `memo` de cada uma. A
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
-export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewProps) {
+export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
   const feedback = useFeedback()
@@ -191,6 +194,7 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
 
   const toolbarLabels = useMemo(
     () => ({
+      newPage: i18n('pages.app.cubs-database.nova'),
       groupBy: i18n('pages.app.cubs-database.agrupar.trigger'),
       filters: i18n('pages.app.cubs-database.filtros.trigger'),
       searchColumns: i18n('pages.app.cubs-database.agrupar.buscar'),
@@ -232,7 +236,11 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
   // outra sala. É o modelo recursivo do backend virando navegação.
   const handleOpenRow = useCallback(
     (row: RowData) =>
-      navigate({ to: '/$lang/page/$pageId', params: { lang: currentLang, pageId: row.id } }),
+      navigate({
+        to: '/$lang/page/$pageId',
+        params: { lang: currentLang, pageId: row.id },
+        state: createPageNavigationState(row.id, readRowPageTitle(row)),
+      }),
     [navigate, currentLang],
   )
 
@@ -242,11 +250,8 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
     console.log('[cubs-database] selection-change', selectedPagesIds)
   }, [])
 
-  // Controles visuais desta etapa. Os callbacks já delimitam a futura ponte
-  // de criação, mas ainda não fazem request nem alteram os dados da tabela.
-  const handleAddRow = useCallback(() => {
-    console.log('[cubs-database] guided-add-row')
-  }, [])
+  // A criação de linha vem pronta do hook e é compartilhada pelo CTA da
+  // toolbar e pelo controle guiado. A coluna continua apenas como terreno UI.
   const handleAddColumn = useCallback(() => {
     console.log('[cubs-database] guided-add-column')
   }, [])
@@ -281,7 +286,12 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
 
   return (
     <>
-      <PageShell pageId={pageId} {...realtimeOptions}>
+      <PageShell
+        pageId={pageId}
+        initialTitle={initialTitle}
+        contentLoading={loading && !broken}
+        {...realtimeOptions}
+      >
         <CubsDatabase
           settings={settings}
           headerCols={columns}
@@ -297,10 +307,10 @@ export function PageDatabaseView({ pageId, failedToResolve }: PageDatabaseViewPr
           placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
           onOpenRow={handleOpenRow}
           {...handlers}
+          onAddRow={pageId && !broken ? handlers.onAddRow : undefined}
           onViewChange={handleViewChange}
           onViewFiltersChange={viewQuery.changeLocal}
           onSelectionChange={handleSelectionChange}
-          onAddRow={handleAddRow}
           onAddColumn={handleAddColumn}
           labels={labels}
           toolbarLabels={toolbarLabels}

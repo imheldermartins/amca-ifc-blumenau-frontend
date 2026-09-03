@@ -10,6 +10,7 @@ import {
   PageSettingsModal,
   type PageSettingsFragment,
 } from '@components/PageSettingsModal'
+import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { Typography } from '@components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDialog } from '@/hooks/useDialog'
@@ -17,6 +18,7 @@ import { usePageRealtime, type UsePageRealtimeOptions } from '@/hooks/usePageRea
 import { i18n } from '@/lib/i18n'
 import { formatRelativeTime } from '@/lib/formatRelativeTime'
 import { assignUserVisualIdentities } from '@/lib/userVisualIdentity'
+import { normalizePageTitle } from '@/lib/pageNavigation'
 import { databaseService } from '@/services/DatabaseService'
 import type { PageUpdatedPayload } from '@/services/realtime-contract-v1'
 import {
@@ -58,9 +60,41 @@ function PageContentPlaceholder({ view }: { view: Exclude<PageContentView, 'file
   )
 }
 
+function PageContentSkeleton({ view }: { view: PageContentView }) {
+  return (
+    <div
+      id={`page-content-${view}`}
+      role="tabpanel"
+      aria-labelledby={`page-content-tab-${view}`}
+      aria-busy="true"
+      data-page-content-skeleton
+      className="relative w-full pb-6"
+    >
+      <div aria-hidden="true" className="w-full space-y-3">
+        <div className="h-8 w-48 max-w-full animate-pulse rounded-lg bg-active" />
+        <div className="h-10 w-full animate-pulse rounded-xl bg-active" />
+        <div className="overflow-hidden rounded-xl border border-divider">
+          {[0, 1, 2, 3].map((row) => (
+            <div
+              key={row}
+              className="flex h-10 w-full items-center border-b border-divider px-3 last:border-b-0"
+            >
+              <span className="block h-3 w-full animate-pulse rounded bg-active" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export interface PageShellProps extends UsePageRealtimeOptions {
   /** Página aberta. `undefined` = ainda resolvendo (ex.: a entrada da workspace). */
   pageId?: string
+  /** Título transportado pela tela anterior; a API continua autoritativa. */
+  initialTitle?: string | null
+  /** Impede montar o renderer de conteúdo antes de seu snapshot estar pronto. */
+  contentLoading?: boolean
   /** Conteúdo da visualização de base, exibido quando `files` está ativo. */
   children?: ReactNode
 }
@@ -79,15 +113,23 @@ export interface PageShellProps extends UsePageRealtimeOptions {
  * pelo `pageId`, os dois caminhos de entrada caem na mesma — que é o que faz
  * dono e colaborador se enxergarem editando.
  */
-export function PageShell({ pageId, children, ...realtimeOptions }: PageShellProps) {
+export function PageShell({
+  pageId,
+  initialTitle,
+  contentLoading,
+  children,
+  ...realtimeOptions
+}: PageShellProps) {
   const auth = useAuth()
   const {
     isOpen: pageSettingsOpen,
     openDialog: openPageSettingsDialog,
     closeDialog: closePageSettingsDialog,
   } = useDialog()
-  const [title, setTitle] = useState<string | null>(null)
+  const [title, setTitle] = useState<string | null>(() => normalizePageTitle(initialTitle))
+  const [titlePageId, setTitlePageId] = useState(pageId)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [pageLoading, setPageLoading] = useState(Boolean(pageId))
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const [contentView, setContentView] = useState<PageContentView>('files')
   const [failed, setFailed] = useState(false)
@@ -117,7 +159,8 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
       // de milissegundo o segundo evento precisa vencer, como no redutor da base.
       if (appliedAt !== null && appliedAt > payload.updatedAt) return
       titleClockRef.current.updatedAt = payload.updatedAt
-      setTitle(payload.title)
+      setTitlePageId(payload.pageId)
+      setTitle(normalizePageTitle(payload.title))
       setUpdatedAt(payload.updatedAt)
       setFailed(false)
       notifyPageUpdated?.(payload)
@@ -169,11 +212,18 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
     }),
     [],
   )
+  // A troca de rota renderiza antes de o effect anterior limpar seu estado.
+  // Escopar o chrome pelo id impede um único frame com o título da página velha.
+  const titleBelongsToPage = titlePageId === pageId
+  const displayedTitle = titleBelongsToPage ? title : normalizePageTitle(initialTitle)
+  const displayedUpdatedAt = titleBelongsToPage ? updatedAt : null
+  const displayedFailed = titleBelongsToPage ? failed : false
+  const showContentSkeleton = !titleBelongsToPage || (contentLoading ?? pageLoading)
   const updatedAtLabel = useMemo(() => {
-    if (!updatedAt) return null
-    const relative = formatRelativeTime(updatedAt, relativeTimeNow)
+    if (!displayedUpdatedAt) return null
+    const relative = formatRelativeTime(displayedUpdatedAt, relativeTimeNow)
     return relative ? i18n('pages.app.pagina.updated-at', { relative }) : null
-  }, [relativeTimeNow, updatedAt])
+  }, [displayedUpdatedAt, relativeTimeNow])
 
   const openPageSettings = useCallback(
     (fragment: PageSettingsFragment) => {
@@ -219,20 +269,23 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
   // O flag `active` descarta a resposta de um unmount no meio do caminho —
   // sem ele, o setState cai num componente que já saiu da árvore.
   useEffect(() => {
+    setTitlePageId(pageId)
+    setTitle(normalizePageTitle(initialTitle))
+    setUpdatedAt(null)
+    setFailed(false)
+    setPageLoading(Boolean(pageId))
     if (!pageId) return
     let active = true
     const clockAtStart = titleClockRef.current.updatedAt
 
-    setTitle(null)
-    setUpdatedAt(null)
-    setFailed(false)
     databaseService
       .getPage(pageId)
       .then((page) => {
         // Um `page-updated` posterior ao início do fetch é mais novo que a
         // resposta potencialmente stale e não pode ser desfeito por ela.
         if (active && titleClockRef.current.updatedAt === clockAtStart) {
-          setTitle(page.title)
+          setTitlePageId(pageId)
+          setTitle(normalizePageTitle(page.title))
           setUpdatedAt(page.updated_at)
         }
       })
@@ -241,20 +294,23 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
           setFailed(true)
         }
       })
+      .finally(() => {
+        if (active) setPageLoading(false)
+      })
 
     return () => {
       active = false
     }
-  }, [pageId])
+  }, [initialTitle, pageId])
 
   // O rótulo relativo envelhece mesmo quando a página fica aberta sem novos
   // eventos. Um minuto é suficiente para a granularidade exibida no chrome.
   useEffect(() => {
-    if (!updatedAt) return
+    if (!displayedUpdatedAt) return
     setRelativeTimeNow(Date.now())
     const interval = window.setInterval(() => setRelativeTimeNow(Date.now()), 60_000)
     return () => window.clearInterval(interval)
-  }, [updatedAt])
+  }, [displayedUpdatedAt])
 
   // Carrega somente os vínculos de acesso. A guarda `active` impede que a
   // resposta de uma página anterior contamine a nova ao navegar rapidamente.
@@ -288,15 +344,23 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
       <header className="mb-8 flex flex-col-reverse">
-        <Typography variant="h1" className="flex-1">
-          {failed
-            ? i18n('pages.app.pagina.indisponivel')
-            : (title ?? i18n('pages.app.pagina.sem-titulo'))}
+        <Typography
+          variant="h1"
+          className="w-full flex-1"
+          aria-busy={!displayedFailed && displayedTitle === null}
+        >
+          {displayedFailed ? (
+            i18n('pages.app.pagina.indisponivel')
+          ) : displayedTitle === null ? (
+            <PageTitleSkeleton />
+          ) : (
+            displayedTitle
+          )}
         </Typography>
         <div className="flex items-center justify-between">
           {updatedAtLabel ? (
             <time
-              dateTime={updatedAt ?? undefined}
+              dateTime={displayedUpdatedAt ?? undefined}
               className="text-sm text-dark-100 dark:text-light-900"
             >
               {updatedAtLabel}
@@ -322,7 +386,9 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
         </div>
       </header>
 
-      {contentView === 'files' ? (
+      {showContentSkeleton ? (
+        <PageContentSkeleton view={contentView} />
+      ) : contentView === 'files' ? (
         <div
           id="page-content-files"
           role="tabpanel"
@@ -340,7 +406,7 @@ export function PageShell({ pageId, children, ...realtimeOptions }: PageShellPro
         fragment={pageSettingsFragment}
         onFragmentChange={openPageSettings}
         pageId={pageId}
-        pageTitle={title}
+        pageTitle={displayedTitle}
         currentUser={visualCurrentUser}
         collaborators={visualCollaborators}
         loading={collaboratorsLoading}

@@ -24,7 +24,7 @@ export function DatabaseViewSyncStatus({ status }: DatabaseViewSyncStatusProps) 
       role={status.state === 'error' ? 'alert' : 'status'}
       data-filter-sync-state={status.state}
       className={cn(
-        'ml-auto flex min-h-8 min-w-0 items-center gap-1.5 text-xs',
+        'flex min-h-8 min-w-0 items-center gap-1.5 text-xs',
         status.state === 'pending' && 'text-p-purple',
         status.state === 'error' && 'text-p-red',
         (status.state === 'confirmed' || status.state === 'saving') &&

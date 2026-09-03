@@ -41,7 +41,7 @@ vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 
-function page(title: string, id = PAGE_ID): ApiPage {
+function page(title: string | null, id = PAGE_ID): ApiPage {
   return {
     id,
     title,
@@ -157,6 +157,70 @@ describe('PageShell — page-updated', () => {
     await act(async () => request.resolve(page('Snapshot stale')))
     await waitFor(() => expect(screen.queryByText('Snapshot stale')).toBeNull())
     expect(screen.getByText('Autoritativo do socket')).toBeTruthy()
+  })
+})
+
+describe('PageShell — carregamento inicial', () => {
+  it('mostra o título transportado imediatamente e segura o conteúdo no skeleton', async () => {
+    const request = deferred<ApiPage>()
+    dependencies.getPage.mockReturnValueOnce(request.promise)
+
+    const { rerender } = render(
+      <PageShell pageId={PAGE_ID} initialTitle="Título transportado" contentLoading>
+        conteúdo autoritativo
+      </PageShell>,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Título transportado' })).toBeTruthy()
+    expect(document.querySelector('[data-page-title-skeleton]')).toBeNull()
+    expect(document.querySelector('[data-page-content-skeleton]')).toBeTruthy()
+    expect(screen.queryByText('conteúdo autoritativo')).toBeNull()
+
+    rerender(
+      <PageShell pageId={PAGE_ID} initialTitle="Título transportado" contentLoading={false}>
+        conteúdo autoritativo
+      </PageShell>,
+    )
+    expect(screen.getByText('conteúdo autoritativo')).toBeTruthy()
+
+    await act(async () => request.resolve(page('Título resgatado')))
+    expect(await screen.findByRole('heading', { name: 'Título resgatado' })).toBeTruthy()
+  })
+
+  it('usa skeleton de largura total no título e no conteúdo quando não recebeu title', () => {
+    dependencies.getPage.mockReturnValueOnce(new Promise<ApiPage>(() => undefined))
+    dependencies.listCollaborators.mockReturnValueOnce(
+      new Promise<ApiPageCollaborator[]>(() => undefined),
+    )
+
+    render(
+      <PageShell pageId={PAGE_ID} contentLoading>
+        conteúdo prematuro
+      </PageShell>,
+    )
+
+    const titleSkeleton = document.querySelector('[data-page-title-skeleton]')
+    expect(titleSkeleton).toBeTruthy()
+    expect(titleSkeleton?.className).toContain('relative')
+    expect(titleSkeleton?.className).toContain('w-full')
+    expect(titleSkeleton?.className).toContain('py-1')
+    expect(document.querySelector('[data-page-content-skeleton]')).toBeTruthy()
+    expect(screen.queryByText('pages.app.pagina.sem-titulo')).toBeNull()
+    expect(screen.queryByText('conteúdo prematuro')).toBeNull()
+  })
+
+  it('troca o título provisório pelo skeleton quando a API confirma title ausente', async () => {
+    const request = deferred<ApiPage>()
+    dependencies.getPage.mockReturnValueOnce(request.promise)
+
+    render(<PageShell pageId={PAGE_ID} initialTitle="Título provisório" />)
+    expect(screen.getByRole('heading', { name: 'Título provisório' })).toBeTruthy()
+
+    await act(async () => request.resolve(page(null)))
+    await waitFor(() =>
+      expect(document.querySelector('[data-page-title-skeleton]')).toBeTruthy(),
+    )
+    expect(screen.queryByText('Título provisório')).toBeNull()
   })
 })
 

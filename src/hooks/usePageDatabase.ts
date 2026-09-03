@@ -29,7 +29,10 @@ import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/da
 import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
-import type { PageRealtimeChannel } from '@/services/PageRealtimeChannel'
+import type {
+  PageRealtimeChannel,
+  PageStructureEvent,
+} from '@/services/PageRealtimeChannel'
 import { pageWriteService } from '@/services/PageWriteService'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
@@ -44,6 +47,14 @@ function toggleKey(set: Set<string>, key: string, present: boolean): Set<string>
   if (present) next.add(key)
   else next.delete(key)
   return next
+}
+
+function structureClockKey(event: PageStructureEvent): string {
+  const targetId =
+    event.type === 'row-created' || event.type === 'row-deleted'
+      ? event.payload.rowId
+      : event.payload.columnId
+  return `structure:${event.type}:${targetId}`
 }
 
 export interface UsePageDatabaseResult {
@@ -61,6 +72,7 @@ export interface UsePageDatabaseResult {
   cellErrors: Set<string>
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
+    onAddRow: () => void
     onCellChange: (change: CellChange) => void
     onCellEditConflict: (conflict: CellEditConflict) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
@@ -118,6 +130,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   const loadQueuedRef = useRef(false)
   const loadScopeRef = useRef(0)
   const loadScopePageIdRef = useRef<string | undefined>(undefined)
+  // Distingue a primeira leitura da página (skeleton) das ressincronizações
+  // sobre uma base já utilizável, que devem acontecer sem desmontar a tabela.
+  const loadedPageIdRef = useRef<string | undefined>(undefined)
   const mountedRef = useRef(true)
   const currentPageIdRef = useRef(pageId)
   currentPageIdRef.current = pageId
@@ -164,6 +179,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
 
   useEffect(() => {
     clearColumnWidthPreviews()
+    loadedPageIdRef.current = undefined
     settingsRef.current = {}
     materializedFallbackRef.current = { pageId }
     viewWriteQueueRef.current = Promise.resolve()
@@ -184,14 +200,21 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     // potencialmente stale. `applyRealtimeEvent` troca a referência do clock
     // sempre que aplica conteúdo, então ela funciona como versão causal.
     const clockAtStart = clockRef.current
+    const exposesLoading = loadedPageIdRef.current !== pageId
 
-    setLoading(true)
-    setFailed(false)
+    // Skeleton pertence somente à primeira carga/troca de página. Um ACK de
+    // reconexão ou fallback estrutural relê em background e conserva a tabela.
+    if (exposesLoading) {
+      setLoading(true)
+      setFailed(false)
+    }
     try {
       const loaded = await databaseService.loadPage(pageId)
       if (!isCurrent() || clockRef.current !== clockAtStart) return
       clockRef.current = {}
+      loadedPageIdRef.current = pageId
       settingsRef.current = loaded.settings
+      setFailed(false)
       setDatabase(loaded)
 
       if (
@@ -231,9 +254,10 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
           })
       }
     } catch {
-      if (isCurrent()) setFailed(true)
+      // Uma falha de resync não apaga um snapshot que ainda é utilizável.
+      if (isCurrent() && exposesLoading) setFailed(true)
     } finally {
-      if (isCurrent()) setLoading(false)
+      if (isCurrent() && exposesLoading) setLoading(false)
     }
   }, [pageId])
 
@@ -342,6 +366,57 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   >((channel) => {
     pageRealtimeChannelRef.current = channel
   }, [])
+
+  const handleStructureChanged = useCallback<
+    NonNullable<UsePageRealtimeOptions['onStructureChanged']>
+  >(
+    (event) => {
+      // Também invalida qualquer snapshot completo que tenha começado antes
+      // deste fato. Se já houver uma leitura em voo, o coalescer agenda uma
+      // passagem silenciosa depois dela para não reintroduzir estado velho.
+      clockRef.current = {
+        ...clockRef.current,
+        [structureClockKey(event)]: event.payload.updatedAt,
+      }
+
+      if (event.type === 'row-created') {
+        setDatabase((current) => {
+          if (!current || current.rows.some((row) => row.id === event.payload.rowId)) {
+            return current
+          }
+          return {
+            ...current,
+            rows: [...current.rows, { id: event.payload.rowId, cells: {} }],
+          }
+        })
+      } else if (event.type === 'row-deleted') {
+        setDatabase((current) => {
+          if (!current || !current.rows.some((row) => row.id === event.payload.rowId)) {
+            return current
+          }
+          return {
+            ...current,
+            rows: current.rows.filter((row) => row.id !== event.payload.rowId),
+          }
+        })
+        setCellErrors((current) => {
+          const prefix = `${event.payload.rowId}:`
+          const next = new Set([...current].filter((key) => !key.startsWith(prefix)))
+          return next.size === current.size ? current : next
+        })
+      } else {
+        // `column-created` não traz a definição da coluna no wire. Nesse caso
+        // ainda é preciso buscar a estrutura, mas a base permanece montada.
+        reload()
+        return
+      }
+
+      // Durante a primeira leitura ou outra leitura já ativa, garante que a
+      // resposta anterior ao evento não vença o merge incremental.
+      if (loadedPageIdRef.current !== pageId || loadInFlightRef.current) reload()
+    },
+    [pageId, reload],
+  )
 
   // Traduz o erro HTTP numa notificação. A CLASSE do erro (`classifyWriteError`,
   // puro) vira o sufixo da chave i18n; o texto sai do locale.
@@ -547,6 +622,26 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   )
 
   const handlers = {
+    onAddRow: useCallback(() => {
+      if (!pageId) return
+
+      // A API cria somente `pages` + `page_edges`; nenhuma célula EAV nasce
+      // aqui. A resposta HTTP e o broadcast `row-created` usam o mesmo merge
+      // idempotente: a ordem em que chegarem não duplica nem recarrega a base.
+      pageWriteService
+        .createRow(pageId)
+        .then((created) => {
+          if (currentPageIdRef.current !== pageId) return
+          setDatabase((current) => {
+            if (!current || current.rows.some((row) => row.id === created.id)) return current
+            return {
+              ...current,
+              rows: [...current.rows, { id: created.id, cells: {} }],
+            }
+          })
+        })
+        .catch(handleWriteError)
+    }, [handleWriteError, pageId]),
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
     onCellChange: cellMutation.mutate,
@@ -659,7 +754,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     columnWidthPreviews,
     realtimeOptions: {
       onEvent: handleRealtimeEvent,
-      onStructureChanged: reload,
+      onStructureChanged: handleStructureChanged,
       onColumnResize: handleRemoteColumnResize,
       onResync: reload,
       onChannelChange: handleRealtimeChannelChange,

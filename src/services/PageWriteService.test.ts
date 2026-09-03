@@ -15,6 +15,19 @@ const rowId = '01KXVZ0000ROW000000000001'
 const columnId = '01KXVZ0000COLUMN00000001'
 const url = `/pages/${rowId}/column/${columnId}/value`
 
+describe('PageWriteService.createRow', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('cria somente uma página-filha vazia pela rota da parent', async () => {
+    const created = { id: rowId, title: null, data: {} }
+    api.post.mockResolvedValueOnce(created)
+
+    await expect(new PageWriteService().createRow('parent-1')).resolves.toBe(created)
+
+    expect(api.post).toHaveBeenCalledWith('/pages/parent-1/page', {})
+  })
+})
+
 describe('PageWriteService.saveCell', () => {
   beforeEach(() => {
     vi.resetAllMocks()

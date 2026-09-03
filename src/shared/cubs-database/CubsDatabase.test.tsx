@@ -213,4 +213,29 @@ describe('CubsDatabase — filtros e agrupamentos', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }))
     expect(onAction).toHaveBeenCalledOnce()
   })
+
+  it('reutiliza a mesma criação no CTA Nova e no controle guiado', () => {
+    const onAddRow = vi.fn()
+    render(
+      <CubsDatabase
+        settings={{
+          [VIEW_ID]: {
+            view: 'table',
+            name: 'Tabela',
+            urlKey: { key: 'tabela', aliases: [] },
+            filters: emptyViewFilters(),
+            orderedHeaderCols: [],
+          },
+        }}
+        headerCols={[]}
+        rows={[]}
+        onAddRow={onAddRow}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nova' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar linha' }))
+
+    expect(onAddRow).toHaveBeenCalledTimes(2)
+  })
 })

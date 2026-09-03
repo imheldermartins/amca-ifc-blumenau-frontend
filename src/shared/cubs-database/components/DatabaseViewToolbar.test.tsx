@@ -8,6 +8,7 @@ import { emptyViewFilters } from '../viewFilters'
 import { DatabaseViewToolbar, type DatabaseViewToolbarLabels } from './DatabaseViewToolbar'
 
 const labels: DatabaseViewToolbarLabels = {
+  newPage: 'Nova',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -156,5 +157,30 @@ describe('DatabaseViewToolbar', () => {
     expect(screen.getByRole('status').textContent).toContain('Filtros alterados há 2 minutos')
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }))
     expect(onAction).toHaveBeenCalledOnce()
+  })
+
+  it('coloca o CTA circular Nova à esquerda do status e encaminha a criação', async () => {
+    const onAddRow = vi.fn()
+    render(
+      <DatabaseViewToolbar
+        columns={[]}
+        rows={[]}
+        filters={emptyViewFilters()}
+        labels={labels}
+        onAddRow={onAddRow}
+        syncStatus={{ state: 'confirmed', label: 'Atualizado há 1 minuto' }}
+      />,
+    )
+
+    const button = screen.getByRole('button', { name: 'Nova' })
+    const status = screen.getByRole('status')
+    expect(button.className).toContain('size-7')
+    expect(button.className).toContain('rounded-full')
+    expect(button.nextElementSibling).toBe(status)
+
+    fireEvent.focus(button)
+    expect((await screen.findByRole('tooltip')).textContent).toContain('Nova')
+    fireEvent.click(button)
+    expect(onAddRow).toHaveBeenCalledOnce()
   })
 })

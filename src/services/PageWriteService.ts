@@ -7,7 +7,7 @@ import type {
   ViewFiltersV2,
 } from 'cubs-database'
 
-import { TITLE_COLUMN_ID } from '@/lib/databaseParser'
+import { TITLE_COLUMN_ID, type ApiPage } from '@/lib/databaseParser'
 import { apiService } from '@/services/ApiService'
 
 /**
@@ -25,6 +25,11 @@ import { apiService } from '@/services/ApiService'
  * reverter o otimismo.
  */
 export class PageWriteService {
+  /** Cria somente a página-filha e sua aresta com a parent; células nascem ausentes. */
+  createRow(parentId: string): Promise<ApiPage> {
+    return apiService.post<ApiPage>(`/pages/${parentId}/page`, {})
+  }
+
   /**
    * Uma célula. `rowId` é a página-FILHA (a linha) e `columnId` a coluna: é
    * exatamente o par que o backend usa como chave (UNIQUE em

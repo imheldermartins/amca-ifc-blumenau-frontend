@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { Icon } from '@iconify/react'
+import { Button, Tooltip } from 'cubs-components'
 
 import type { HeaderCol, RowData } from '../types'
 import {
@@ -19,6 +21,7 @@ import { FilterPopover } from './FilterPopover'
 import { PrioritySelect } from './PrioritySelect'
 
 export interface DatabaseViewToolbarLabels {
+  newPage: string
   groupBy: string
   filters: string
   searchColumns: string
@@ -48,6 +51,8 @@ export interface DatabaseViewToolbarProps {
   onChange?: (filters: ViewFiltersV2) => void
   /** Estado de persistência/realtime já localizado pelo app host. */
   syncStatus?: DatabaseViewToolbarSyncStatus
+  /** Cria uma página-filha vazia na database atual. */
+  onAddRow?: () => void
 }
 
 function updateDocument(
@@ -69,6 +74,7 @@ export function DatabaseViewToolbar({
   labels,
   onChange,
   syncStatus,
+  onAddRow,
 }: DatabaseViewToolbarProps) {
   // O tipo público já é v2. A leitura tolerante mantém o pacote seguro para
   // consumidores JS e garante arrays novos antes de qualquer edição local.
@@ -150,7 +156,26 @@ export function DatabaseViewToolbar({
         )
       })}
 
-      {syncStatus ? <DatabaseViewSyncStatus status={syncStatus} /> : null}
+      {onAddRow || syncStatus ? (
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {onAddRow ? (
+            <Tooltip content={labels.newPage} delayDuration={0}>
+              <Button
+                type="button"
+                variant="filled"
+                color="purple"
+                aria-label={labels.newPage}
+                data-create-row
+                className="size-7 shrink-0 rounded-full p-0"
+                onClick={onAddRow}
+              >
+                <Icon aria-hidden="true" icon="lucide:plus" fontSize={16} />
+              </Button>
+            </Tooltip>
+          ) : null}
+          {syncStatus ? <DatabaseViewSyncStatus status={syncStatus} /> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

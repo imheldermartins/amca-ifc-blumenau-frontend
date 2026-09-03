@@ -35,6 +35,7 @@ const FALLBACK_VIEW: DataViewType = {
 }
 
 const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
+  newPage: 'Nova',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -358,6 +359,7 @@ export function CubsDatabase({
         filters={effectiveFilters}
         labels={resolvedToolbarLabels}
         syncStatus={filterSyncStatus}
+        onAddRow={onAddRow}
         onChange={
           onViewFiltersChange
             ? (filters) => onViewFiltersChange(currentViewId, filters)

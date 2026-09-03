@@ -12,6 +12,7 @@ import { usePageDatabase } from './usePageDatabase'
 const dependencies = vi.hoisted(() => ({
   feedback: vi.fn(),
   loadPage: vi.fn(),
+  createRow: vi.fn(),
   changeColumnType: vi.fn(),
   renameColumn: vi.fn(),
   resetColumn: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('@/services/DatabaseService', () => ({
 
 vi.mock('@/services/PageWriteService', () => ({
   pageWriteService: {
+    createRow: dependencies.createRow,
     changeColumnType: dependencies.changeColumnType,
     renameColumn: dependencies.renameColumn,
     resetColumn: dependencies.resetColumn,
@@ -52,6 +54,7 @@ vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 const ROW_ID = '01KXVZ0000ROW000000000001'
+const NEW_ROW_ID = '01KXVZ0000ROW000000000002'
 const COLUMN_ID = '01KXVZ0000COLUMN00000001'
 
 const emptyFilters = () => ({
@@ -102,6 +105,13 @@ async function flushMutation() {
 beforeEach(() => {
   vi.resetAllMocks()
   dependencies.loadPage.mockResolvedValue(database('inicial'))
+  dependencies.createRow.mockResolvedValue({
+    id: NEW_ROW_ID,
+    title: null,
+    data: {},
+    owner_id: '01KXVZ0000USER00000000001',
+    updated_at: '2026-09-02 01:00:00',
+  })
   dependencies.saveViewSnapshot.mockResolvedValue(undefined)
   dependencies.patchView.mockResolvedValue(undefined)
   dependencies.saveViewFilters.mockImplementation(
@@ -112,7 +122,132 @@ beforeEach(() => {
 
 afterEach(() => cleanup())
 
+describe('usePageDatabase — criação de página-linha', () => {
+  it('deduplica o eco row-created sem refetch e deixa a primeira edição como célula ausente', async () => {
+    const createRequest = deferred<{
+      id: string
+      title: null
+      data: Record<string, unknown>
+      owner_id: string
+      updated_at: string
+    }>()
+    dependencies.createRow.mockReturnValueOnce(createRequest.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onAddRow())
+
+    await waitFor(() => expect(dependencies.createRow).toHaveBeenCalledWith(PAGE_ID))
+    // O backend publica antes de encerrar a resposta HTTP. Esse eco já insere
+    // a filha e não pode disparar a antiga recarga da base inteira.
+    act(() => {
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'row-created',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: NEW_ROW_ID,
+          updatedAt: '2026-09-02T01:00:00.000Z',
+          originUserId: '01KXVZ0000USER00000000001',
+        },
+      })
+    })
+    await waitFor(() =>
+      expect(result.current.database?.rows.find((row) => row.id === NEW_ROW_ID)).toEqual({
+        id: NEW_ROW_ID,
+        cells: {},
+      }),
+    )
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    await act(async () =>
+      createRequest.resolve({
+        id: NEW_ROW_ID,
+        title: null,
+        data: {},
+        owner_id: '01KXVZ0000USER00000000001',
+        updated_at: '2026-09-02 01:00:00',
+      }),
+    )
+    expect(result.current.database?.rows.filter((row) => row.id === NEW_ROW_ID)).toHaveLength(1)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      result.current.handlers.onCellChange({
+        rowId: NEW_ROW_ID,
+        columnId: COLUMN_ID,
+        value: 'primeiro valor',
+        previousValue: undefined,
+      })
+    })
+    await flushMutation()
+
+    expect(dependencies.saveCell).toHaveBeenCalledWith({
+      rowId: NEW_ROW_ID,
+      columnId: COLUMN_ID,
+      value: 'primeiro valor',
+      previousValue: undefined,
+    })
+  })
+
+  it('aplica a criação remota e a edição seguinte somente sobre a nova linha', async () => {
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => {
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'row-created',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: NEW_ROW_ID,
+          updatedAt: '2026-09-02T01:00:00.000Z',
+          originUserId: 'outro-usuario',
+        },
+      })
+      result.current.realtimeOptions.onEvent?.({
+        type: 'cell-updated',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: NEW_ROW_ID,
+          columnId: COLUMN_ID,
+          value: 'valor remoto',
+          updatedAt: '2026-09-02T01:00:00.001Z',
+          originUserId: 'outro-usuario',
+        },
+      })
+    })
+
+    expect(result.current.database?.rows.find((row) => row.id === NEW_ROW_ID)).toEqual({
+      id: NEW_ROW_ID,
+      cells: { [COLUMN_ID]: { value: 'valor remoto' } },
+    })
+    expect(result.current.loading).toBe(false)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('usePageDatabase — concorrência e ressincronização da célula', () => {
+  it('mantém o snapshot visível durante um resync de background', async () => {
+    const background = deferred<ParsedDatabase>()
+    dependencies.loadPage
+      .mockResolvedValueOnce(database('inicial'))
+      .mockImplementationOnce(() => background.promise)
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.realtimeOptions.onResync?.())
+    await waitFor(() => expect(dependencies.loadPage).toHaveBeenCalledTimes(2))
+
+    expect(result.current.loading).toBe(false)
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('inicial')
+
+    await act(async () => background.resolve(database('ressincronizado')))
+    await waitFor(() =>
+      expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('ressincronizado'),
+    )
+    expect(result.current.loading).toBe(false)
+  })
+
   it('coalesce ACK e eventos estruturais em uma carga ativa e um único follow-up', async () => {
     const first = deferred<ParsedDatabase>()
     const afterJoin = deferred<ParsedDatabase>()

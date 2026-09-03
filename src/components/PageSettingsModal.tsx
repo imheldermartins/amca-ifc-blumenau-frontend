@@ -3,6 +3,7 @@ import { Button, cn } from 'cubs-components'
 import { Avatar } from '@components/Avatar'
 import { Modal } from '@components/Modal'
 import { Typography } from '@components/Typography'
+import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { i18n } from '@/lib/i18n'
 import type { UserVisualIdentity } from '@/types/user'
 
@@ -123,7 +124,7 @@ export function PageSettingsModal({
                   {i18n('pages.app.page-settings.page-name')}
                 </dt>
                 <dd className="mt-1 break-words font-medium">
-                  {pageTitle ?? i18n('pages.app.pagina.sem-titulo')}
+                  {pageTitle ? pageTitle : <PageTitleSkeleton />}
                 </dd>
               </div>
               <div>

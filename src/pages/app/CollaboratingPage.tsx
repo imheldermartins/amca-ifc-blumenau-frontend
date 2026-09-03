@@ -4,7 +4,9 @@ import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 
 import { Typography } from '@components/Typography'
+import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { i18n } from '@/lib/i18n'
+import { createPageNavigationState, normalizePageTitle } from '@/lib/pageNavigation'
 import { sharedPagesService, type ApiSharedPage } from '@/services/SharedPagesService'
 
 /**
@@ -70,6 +72,7 @@ export function CollaboratingPage() {
               <Link
                 to="/$lang/page/$pageId"
                 params={{ lang: lang ?? 'pt-br', pageId: page.id }}
+                state={createPageNavigationState(page.id, page.title)}
                 className={cn(
                   'flex h-48 flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
                   'shadow-lg shadow-dark-900/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',
@@ -78,8 +81,12 @@ export function CollaboratingPage() {
                 <div className='flex-1 flex flex-col'>
                   <span className="flex items-center gap-2">
                     <Icon icon="lucide:table" fontSize={16} className="shrink-0 text-p-purple" />
-                    <Typography variant="h3" as="span" className="text-md whitespace-normal line-clamp-2">
-                      {page.title ?? i18n('pages.app.pagina.sem-titulo')}
+                    <Typography
+                      variant="h3"
+                      as="span"
+                      className="text-md min-w-0 flex-1 whitespace-normal line-clamp-2"
+                    >
+                      {normalizePageTitle(page.title) ?? <PageTitleSkeleton />}
                     </Typography>
                   </span>
                   <Typography variant="caption" as="span" className="opacity-70">
