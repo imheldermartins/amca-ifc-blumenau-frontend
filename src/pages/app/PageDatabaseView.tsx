@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
@@ -12,7 +12,6 @@ import { PageShell } from '@components/PageShell'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
-import { useFeedback } from '@/contexts/FeedbackContext'
 import { formatRelativeTime } from '@/lib/formatRelativeTime'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
@@ -55,7 +54,6 @@ const EMPTY_ROWS: RowData[] = []
 export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
-  const feedback = useFeedback()
   const {
     database,
     loading,
@@ -67,7 +65,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   } = usePageDatabase(pageId)
   const [preferredViewId, setPreferredViewId] = useState('')
   const [relativeNow, setRelativeNow] = useState(() => Date.now())
-  const lastDiagnosticRef = useRef('')
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
   const viewQuery = useDatabaseViewQuery({
@@ -86,21 +83,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     const timer = setInterval(() => setRelativeNow(Date.now()), 60_000)
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    if (viewQuery.diagnostics.length === 0) {
-      lastDiagnosticRef.current = ''
-      return
-    }
-    const signature = JSON.stringify(viewQuery.diagnostics)
-    if (lastDiagnosticRef.current === signature) return
-    lastDiagnosticRef.current = signature
-    feedback({
-      title: i18n('pages.app.cubs-database.filtros.url-ajustada-titulo'),
-      description: i18n('pages.app.cubs-database.filtros.url-ajustada-descricao'),
-      variant: 'warning',
-    })
-  }, [feedback, viewQuery.diagnostics])
 
   const filterSyncStatus = useMemo<DatabaseViewToolbarSyncStatus>(() => {
     const relative = viewQuery.sync.updatedAt
@@ -202,14 +184,18 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       dragGroup: i18n('pages.app.cubs-database.agrupar.arrastar'),
       selectGroup: i18n('pages.app.cubs-database.agrupar.selecionar'),
       priority: i18n('pages.app.cubs-database.agrupar.prioridade'),
+      clearGroups: i18n('pages.app.cubs-database.agrupar.limpar'),
       where: i18n('pages.app.cubs-database.filtros.onde'),
       column: i18n('pages.app.cubs-database.filtros.coluna'),
       condition: i18n('pages.app.cubs-database.filtros.condicao'),
       value: i18n('pages.app.cubs-database.filtros.valor'),
       valueFrom: i18n('pages.app.cubs-database.filtros.valor-inicial'),
       valueTo: i18n('pages.app.cubs-database.filtros.valor-final'),
+      selectedOption: i18n('pages.app.cubs-database.filtros.opcao-selecionada'),
+      selectedOptions: i18n('pages.app.cubs-database.filtros.opcoes-selecionadas'),
       addFilter: i18n('pages.app.cubs-database.filtros.adicionar'),
       removeFilter: i18n('pages.app.cubs-database.filtros.remover'),
+      clearFilters: i18n('pages.app.cubs-database.filtros.limpar'),
       true: i18n('pages.app.cubs-database.agrupar.sim'),
       false: i18n('pages.app.cubs-database.agrupar.nao'),
       conditions: {
@@ -248,12 +234,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   // seleção já sobe completa como array de ids).
   const handleSelectionChange = useCallback((selectedPagesIds: string[]) => {
     console.log('[cubs-database] selection-change', selectedPagesIds)
-  }, [])
-
-  // A criação de linha vem pronta do hook e é compartilhada pelo CTA da
-  // toolbar e pelo controle guiado. A coluna continua apenas como terreno UI.
-  const handleAddColumn = useCallback(() => {
-    console.log('[cubs-database] guided-add-column')
   }, [])
 
   // Mesma razão do `labels` acima: os rótulos saem do i18next, que o linter
@@ -311,7 +291,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
           onViewChange={handleViewChange}
           onViewFiltersChange={viewQuery.changeLocal}
           onSelectionChange={handleSelectionChange}
-          onAddColumn={handleAddColumn}
+          onAddColumn={pageId && !broken ? handlers.onAddColumn : undefined}
           labels={labels}
           toolbarLabels={toolbarLabels}
           filterSyncStatus={filterSyncStatus}

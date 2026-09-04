@@ -29,6 +29,7 @@ export interface DatabaseViewToolbarLabels {
   dragGroup: string
   selectGroup: string
   priority: string
+  clearGroups?: string
   where: string
   column: string
   condition: string
@@ -37,6 +38,7 @@ export interface DatabaseViewToolbarLabels {
   valueTo: string
   addFilter: string
   removeFilter: string
+  clearFilters?: string
   true: string
   false: string
   conditions: Record<FilterCondition, string>
@@ -90,6 +92,7 @@ export function DatabaseViewToolbar({
     onChange?.(updateDocument(document, { groupBy }))
   const addFilter = (clause: ViewFilterClause) =>
     onChange?.(updateDocument(document, { clauses: [...document.clauses, clause] }))
+  const clearFilters = () => onChange?.(updateDocument(document, { clauses: [] }))
   const removeFilter = (index: number) =>
     onChange?.(
       updateDocument(document, {
@@ -112,6 +115,7 @@ export function DatabaseViewToolbar({
           drag: labels.dragGroup,
           select: labels.selectGroup,
           priority: labels.priority,
+          clear: labels.clearGroups,
         }}
       />
       <FilterPopover
@@ -120,6 +124,7 @@ export function DatabaseViewToolbar({
         filterCount={document.clauses.length}
         disabled={!onChange}
         onAdd={addFilter}
+        onClear={onChange ? clearFilters : undefined}
         labels={{
           trigger: labels.filters,
           where: labels.where,
@@ -129,6 +134,7 @@ export function DatabaseViewToolbar({
           valueFrom: labels.valueFrom,
           valueTo: labels.valueTo,
           add: labels.addFilter,
+          clear: labels.clearFilters,
           true: labels.true,
           false: labels.false,
           conditions: labels.conditions,

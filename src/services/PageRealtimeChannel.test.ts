@@ -107,12 +107,21 @@ describe('PageRealtimeChannel', () => {
     socket.receive('page-updated', page)
     expect(onPageUpdated).toHaveBeenCalledWith(page)
 
-    const column = { pageId: PAGE_ID, columnId: 'column-1', ...META }
+    const column = {
+      pageId: PAGE_ID,
+      columnId: 'column-1',
+      column: { id: 'column-1', name: 'Coluna', type: 'text', data: {} },
+      ...META,
+    }
     socket.receive('column-created', column)
-    socket.receive('column-deleted', { ...column, pageId: OTHER_PAGE_ID })
+    expect(onEvent).toHaveBeenCalledWith({ type: 'column-created', payload: column })
+    expect(onEvent).toHaveBeenCalledTimes(2)
+
+    const deleted = { pageId: PAGE_ID, columnId: 'column-1', ...META }
+    socket.receive('column-deleted', deleted)
     expect(onStructureChanged).toHaveBeenCalledWith({
-      type: 'column-created',
-      payload: column,
+      type: 'column-deleted',
+      payload: deleted,
     })
     expect(onStructureChanged).toHaveBeenCalledTimes(1)
 

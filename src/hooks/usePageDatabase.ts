@@ -18,6 +18,7 @@ import { useFeedback } from '@/contexts/FeedbackContext'
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import {
   applyLocalCellChange,
+  applyLocalColumnCreated,
   applyLocalColumnConfig,
   applyLocalColumnOptions,
   applyLocalColumnRename,
@@ -73,6 +74,7 @@ export interface UsePageDatabaseResult {
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
     onAddRow: () => void
+    onAddColumn: () => void
     onCellChange: (change: CellChange) => void
     onCellEditConflict: (conflict: CellEditConflict) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
@@ -405,8 +407,8 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
           return next.size === current.size ? current : next
         })
       } else {
-        // `column-created` não traz a definição da coluna no wire. Nesse caso
-        // ainda é preciso buscar a estrutura, mas a base permanece montada.
+        // Remoção de coluna ainda pede a estrutura autoritativa, mas a base
+        // permanece montada durante o resync.
         reload()
         return
       }
@@ -639,6 +641,28 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
               rows: [...current.rows, { id: created.id, cells: {} }],
             }
           })
+        })
+        .catch(handleWriteError)
+    }, [handleWriteError, pageId]),
+    onAddColumn: useCallback(() => {
+      if (!pageId) return
+
+      // A resposta HTTP e o eco carregam a mesma coluna completa. Ambos usam
+      // merge idempotente, então não importa qual chega primeiro e nenhuma
+      // linha ganha um value artificial para fazer o header aparecer.
+      pageWriteService
+        .createColumn(pageId, i18n('pages.app.cubs-database.nova-coluna'))
+        .then((created) => {
+          if (currentPageIdRef.current !== pageId) return
+          setDatabase((current) =>
+            current
+              ? applyLocalColumnCreated(
+                  current,
+                  created,
+                  i18n('pages.app.cubs-database.coluna-titulo'),
+                )
+              : current,
+          )
         })
         .catch(handleWriteError)
     }, [handleWriteError, pageId]),

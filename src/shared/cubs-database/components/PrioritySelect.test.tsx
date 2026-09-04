@@ -13,6 +13,7 @@ const labels = {
   drag: 'Alterar prioridade',
   select: 'Selecionar coluna',
   priority: 'Prioridade',
+  clear: 'Limpar agrupamento',
 }
 
 const options = [
@@ -64,5 +65,14 @@ describe('PrioritySelect', () => {
       'status',
       'area',
     ])
+  })
+
+  it('limpa todos os agrupamentos pelo botão interno e fecha o popover', () => {
+    render(<Probe />)
+    fireEvent.click(screen.getByRole('button', { name: 'Agrupar por' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar agrupamento' }))
+
+    expect(screen.getByTestId('value').textContent).toBe('')
+    expect(screen.queryByRole('searchbox', { name: 'Buscar coluna' })).toBeNull()
   })
 })

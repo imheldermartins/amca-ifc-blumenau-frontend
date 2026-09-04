@@ -7,7 +7,7 @@ import type {
   ViewFiltersV2,
 } from 'cubs-database'
 
-import { TITLE_COLUMN_ID, type ApiPage } from '@/lib/databaseParser'
+import { TITLE_COLUMN_ID, type ApiPage, type ApiPageColumn } from '@/lib/databaseParser'
 import { apiService } from '@/services/ApiService'
 
 /**
@@ -28,6 +28,11 @@ export class PageWriteService {
   /** Cria somente a página-filha e sua aresta com a parent; células nascem ausentes. */
   createRow(parentId: string): Promise<ApiPage> {
     return apiService.post<ApiPage>(`/pages/${parentId}/page`, {})
+  }
+
+  /** Cria apenas a definição da coluna; células EAV continuam ausentes. */
+  createColumn(parentId: string, name: string): Promise<ApiPageColumn> {
+    return apiService.post<ApiPageColumn>(`/pages/parent/${parentId}/columns?type=text`, { name })
   }
 
   /**

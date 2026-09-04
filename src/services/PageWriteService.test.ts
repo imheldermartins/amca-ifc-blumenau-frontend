@@ -28,6 +28,21 @@ describe('PageWriteService.createRow', () => {
   })
 })
 
+describe('PageWriteService.createColumn', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('cria uma coluna text sem materializar values nas páginas', async () => {
+    const created = { id: columnId, name: 'Coluna', type: 'text', data: {}, parent_id: 'parent-1' }
+    api.post.mockResolvedValueOnce(created)
+
+    await expect(new PageWriteService().createColumn('parent-1', 'Coluna')).resolves.toBe(created)
+
+    expect(api.post).toHaveBeenCalledWith('/pages/parent/parent-1/columns?type=text', {
+      name: 'Coluna',
+    })
+  })
+})
+
 describe('PageWriteService.saveCell', () => {
   beforeEach(() => {
     vi.resetAllMocks()

@@ -25,6 +25,7 @@ export interface PrioritySelectLabels {
   drag: string
   select: string
   priority: string
+  clear?: string
 }
 
 export interface PrioritySelectProps {
@@ -250,6 +251,19 @@ export function PrioritySelect({
             </SortableContext>
           </DndContext>
         )}
+      </div>
+      <div className="mt-2 flex justify-end border-t border-divider pt-2">
+        <Button
+          variant="text"
+          color="from-theme"
+          disabled={value.length === 0}
+          onClick={() => {
+            onValueChange([])
+            handleOpenChange(false)
+          }}
+        >
+          {labels.clear ?? 'Limpar agrupamento'}
+        </Button>
       </div>
     </Popover>
   )

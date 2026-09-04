@@ -16,6 +16,7 @@ const labels: DatabaseViewToolbarLabels = {
   dragGroup: 'Alterar prioridade',
   selectGroup: 'Selecionar coluna',
   priority: 'Prioridade',
+  clearGroups: 'Limpar agrupamento',
   where: 'Onde',
   column: 'Coluna',
   condition: 'Condição',
@@ -24,6 +25,7 @@ const labels: DatabaseViewToolbarLabels = {
   valueTo: 'Data final',
   addFilter: 'Adicionar filtro',
   removeFilter: 'Remover filtro',
+  clearFilters: 'Limpar filtros',
   true: 'Sim',
   false: 'Não',
   conditions: {
@@ -73,6 +75,30 @@ function DateProbe() {
   )
 }
 
+function ClearProbe() {
+  const [filters, setFilters] = useState<ViewFiltersV2>({
+    ...emptyViewFilters('2026-08-30T12:00:00.000Z'),
+    clauses: [{ columnId: 'name', condition: 'contains', values: ['Ana'] }],
+    groupBy: ['area'],
+    passthrough: [['order', 'updated_at']],
+  })
+  return (
+    <>
+      <output data-testid="filters">{JSON.stringify(filters)}</output>
+      <DatabaseViewToolbar
+        columns={[
+          { id: 'name', title: 'Nome', type: 'text' },
+          { id: 'area', title: 'Área', type: 'text' },
+        ]}
+        rows={[]}
+        filters={filters}
+        labels={labels}
+        onChange={setFilters}
+      />
+    </>
+  )
+}
+
 afterEach(() => cleanup())
 
 function readDocument(): ViewFiltersV2 {
@@ -80,6 +106,34 @@ function readDocument(): ViewFiltersV2 {
 }
 
 describe('DatabaseViewToolbar', () => {
+  it('limpa somente os filtros e preserva agrupamento e metadados', () => {
+    render(<ClearProbe />)
+    fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+
+    expect(readDocument()).toEqual({
+      version: 2,
+      updatedAt: '2026-08-30T12:00:00.000Z',
+      clauses: [],
+      groupBy: ['area'],
+      passthrough: [['order', 'updated_at']],
+    })
+  })
+
+  it('limpa somente o agrupamento e preserva filtros e metadados', () => {
+    render(<ClearProbe />)
+    fireEvent.click(screen.getByRole('button', { name: 'Agrupar por' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Limpar agrupamento' }))
+
+    expect(readDocument()).toEqual({
+      version: 2,
+      updatedAt: '2026-08-30T12:00:00.000Z',
+      clauses: [{ columnId: 'name', condition: 'contains', values: ['Ana'] }],
+      groupBy: [],
+      passthrough: [['order', 'updated_at']],
+    })
+  })
+
   it('salva grupo no documento sem criar chip e preserva passthrough', () => {
     render(<Probe />)
     fireEvent.click(screen.getByRole('button', { name: 'Agrupar por' }))
@@ -121,10 +175,10 @@ describe('DatabaseViewToolbar', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Entre' }))
 
     fireEvent.change(screen.getByLabelText('Data inicial'), {
-      target: { value: '2026-08-01' },
+      target: { value: '2026-08-01T08:30' },
     })
     fireEvent.change(screen.getByLabelText('Data final'), {
-      target: { value: '2026-08-31' },
+      target: { value: '2026-08-31T18:45' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar filtro' }))
 
@@ -132,7 +186,10 @@ describe('DatabaseViewToolbar', () => {
       {
         columnId: 'created',
         condition: 'between',
-        values: ['2026-08-01', '2026-08-31'],
+        values: [
+          new Date('2026-08-01T08:30').toISOString(),
+          new Date('2026-08-31T18:45').toISOString(),
+        ],
       },
     ])
   })

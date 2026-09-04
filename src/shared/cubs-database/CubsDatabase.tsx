@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { cn, type ContextMenuItem } from 'cubs-components'
 
@@ -24,7 +24,16 @@ import type {
   ViewFiltersV2,
 } from './types'
 import { reorderByIds } from './utils'
+import { viewFiltersSemanticSignature } from './viewFilterUrl'
 import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
+
+function useSemanticValue<T>(value: T, signature: string): T {
+  const stableRef = useRef({ signature, value })
+  if (stableRef.current.signature !== signature) {
+    stableRef.current = { signature, value }
+  }
+  return stableRef.current.value
+}
 
 const FALLBACK_VIEW: DataViewType = {
   view: 'table',
@@ -43,6 +52,7 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
   dragGroup: 'Alterar prioridade',
   selectGroup: 'Selecionar coluna',
   priority: 'Prioridade',
+  clearGroups: 'Limpar agrupamento',
   where: 'Onde',
   column: 'Coluna',
   condition: 'Condição',
@@ -51,6 +61,7 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
   valueTo: 'Valor final',
   addFilter: 'Adicionar filtro',
   removeFilter: 'Remover filtro',
+  clearFilters: 'Limpar filtros',
   true: 'Sim',
   false: 'Não',
   conditions: {
@@ -232,19 +243,41 @@ export function CubsDatabase({
     activeViewId ?? (settings[internalViewId] ? internalViewId : Object.keys(settings)[0] ?? '')
   const currentView = settings[currentViewId] ?? FALLBACK_VIEW
 
+  // `view-updated` carrega o snapshot completo. HTTP e socket podem entregar
+  // a mesma confirmação em momentos diferentes e cada parse cria arrays e
+  // objetos novos. A tabela usa referência para reconciliar seu estado
+  // otimista; portanto, estabilize as partes semanticamente idênticas para um
+  // eco de filtros não parecer uma troca da database inteira.
+  const stableViewTitle = useSemanticValue(
+    currentView.title,
+    JSON.stringify(currentView.title ?? null),
+  )
+  const stableOrderedHeaderCols = useSemanticValue(
+    currentView.orderedHeaderCols,
+    JSON.stringify(currentView.orderedHeaderCols),
+  )
+  const stableOrderedRows = useSemanticValue(
+    currentView.orderedRows,
+    JSON.stringify(currentView.orderedRows ?? null),
+  )
+  const stableColumnWidths = useSemanticValue(
+    currentView.columnWidths,
+    JSON.stringify(currentView.columnWidths ?? null),
+  )
+
   const basePageTitleColumn = useMemo(
     () => headerCols.find((column) => column.key === 'title'),
     [headerCols],
   )
   const pageTitleColumn = useMemo<PageTitleColumn>(
     () =>
-      currentView.title ?? {
+      stableViewTitle ?? {
         key: 'title',
         column_name: basePageTitleColumn?.title ?? '',
         ...(basePageTitleColumn?.mask && { mask: basePageTitleColumn.mask }),
         ...(basePageTitleColumn?.publicKey && { publicKey: basePageTitleColumn.publicKey }),
       },
-    [basePageTitleColumn, currentView.title],
+    [basePageTitleColumn, stableViewTitle],
   )
 
   // O mesmo `pages.title` pode aparecer como "Docente" numa view e "Nome"
@@ -274,18 +307,22 @@ export function CubsDatabase({
   // otimista (ordem local re-sincroniza quando a prop muda). Sem memo, cada
   // render daqui criaria um array novo e o sync descartaria o otimismo.
   const orderedColumns = useMemo(
-    () => reorderByIds(viewHeaderCols, currentView.orderedHeaderCols),
-    [viewHeaderCols, currentView.orderedHeaderCols],
+    () => reorderByIds(viewHeaderCols, stableOrderedHeaderCols),
+    [stableOrderedHeaderCols, viewHeaderCols],
   )
   const orderedRows = useMemo(
-    () => reorderByIds(rows, currentView.orderedRows ?? []),
-    [rows, currentView],
+    () => reorderByIds(rows, stableOrderedRows ?? []),
+    [rows, stableOrderedRows],
   )
   const effectiveFilters = filtersOverride ?? currentView.filters
   const parsedFilters = useMemo(() => parseViewFilters(effectiveFilters), [effectiveFilters])
+  const tableFilters = useSemanticValue(
+    parsedFilters,
+    viewFiltersSemanticSignature(parsedFilters),
+  )
   const filteredRows = useMemo(
-    () => applyViewFilters(orderedRows, orderedColumns, parsedFilters.clauses),
-    [orderedColumns, orderedRows, parsedFilters.clauses],
+    () => applyViewFilters(orderedRows, orderedColumns, tableFilters.clauses),
+    [orderedColumns, orderedRows, tableFilters.clauses],
   )
   const resolvedToolbarLabels = useMemo<DatabaseViewToolbarLabels>(
     () => ({
@@ -302,9 +339,9 @@ export function CubsDatabase({
   const displayedColumnWidths = useMemo(
     () =>
       previewWidths
-        ? { ...(currentView.columnWidths ?? {}), ...previewWidths }
-        : currentView.columnWidths,
-    [currentView.columnWidths, previewWidths],
+        ? { ...(stableColumnWidths ?? {}), ...previewWidths }
+        : stableColumnWidths,
+    [previewWidths, stableColumnWidths],
   )
 
   const handleColumnRename = useCallback(
@@ -373,7 +410,7 @@ export function CubsDatabase({
             key={currentViewId}
             columns={orderedColumns}
             rows={filteredRows}
-            groupBy={parsedFilters.groupBy}
+            groupBy={tableFilters.groupBy}
             columnWidths={displayedColumnWidths}
             cellErrors={cellErrors}
             loading={loading}

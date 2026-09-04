@@ -13,6 +13,7 @@ const dependencies = vi.hoisted(() => ({
   feedback: vi.fn(),
   loadPage: vi.fn(),
   createRow: vi.fn(),
+  createColumn: vi.fn(),
   changeColumnType: vi.fn(),
   renameColumn: vi.fn(),
   resetColumn: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('@/services/DatabaseService', () => ({
 vi.mock('@/services/PageWriteService', () => ({
   pageWriteService: {
     createRow: dependencies.createRow,
+    createColumn: dependencies.createColumn,
     changeColumnType: dependencies.changeColumnType,
     renameColumn: dependencies.renameColumn,
     resetColumn: dependencies.resetColumn,
@@ -56,6 +58,7 @@ const PAGE_ID = '01KXVZ0000PARENT0000000001'
 const ROW_ID = '01KXVZ0000ROW000000000001'
 const NEW_ROW_ID = '01KXVZ0000ROW000000000002'
 const COLUMN_ID = '01KXVZ0000COLUMN00000001'
+const NEW_COLUMN_ID = '01KXVZ0000COLUMN00000002'
 
 const emptyFilters = () => ({
   version: 2 as const,
@@ -111,6 +114,13 @@ beforeEach(() => {
     data: {},
     owner_id: '01KXVZ0000USER00000000001',
     updated_at: '2026-09-02 01:00:00',
+  })
+  dependencies.createColumn.mockResolvedValue({
+    id: NEW_COLUMN_ID,
+    parent_id: PAGE_ID,
+    name: 'Coluna',
+    type: 'text',
+    data: { publicKey: { key: 'coluna', aliases: [] } },
   })
   dependencies.saveViewSnapshot.mockResolvedValue(undefined)
   dependencies.patchView.mockResolvedValue(undefined)
@@ -225,6 +235,55 @@ describe('usePageDatabase — criação de página-linha', () => {
   })
 })
 
+describe('usePageDatabase — criação de coluna', () => {
+  it('mescla resposta e eco sem refetch, sem duplicar e sem criar células', async () => {
+    const createRequest = deferred<{
+      id: string
+      parent_id: string
+      name: string
+      type: 'text'
+      data: { publicKey: { key: string; aliases: string[] } }
+    }>()
+    dependencies.createColumn.mockReturnValueOnce(createRequest.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onAddColumn())
+    expect(dependencies.createColumn).toHaveBeenCalledWith(
+      PAGE_ID,
+      'pages.app.cubs-database.nova-coluna',
+    )
+
+    const column = {
+      id: NEW_COLUMN_ID,
+      parent_id: PAGE_ID,
+      name: 'Coluna',
+      type: 'text' as const,
+      data: { publicKey: { key: 'coluna', aliases: [] } },
+    }
+    act(() => {
+      result.current.realtimeOptions.onEvent?.({
+        type: 'column-created',
+        payload: {
+          pageId: PAGE_ID,
+          columnId: NEW_COLUMN_ID,
+          column,
+          updatedAt: '2026-09-03T12:00:00.000Z',
+          originUserId: 'user-1',
+        },
+      })
+    })
+
+    expect(result.current.database?.headerCols.at(-1)?.title).toBe('Coluna')
+    expect(result.current.database?.rows[0].cells[NEW_COLUMN_ID]).toBeUndefined()
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    await act(async () => createRequest.resolve(column))
+    expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('usePageDatabase — concorrência e ressincronização da célula', () => {
   it('mantém o snapshot visível durante um resync de background', async () => {
     const background = deferred<ParsedDatabase>()
@@ -271,7 +330,7 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
         },
       })
       result.current.realtimeOptions.onStructureChanged?.({
-        type: 'column-created',
+        type: 'column-deleted',
         payload: {
           pageId: PAGE_ID,
           columnId: COLUMN_ID,

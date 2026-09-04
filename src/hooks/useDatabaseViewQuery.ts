@@ -628,8 +628,8 @@ export function useDatabaseViewQuery({
       const document = cloneFilters(filters)
       const writeKey = stateKey(scopeKey, viewId)
       setResolvedConflictScope(resolutionScope(writeKey, document))
-      writeUrl(viewId, document, false)
       enqueue(viewId, document)
+      writeUrl(viewId, document, false)
     },
     [enqueue, scopeKey, settings, writeUrl],
   )

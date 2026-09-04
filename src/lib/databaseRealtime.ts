@@ -38,6 +38,7 @@ import type {
 
 import type {
   CellUpdatedPayload,
+  ColumnCreatedPayload,
   ColumnUpdatedPayload,
   RowUpdatedPayload,
   ViewUpdatedPayload,
@@ -49,6 +50,7 @@ import type { ParsedDatabase } from '@/lib/databaseParser'
 export type DatabaseRealtimeEvent =
   | { type: 'cell-updated'; payload: CellUpdatedPayload }
   | { type: 'row-updated'; payload: RowUpdatedPayload }
+  | { type: 'column-created'; payload: ColumnCreatedPayload }
   | { type: 'column-updated'; payload: ColumnUpdatedPayload }
   | { type: 'view-updated'; payload: ViewUpdatedPayload }
 
@@ -130,6 +132,25 @@ export function applyLocalColumnRename(
   const headerCols = database.headerCols.slice()
   headerCols[index] = { ...column, title: name }
   return { ...database, headerCols }
+}
+
+function parseApiColumn(column: unknown, titleLabel: string): HeaderCol | null {
+  if (!column || typeof column !== 'object') return null
+  const [, parsed] = parseHeaderCols([column as ApiPageColumn], titleLabel)
+  return parsed ?? null
+}
+
+/** Insere somente o header confirmado; linhas/células permanecem intocadas. */
+export function applyLocalColumnCreated(
+  database: ParsedDatabase,
+  column: ApiPageColumn,
+  titleLabel: string,
+): ParsedDatabase {
+  if (database.headerCols.some((header) => header.id === column.id)) return database
+  const parsed = parseApiColumn(column, titleLabel)
+  return parsed
+    ? { ...database, headerCols: [...database.headerCols, parsed] }
+    : database
 }
 
 /** Aplica um patch parcial numa coluna do header (otimista). Puro. */
@@ -251,20 +272,33 @@ const DATABASE_REALTIME_HANDLERS = {
     return { database: next, clock: { ...clock, [key]: updatedAt }, applied: true }
   },
 
+  'column-created': ({ database, clock, titleLabel, unchanged }, payload) => {
+    const { columnId, column, updatedAt } = payload
+    const key = columnKey(columnId)
+    if (!isFresh(clock, key, updatedAt)) return unchanged
+
+    const parsed = parseApiColumn(column, titleLabel)
+    if (!parsed || parsed.id !== columnId) return unchanged
+
+    const alreadyExists = database.headerCols.some((header) => header.id === columnId)
+    return {
+      database: alreadyExists
+        ? database
+        : { ...database, headerCols: [...database.headerCols, parsed] },
+      clock: { ...clock, [key]: updatedAt },
+      applied: true,
+    }
+  },
+
   'column-updated': ({ database, clock, titleLabel, unchanged }, payload) => {
     const { columnId, column, updatedAt } = payload
     const key = columnKey(columnId)
     if (!isFresh(clock, key, updatedAt)) return unchanged
-    if (!column || typeof column !== 'object') return unchanged
-
     const columnIndex = database.headerCols.findIndex((header) => header.id === columnId)
     if (columnIndex < 0) return unchanged
 
-    // A coluna vem no formato da API, então reusa o adaptador do fetch
-    // inicial. `parseHeaderCols` traz a sintética primeiro; aqui interessa a
-    // coluna real, daí o `[1]`.
-    const [, parsed] = parseHeaderCols([column as ApiPageColumn], titleLabel)
-    if (!parsed) return unchanged
+    const parsed = parseApiColumn(column, titleLabel)
+    if (!parsed || parsed.id !== columnId) return unchanged
 
     const headerCols = database.headerCols.slice()
     headerCols[columnIndex] = { ...parsed, id: columnId }

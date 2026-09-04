@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   applyLocalCellChange,
+  applyLocalColumnCreated,
   applyLocalColumnRename,
   applyRealtimeEvent,
   type RealtimeClock,
@@ -223,6 +224,47 @@ describe('row-updated — o título da linha é campo da página, não coluna', 
 })
 
 describe('handlers registrados de coluna e snapshot', () => {
+  it('anexa uma coluna criada sem tocar nas linhas e deduplica o eco', () => {
+    const database = base()
+    const column = {
+      id: 'col-new',
+      name: 'Coluna',
+      type: 'text' as const,
+      parent_id: 'page-1',
+      data: { publicKey: { key: 'coluna', aliases: [] } },
+    }
+    const local = applyLocalColumnCreated(database, column, 'Título')
+
+    expect(local.headerCols.at(-1)).toEqual({
+      id: 'col-new',
+      title: 'Coluna',
+      type: 'text',
+      publicKey: { key: 'coluna', aliases: [] },
+    })
+    expect(local.rows).toBe(database.rows)
+
+    const echoed = applyRealtimeEvent(
+      local,
+      {},
+      {
+        type: 'column-created',
+        payload: {
+          pageId: 'page-1',
+          columnId: 'col-new',
+          column,
+          updatedAt: '2026-07-21T10:00:00Z',
+          originUserId: OUTRO,
+        },
+      },
+      'Título',
+    )
+
+    expect(echoed.applied).toBe(true)
+    expect(echoed.database).toBe(local)
+    expect(echoed.database.headerCols.filter(({ id }) => id === 'col-new')).toHaveLength(1)
+    expect(echoed.clock['column:col-new']).toBe('2026-07-21T10:00:00Z')
+  })
+
   it('substitui a definição completa com type, options, mask, format e currency', () => {
     const result = applyRealtimeEvent(
       base(),

@@ -441,30 +441,6 @@ const dateEquals: FilterConditionDefinition = {
   },
 }
 
-const dateGreaterThan: FilterConditionDefinition = {
-  id: 'greaterThan',
-  input: 'date',
-  arity: 1,
-  accepts: (values) => oneValue(values) && dateValues(values) !== null,
-  predicate: (cellValue, values) => {
-    const cell = cellDateInterval(cellValue)
-    const expected = dateValues(values)?.[0]
-    return Boolean(cell && expected && cell.start > expected.end)
-  },
-}
-
-const dateLessThan: FilterConditionDefinition = {
-  id: 'lessThan',
-  input: 'date',
-  arity: 1,
-  accepts: (values) => oneValue(values) && dateValues(values) !== null,
-  predicate: (cellValue, values) => {
-    const cell = cellDateInterval(cellValue)
-    const expected = dateValues(values)?.[0]
-    return Boolean(cell && expected && cell.end < expected.start)
-  },
-}
-
 const dateBetween: FilterConditionDefinition = {
   id: 'between',
   input: 'dateRange',
@@ -502,7 +478,7 @@ export const mappedFilters = {
   },
   date: {
     defaultCondition: 'equals',
-    conditions: [dateEquals, dateGreaterThan, dateLessThan, dateBetween],
+    conditions: [dateEquals, dateBetween],
   },
   checkbox: {
     defaultCondition: 'equals',

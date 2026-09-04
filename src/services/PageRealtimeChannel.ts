@@ -2,6 +2,7 @@ import type { DatabaseRealtimeEvent } from '@/lib/databaseRealtime'
 import type { CubsSocket } from '@/services/SocketService'
 import type {
   CellUpdatedPayload,
+  ColumnCreatedPayload,
   ColumnPayload,
   ColumnResizingPayload,
   ColumnUpdatedPayload,
@@ -14,7 +15,6 @@ import type {
 export type PageStructureEvent =
   | { type: 'row-created'; payload: RowPayload }
   | { type: 'row-deleted'; payload: RowPayload }
-  | { type: 'column-created'; payload: ColumnPayload }
   | { type: 'column-deleted'; payload: ColumnPayload }
 
 export interface PageRealtimeChannelCallbacks {
@@ -195,9 +195,9 @@ export class PageRealtimeChannel {
     }
   }
 
-  private readonly handleColumnCreated = (payload: ColumnPayload) => {
+  private readonly handleColumnCreated = (payload: ColumnCreatedPayload) => {
     if (this.belongsHere(payload)) {
-      this.callbacks.onStructureChanged?.({ type: 'column-created', payload })
+      this.callbacks.onEvent?.({ type: 'column-created', payload })
     }
   }
 

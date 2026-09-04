@@ -18,7 +18,10 @@ export interface FilterPopoverLabels {
   value: string
   valueFrom: string
   valueTo: string
+  selectedOption?: string
+  selectedOptions?: string
   add: string
+  clear?: string
   true: string
   false: string
   conditions: Record<FilterCondition, string>
@@ -53,13 +56,30 @@ function NumericValue(props: ValueEditorProps) {
   )
 }
 
+function toDateTimeLocal(value: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const twoDigits = (part: number) => String(part).padStart(2, '0')
+  return [
+    `${date.getFullYear()}-${twoDigits(date.getMonth() + 1)}-${twoDigits(date.getDate())}`,
+    `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}`,
+  ].join('T')
+}
+
+function fromDateTimeLocal(value: string): string {
+  if (!value) return ''
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
 function DateValue({ values, onChange, labels }: ValueEditorProps) {
   return (
     <TextField
-      type="date"
+      type="datetime-local"
       aria-label={labels.value}
-      value={values[0] ?? ''}
-      onChange={(event) => onChange([event.target.value])}
+      value={toDateTimeLocal(values[0] ?? '')}
+      onChange={(event) => onChange([fromDateTimeLocal(event.target.value)])}
     />
   )
 }
@@ -68,42 +88,95 @@ function DateRangeValue({ values, onChange, labels }: ValueEditorProps) {
   return (
     <div className="grid grid-cols-2 gap-2">
       <TextField
-        type="date"
+        type="datetime-local"
         aria-label={labels.valueFrom}
-        value={values[0] ?? ''}
-        onChange={(event) => onChange([event.target.value, values[1] ?? ''])}
+        value={toDateTimeLocal(values[0] ?? '')}
+        onChange={(event) => onChange([fromDateTimeLocal(event.target.value), values[1] ?? ''])}
       />
       <TextField
-        type="date"
+        type="datetime-local"
         aria-label={labels.valueTo}
-        value={values[1] ?? ''}
-        onChange={(event) => onChange([values[0] ?? '', event.target.value])}
+        value={toDateTimeLocal(values[1] ?? '')}
+        onChange={(event) => onChange([values[0] ?? '', fromDateTimeLocal(event.target.value)])}
       />
     </div>
   )
 }
 
 function SelectValue({ values, onChange, column, labels }: ValueEditorProps) {
+  const [open, setOpen] = useState(false)
+  const options = useMemo(() => column.options ?? [], [column.options])
+  const validOptionIds = useMemo(() => new Set(options.map((option) => option.id)), [options])
+  const selectedValues = values.filter((value) => validOptionIds.has(value))
+  const selectedCountLabel =
+    selectedValues.length === 0
+      ? labels.value
+      : `${selectedValues.length} ${
+          selectedValues.length === 1
+            ? (labels.selectedOption ?? 'opção selecionada')
+            : (labels.selectedOptions ?? 'opções selecionadas')
+        }`
+
   return (
-    <div className="max-h-36 space-y-1 overflow-y-auto rounded border border-divider p-2">
-      {(column.options ?? []).map((option) => (
-        <Checkbox
-          key={option.id}
-          label={option.label}
-          checked={values.includes(option.id)}
-          onCheckedChange={(checked) =>
-            onChange(
-              checked
-                ? [...values, option.id]
-                : values.filter((candidate) => candidate !== option.id),
-            )
-          }
-        />
-      ))}
-      {(column.options ?? []).length === 0 ? (
-        <span className="text-sm text-dark-100 dark:text-light-900">{labels.value}</span>
-      ) : null}
-    </div>
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      align="start"
+      className="w-[var(--radix-popover-trigger-width)] p-1"
+      trigger={
+        <Button
+          variant="outlined"
+          color="from-theme"
+          role="combobox"
+          aria-label={labels.value}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          disabled={options.length === 0}
+          className="h-9 w-full min-w-0 justify-between px-2.5 font-normal"
+        >
+          <span className="min-w-0 flex-1 truncate text-left whitespace-nowrap">
+            {selectedCountLabel}
+          </span>
+          <Icon
+            icon="lucide:chevron-down"
+            fontSize={16}
+            className={open ? 'shrink-0 rotate-180 opacity-60' : 'shrink-0 opacity-60'}
+          />
+        </Button>
+      }
+    >
+      <div
+        role="listbox"
+        aria-label={labels.value}
+        aria-multiselectable="true"
+        className="flex max-h-56 min-h-0 w-full flex-col gap-0.5 overflow-x-hidden overflow-y-auto"
+      >
+        {options.map((option) => {
+          const checked = selectedValues.includes(option.id)
+          return (
+            <div
+              key={option.id}
+              role="option"
+              aria-selected={checked}
+              className="w-full min-w-0 rounded px-2 py-1.5 transition-colors hover:bg-active"
+            >
+              <Checkbox
+                label={option.label}
+                checked={checked}
+                onCheckedChange={(next) =>
+                  onChange(
+                    next
+                      ? [...selectedValues, option.id]
+                      : selectedValues.filter((candidate) => candidate !== option.id),
+                  )
+                }
+                className="w-full min-w-0"
+              />
+            </div>
+          )
+        })}
+      </div>
+    </Popover>
   )
 }
 
@@ -137,6 +210,7 @@ export interface FilterPopoverProps {
   filterCount: number
   disabled?: boolean
   onAdd: (clause: ViewFilterClause) => void
+  onClear?: () => void
 }
 
 /** Editor declarativo “Onde coluna condição valor”, dirigido por mappedFilters. */
@@ -147,6 +221,7 @@ export function FilterPopover({
   filterCount,
   disabled,
   onAdd,
+  onClear,
 }: FilterPopoverProps) {
   const [open, setOpen] = useState(false)
   const [columnId, setColumnId] = useState(columns[0]?.id ?? '')
@@ -154,7 +229,7 @@ export function FilterPopover({
   const selectedType = selectedColumn ? columnTypes[selectedColumn.id] : undefined
   const defaultCondition = selectedType ? mappedFilters[selectedType].defaultCondition : 'equals'
   const [condition, setCondition] = useState<FilterCondition>(defaultCondition)
-  const [values, setValues] = useState<string[]>([''])
+  const [values, setValues] = useState<string[]>([])
 
   useEffect(() => {
     const firstColumn = columns[0]
@@ -162,7 +237,7 @@ export function FilterPopover({
     const firstType = columnTypes[firstColumn.id] ?? 'text'
     setColumnId(firstColumn.id)
     setCondition(mappedFilters[firstType].defaultCondition)
-    setValues([''])
+    setValues([])
   }, [columnId, columns, columnTypes])
 
   useEffect(() => {
@@ -172,8 +247,9 @@ export function FilterPopover({
     ) {
       return
     }
+    const nextDefinition = mappedFilters[selectedType].conditions[0]
     setCondition(mappedFilters[selectedType].defaultCondition)
-    setValues([''])
+    setValues(nextDefinition?.arity === 2 ? ['', ''] : [])
   }, [condition, selectedType])
 
   const definition = selectedType
@@ -196,9 +272,10 @@ export function FilterPopover({
 
   const resetForColumn = (nextColumnId: string) => {
     const nextType = columnTypes[nextColumnId] ?? 'text'
+    const nextDefinition = mappedFilters[nextType].conditions[0]
     setColumnId(nextColumnId)
     setCondition(mappedFilters[nextType].defaultCondition)
-    setValues([''])
+    setValues(nextDefinition?.arity === 2 ? ['', ''] : [])
   }
 
   const resetForCondition = (nextCondition: string) => {
@@ -214,6 +291,12 @@ export function FilterPopover({
     if (!selectedColumn || !definition || !definition.accepts(values)) return
     onAdd({ columnId: selectedColumn.id, condition: definition.id, values })
     setValues(definition.arity === 2 ? ['', ''] : [])
+    setOpen(false)
+  }
+
+  const handleClear = () => {
+    onClear?.()
+    setValues(definition?.arity === 2 ? ['', ''] : [])
     setOpen(false)
   }
 
@@ -273,7 +356,15 @@ export function FilterPopover({
           </div>
         ) : null}
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <Button
+          variant="text"
+          color="from-theme"
+          disabled={!onClear || filterCount === 0}
+          onClick={handleClear}
+        >
+          {labels.clear ?? 'Limpar filtros'}
+        </Button>
         <Button variant="filled" color="purple" disabled={!canAdd} onClick={handleAdd}>
           {labels.add}
         </Button>

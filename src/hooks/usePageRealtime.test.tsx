@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   CellUpdatedPayload,
+  ColumnCreatedPayload,
   ColumnPayload,
   ColumnResizingPayload,
   PageUpdatedPayload,
@@ -123,10 +124,11 @@ describe('usePageRealtime — sala e ressincronização', () => {
   })
 
   it('encaminha page-updated e mudanças estruturais sem conhecer o tipo da view', () => {
+    const onEvent = vi.fn()
     const onPageUpdated = vi.fn()
     const onStructureChanged = vi.fn()
     renderHook(() =>
-      usePageRealtime(PAGE_ID, { onPageUpdated, onStructureChanged }),
+      usePageRealtime(PAGE_ID, { onEvent, onPageUpdated, onStructureChanged }),
     )
     const socket = socketState.socket as unknown as FakeSocket
     const meta = {
@@ -138,23 +140,32 @@ describe('usePageRealtime — sala e ressincronização', () => {
       title: 'Título remoto',
       ...meta,
     }
-    const column: ColumnPayload = {
+    const column: ColumnCreatedPayload = {
       pageId: PAGE_ID,
       columnId: '01KXVZ0000COLUMN00000001',
+      column: {
+        id: '01KXVZ0000COLUMN00000001',
+        name: 'Coluna',
+        type: 'text',
+        data: {},
+      },
+      ...meta,
+    }
+    const deleted: ColumnPayload = {
+      pageId: PAGE_ID,
+      columnId: column.columnId,
       ...meta,
     }
 
     act(() => {
       socket.receive('page-updated', page)
       socket.receive('column-created', column)
-      socket.receive('column-deleted', { ...column, pageId: OTHER_PAGE_ID })
+      socket.receive('column-deleted', deleted)
     })
 
     expect(onPageUpdated).toHaveBeenCalledWith(page)
-    expect(onStructureChanged).toHaveBeenCalledWith({
-      type: 'column-created',
-      payload: column,
-    })
+    expect(onEvent).toHaveBeenCalledWith({ type: 'column-created', payload: column })
+    expect(onStructureChanged).toHaveBeenCalledWith({ type: 'column-deleted', payload: deleted })
     expect(onStructureChanged).toHaveBeenCalledTimes(1)
   })
 

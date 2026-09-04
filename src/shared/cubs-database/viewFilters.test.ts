@@ -207,12 +207,7 @@ describe('mappedFilters', () => {
       'lessThan',
     ])
     expect(mappedFilters.select.conditions.map(({ id }) => id)).toEqual(['equals'])
-    expect(mappedFilters.date.conditions.map(({ id }) => id)).toEqual([
-      'equals',
-      'greaterThan',
-      'lessThan',
-      'between',
-    ])
+    expect(mappedFilters.date.conditions.map(({ id }) => id)).toEqual(['equals', 'between'])
     expect(mappedFilters.checkbox.conditions.map(({ id }) => id)).toEqual(['equals'])
     expect(getFilterCondition('numeric', 'contains')).toBeUndefined()
   })
@@ -325,17 +320,7 @@ describe('view filter predicates', () => {
     ).toEqual(['r1'])
     expect(
       applyViewFilters(rows, columns, [
-        { columnId: 'period', condition: 'greaterThan', values: ['2026-08-31'] },
-      ]).map(({ id }) => id),
-    ).toEqual(['r2'])
-    expect(
-      applyViewFilters(rows, columns, [
-        { columnId: 'period', condition: 'lessThan', values: ['2026-08-01'] },
-      ]).map(({ id }) => id),
-    ).toEqual(['r3'])
-    expect(
-      applyViewFilters(rows, columns, [
-        { columnId: 'period', condition: 'equals', values: ['2026-09-01'] },
+        { columnId: 'period', condition: 'equals', values: ['2026-09-01T12:00:00.000Z'] },
       ]).map(({ id }) => id),
     ).toEqual(['r2'])
   })
