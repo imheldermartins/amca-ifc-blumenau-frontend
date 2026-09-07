@@ -35,6 +35,16 @@ export class PageWriteService {
     return apiService.post<ApiPageColumn>(`/pages/parent/${parentId}/columns?type=text`, { name })
   }
 
+  /** Soft delete da página/linha; o backend publica `row-deleted` pós-commit. */
+  deleteRow(rowId: string): Promise<unknown> {
+    return apiService.delete(`/pages/${rowId}`)
+  }
+
+  /** Soft delete da coluna; valores permanecem preservados sob o tombstone. */
+  deleteColumn(parentId: string, columnId: string): Promise<unknown> {
+    return apiService.delete(`/pages/parent/${parentId}/columns/${columnId}`)
+  }
+
   /**
    * Uma célula. `rowId` é a página-FILHA (a linha) e `columnId` a coluna: é
    * exatamente o par que o backend usa como chave (UNIQUE em

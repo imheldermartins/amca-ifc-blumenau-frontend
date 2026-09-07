@@ -3,13 +3,8 @@ import type { MouseEvent } from 'react'
 import { Icon } from '@iconify/react'
 import { ContextMenu, cn, type ContextMenuItem } from 'cubs-components'
 
-import type { DataViewKind, DataViewSettings } from '../types'
-
-const VIEW_ICON: Record<DataViewKind, string> = {
-  table: 'lucide:table',
-  board: 'lucide:kanban',
-  calendar: 'lucide:calendar',
-}
+import type { DataViewSettings } from '../types'
+import { VIEW_KIND_ICON } from '../viewKinds'
 
 export interface ViewTabsBarProps {
   settings: DataViewSettings
@@ -64,7 +59,7 @@ export function ViewTabsBar({ settings, activeViewId, onViewChange, viewMenuItem
               )}
             >
               <Icon
-                icon={VIEW_ICON[view.view]}
+                icon={VIEW_KIND_ICON[view.view]}
                 fontSize={15}
                 className={cn('shrink-0', active && 'text-p-purple')}
               />

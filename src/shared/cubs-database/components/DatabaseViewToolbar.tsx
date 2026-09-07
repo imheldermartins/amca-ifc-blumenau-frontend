@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { Button, Tooltip } from 'cubs-components'
+import { Button, Drawer, Select, Tooltip } from 'cubs-components'
 
-import type { HeaderCol, RowData } from '../types'
+import type { DataViewKind, HeaderCol, RowData } from '../types'
+import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
 import {
   parseViewFilters,
   VIEW_FILTERS_VERSION,
@@ -22,6 +23,11 @@ import { PrioritySelect } from './PrioritySelect'
 
 export interface DatabaseViewToolbarLabels {
   newPage: string
+  viewType: string
+  viewTypes: Record<DataViewKind, string>
+  presets: string
+  closePresets: string
+  presetsHello: string
   groupBy: string
   filters: string
   searchColumns: string
@@ -47,9 +53,11 @@ export interface DatabaseViewToolbarLabels {
 export interface DatabaseViewToolbarProps {
   columns: HeaderCol[]
   rows: RowData[]
+  viewKind: DataViewKind
   /** Documento canônico em memória; a conversão para keys públicas é da URL. */
   filters: ViewFiltersV2
   labels: DatabaseViewToolbarLabels
+  onViewKindChange?: (view: DataViewKind) => void
   onChange?: (filters: ViewFiltersV2) => void
   /** Estado de persistência/realtime já localizado pelo app host. */
   syncStatus?: DatabaseViewToolbarSyncStatus
@@ -72,12 +80,15 @@ function updateDocument(
 export function DatabaseViewToolbar({
   columns,
   rows,
+  viewKind,
   filters,
   labels,
+  onViewKindChange,
   onChange,
   syncStatus,
   onAddRow,
 }: DatabaseViewToolbarProps) {
+  const [presetsOpen, setPresetsOpen] = useState(false)
   // O tipo público já é v2. A leitura tolerante mantém o pacote seguro para
   // consumidores JS e garante arrays novos antes de qualquer edição local.
   const document = useMemo(() => parseViewFilters(filters), [filters])
@@ -87,6 +98,15 @@ export function DatabaseViewToolbar({
     [columns],
   )
   const validGroupBy = document.groupBy.filter((id) => columnsById.has(id))
+  const viewOptions = useMemo(
+    () =>
+      DATA_VIEW_KINDS.map((view) => ({
+        value: view,
+        label: labels.viewTypes[view],
+        icon: VIEW_KIND_ICON[view],
+      })),
+    [labels.viewTypes],
+  )
 
   const changeGroups = (groupBy: string[]) =>
     onChange?.(updateDocument(document, { groupBy }))
@@ -100,8 +120,27 @@ export function DatabaseViewToolbar({
       }),
     )
 
-  return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-1">
+  return [
+    <div key="toolbar" className="flex flex-wrap items-center gap-2 px-4 py-1">
+      <Tooltip content={labels.presets} delayDuration={0}>
+        <Button
+          type="button"
+          variant="text"
+          color="from-theme"
+          aria-label={labels.presets}
+          className="size-8 shrink-0 p-0"
+          onClick={() => setPresetsOpen(true)}
+        >
+          <Icon aria-hidden="true" icon="lucide:settings-2" fontSize={20} />
+        </Button>
+      </Tooltip>
+      <Select
+        aria-label={labels.viewType}
+        value={viewKind}
+        options={viewOptions}
+        disabled={!onViewKindChange}
+        onValueChange={(value) => onViewKindChange?.(value as DataViewKind)}
+      />
       <PrioritySelect
         options={columns.map((column) => ({ value: column.id, label: column.title }))}
         value={validGroupBy}
@@ -182,6 +221,20 @@ export function DatabaseViewToolbar({
           {syncStatus ? <DatabaseViewSyncStatus status={syncStatus} /> : null}
         </div>
       ) : null}
-    </div>
-  )
+    </div>,
+
+    <Drawer
+      key="presets"
+      open={presetsOpen}
+      onOpenChange={setPresetsOpen}
+      accessibleTitle={labels.presets}
+      closeLabel={labels.closePresets}
+    >
+      <div className="grid min-h-full place-items-center">
+        <strong className="rounded-2xl bg-p-purple-500/10 px-8 py-6 text-4xl font-black tracking-tight text-p-purple">
+          {labels.presetsHello}
+        </strong>
+      </div>
+    </Drawer>,
+  ]
 }

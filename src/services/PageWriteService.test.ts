@@ -43,6 +43,26 @@ describe('PageWriteService.createColumn', () => {
   })
 })
 
+describe('PageWriteService — lixeira', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.delete.mockResolvedValue(undefined)
+  })
+
+  it('usa DELETE semântico para o soft delete de página e coluna', async () => {
+    const service = new PageWriteService()
+
+    await service.deleteRow(rowId)
+    await service.deleteColumn('parent-1', columnId)
+
+    expect(api.delete).toHaveBeenNthCalledWith(1, `/pages/${rowId}`)
+    expect(api.delete).toHaveBeenNthCalledWith(
+      2,
+      `/pages/parent/parent-1/columns/${columnId}`,
+    )
+  })
+})
+
 describe('PageWriteService.saveCell', () => {
   beforeEach(() => {
     vi.resetAllMocks()

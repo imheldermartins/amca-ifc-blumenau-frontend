@@ -15,6 +15,10 @@ export interface PopoverProps {
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
   sideOffset?: number
+  /** Respiro mínimo do painel contra as bordas do viewport. */
+  collisionPadding?: number
+  /** `always` desloca o painel inteiro para dentro do viewport. */
+  sticky?: 'partial' | 'always'
   /** Classe da ÁREA DE CONTEÚDO (o painel flutuante). */
   className?: string
 }
@@ -40,6 +44,8 @@ export function Popover({
   side = 'bottom',
   align = 'start',
   sideOffset = 4,
+  collisionPadding,
+  sticky,
   className,
 }: PopoverProps) {
   return (
@@ -50,6 +56,8 @@ export function Popover({
           side={side}
           align={align}
           sideOffset={sideOffset}
+          collisionPadding={collisionPadding}
+          sticky={sticky}
           className={cn(
             'z-50',
             FLOATING_SURFACE_CLASSES,

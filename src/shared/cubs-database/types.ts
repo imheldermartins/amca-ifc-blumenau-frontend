@@ -17,7 +17,7 @@ export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
  * Importado E re-exportado: os tipos abaixo usam `OptionColor` local, e quem
  * consome a lib continua importando `OptionColor` de `cubs-database`.
  */
-import type { OptionColor } from 'cubs-components'
+import type { CurrencyCode, DatePickerLabels, OptionColor } from 'cubs-components'
 export type { OptionColor }
 
 /** Identidade legível usada somente nas fronteiras públicas (URL). */
@@ -48,8 +48,13 @@ export type NumberFormat = 'percentage' | 'currency'
  * (`CurrencyCode`), a mesma que o `applyMask` e o backend entendem. Ausente
  * com `format = currency` = a moeda padrão (BRL).
  */
-import type { CurrencyCode } from 'cubs-components'
 export type { CurrencyCode }
+
+/** Rótulos dos editores de célula injetados pelo app host. */
+export interface CellEditorLabels {
+  dragOption?: string
+  datePicker?: DatePickerLabels
+}
 
 /**
  * Máscara de uma coluna `text` — o subconjunto de PATTERN das máscaras do
@@ -142,11 +147,17 @@ export interface CellEditorProps {
    */
   hasError?: boolean
   /** Rótulos de a11y injetados pelo app host (i18n mora lá, nunca aqui). */
-  labels?: { dragOption?: string }
+  labels?: CellEditorLabels
 }
 
 /** Modos de visualização disponíveis (só 'table' implementado por enquanto). */
-export type DataViewKind = 'table' | 'board' | 'calendar'
+export type DataViewKind =
+  | 'table'
+  | 'grid'
+  | 'board'
+  | 'calendar'
+  | 'timeline'
+  | 'graph'
 
 export type FilterCondition =
   | 'equals'

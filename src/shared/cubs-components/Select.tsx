@@ -10,6 +10,8 @@ import { Tooltip } from './Tooltip'
 export interface SelectOption {
   value: string
   label: string
+  /** Ícone opcional exibido tanto no trigger selecionado quanto na lista. */
+  icon?: string
   disabled?: boolean
 }
 
@@ -40,7 +42,8 @@ function SelectView({
   errorMessage,
   'aria-label': ariaLabel,
 }: SelectViewProps) {
-  const selectedLabel = options.find((option) => option.value === value)?.label
+  const selectedOption = options.find((option) => option.value === value)
+  const selectedLabel = selectedOption?.label
   const field = (
     <RadixSelect.Root
       // Radix trata '' como "sem valor"; passar undefined é o que faz o
@@ -64,6 +67,14 @@ function SelectView({
               cn(PALETTE.red.border, 'focus-visible:ring-rose-300 dark:focus-visible:ring-rose-500'),
           )}
         >
+          {selectedOption?.icon ? (
+            <Icon
+              aria-hidden="true"
+              icon={selectedOption.icon}
+              fontSize={16}
+              className="shrink-0 text-p-purple"
+            />
+          ) : null}
           <RadixSelect.Value className="min-w-0 flex-1 truncate text-left whitespace-nowrap" placeholder={placeholder} />
           <RadixSelect.Icon asChild>
             <Icon icon="lucide:chevron-down" fontSize={16} className="shrink-0 opacity-60" />
@@ -97,10 +108,18 @@ function SelectView({
                 <Tooltip content={option.label} side="right">
                   <span
                     className={cn(
-                      'min-w-0 flex-1 truncate whitespace-nowrap',
+                      'flex min-w-0 flex-1 items-center gap-2 truncate whitespace-nowrap',
                       option.label.length > 24 && 'text-xs',
                     )}
                   >
+                    {option.icon ? (
+                      <Icon
+                        aria-hidden="true"
+                        icon={option.icon}
+                        fontSize={15}
+                        className="shrink-0 opacity-70"
+                      />
+                    ) : null}
                     <RadixSelect.ItemText>{option.label}</RadixSelect.ItemText>
                   </span>
                 </Tooltip>

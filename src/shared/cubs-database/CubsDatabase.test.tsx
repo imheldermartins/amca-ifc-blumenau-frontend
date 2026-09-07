@@ -106,6 +106,47 @@ describe('CubsDatabase — espaçamento das views', () => {
   })
 })
 
+describe('CubsDatabase — tipo da view atual', () => {
+  it('encaminha a seleção com o id ativo e identifica o placeholder do novo modo', async () => {
+    const onViewKindChange = vi.fn()
+    const settings = {
+      [VIEW_ID]: {
+        view: 'table' as const,
+        name: 'Principal',
+        urlKey: { key: 'principal', aliases: [] },
+        filters: emptyViewFilters(),
+        orderedHeaderCols: [],
+      },
+    }
+    const { rerender } = render(
+      <CubsDatabase
+        settings={settings}
+        headerCols={[]}
+        rows={[]}
+        onViewKindChange={onViewKindChange}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Tipo de visualização' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Grade' }))
+    expect(onViewKindChange).toHaveBeenCalledWith(VIEW_ID, 'grid')
+
+    rerender(
+      <CubsDatabase
+        settings={{ [VIEW_ID]: { ...settings[VIEW_ID], view: 'grid' } }}
+        headerCols={[]}
+        rows={[]}
+        onViewKindChange={onViewKindChange}
+        placeholderLabel="Visualização em construção"
+      />,
+    )
+
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.getByText('Grade', { selector: 'strong' })).not.toBeNull()
+    expect(screen.getByText('Visualização em construção')).not.toBeNull()
+  })
+})
+
 describe('CubsDatabase — filtros e agrupamentos', () => {
   const columns = [
     { id: 'name', title: 'Nome', type: 'text' as const },

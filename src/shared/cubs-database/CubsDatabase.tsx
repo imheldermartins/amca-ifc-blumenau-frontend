@@ -16,6 +16,7 @@ import type {
   ColumnConfigPatch,
   ColumnDataType,
   ColumnOption,
+  DataViewKind,
   DataViewSettings,
   DataViewType,
   HeaderCol,
@@ -24,6 +25,7 @@ import type {
   ViewFiltersV2,
 } from './types'
 import { reorderByIds } from './utils'
+import { VIEW_KIND_ICON } from './viewKinds'
 import { viewFiltersSemanticSignature } from './viewFilterUrl'
 import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
 
@@ -45,6 +47,18 @@ const FALLBACK_VIEW: DataViewType = {
 
 const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
   newPage: 'Nova',
+  viewType: 'Tipo de visualização',
+  viewTypes: {
+    table: 'Tabela',
+    grid: 'Grade',
+    board: 'Quadros',
+    calendar: 'Calendário',
+    timeline: 'Cronograma',
+    graph: 'Grafos',
+  },
+  presets: 'Predefinições',
+  closePresets: 'Fechar predefinições',
+  presetsHello: 'Hello World',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -87,6 +101,8 @@ export interface CubsDatabaseProps {
   /** Modo controlado da view ativa; sem isso o componente controla sozinho. */
   activeViewId?: string
   onViewChange?: (viewId: string) => void
+  /** Troca a projeção da view atual sem alterar sua identidade ou seus dados. */
+  onViewKindChange?: (viewId: string, view: DataViewKind) => void
   /** Itens do ContextMenu das tabs (botão direito; app host injeta i18n). */
   viewMenuItems?: (viewId: string) => ContextMenuItem[]
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
@@ -128,6 +144,8 @@ export interface CubsDatabaseProps {
    * futuro batchRealtimeUpdate: agir sobre N páginas de uma vez.
    */
   onSelectionChange?: (selectedPagesIds: string[]) => void
+  /** Envia uma página/linha para a lixeira. */
+  onDeleteRow?: (rowId: string) => void
   /**
    * Renomear coluna pelo menu do header (botão direito). Payload já no
    * formato do futuro `column-renamed` do realtime. A presença da prop é o
@@ -155,6 +173,8 @@ export interface CubsDatabaseProps {
    * presença da prop habilita o header vermelho + o item no menu.
    */
   onColumnReset?: (columnId: string) => void
+  /** Envia uma coluna real para a lixeira. */
+  onColumnDelete?: (columnId: string) => void
   /**
    * Uma coluna foi redimensionada (alça na borda direita do header). Chega o
    * id da view + o mapa COMPLETO de larguras — o `columnWidths` pronto para o
@@ -176,8 +196,9 @@ export interface CubsDatabaseProps {
   /** Relógio/estado de persistência e refresh remoto da view ativa. */
   filterSyncStatus?: DatabaseViewToolbarSyncStatus
   /** Traduções dos controles de filtro/agrupamento; a lib não acessa i18n. */
-  toolbarLabels?: Partial<Omit<DatabaseViewToolbarLabels, 'conditions'>> & {
+  toolbarLabels?: Partial<Omit<DatabaseViewToolbarLabels, 'conditions' | 'viewTypes'>> & {
     conditions?: Partial<DatabaseViewToolbarLabels['conditions']>
+    viewTypes?: Partial<DatabaseViewToolbarLabels['viewTypes']>
   }
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
@@ -186,7 +207,7 @@ export interface CubsDatabaseProps {
   /** Fetch inicial em andamento → skeleton. */
   loading?: boolean
   emptyLabel?: string
-  /** Texto das views ainda não implementadas (board/calendar). */
+  /** Texto das views ainda não implementadas. */
   placeholderLabel?: string
   /** Labels de acessibilidade/texto dos controles da linha. */
   labels?: TableRowLabels
@@ -196,8 +217,8 @@ export interface CubsDatabaseProps {
 /**
  * Visualização da base simulada (PageTree): topbar de views (tabs + context
  * menu no botão direito) e a view ativa — sem chrome em volta, só a view.
- * Por enquanto só 'table' renderiza de verdade; board e calendar mostram
- * placeholder.
+ * Por enquanto só 'table' renderiza de verdade; os demais modos mostram um
+ * placeholder identificado pelo tipo selecionado.
  */
 export function CubsDatabase({
   // Defaults defensivos: consumidor JS (sem TS) pode omitir na prática.
@@ -207,6 +228,7 @@ export function CubsDatabase({
   cellErrors,
   activeViewId,
   onViewChange,
+  onViewKindChange,
   viewMenuItems,
   onOpenRow,
   onCellChange,
@@ -217,11 +239,13 @@ export function CubsDatabase({
   onRowOrderChange,
   onColumnOrderChange,
   onSelectionChange,
+  onDeleteRow,
   onColumnRename,
   onPageTitleColumnChange,
   onColumnTypeChange,
   onColumnConfigChange,
   onColumnReset,
+  onColumnDelete,
   onColumnWidthChange,
   onColumnWidthPreview,
   columnWidthPreviews,
@@ -332,6 +356,10 @@ export function CubsDatabase({
         ...DEFAULT_TOOLBAR_LABELS.conditions,
         ...toolbarLabels?.conditions,
       },
+      viewTypes: {
+        ...DEFAULT_TOOLBAR_LABELS.viewTypes,
+        ...toolbarLabels?.viewTypes,
+      },
     }),
     [toolbarLabels],
   )
@@ -393,10 +421,16 @@ export function CubsDatabase({
       <DatabaseViewToolbar
         columns={orderedColumns}
         rows={orderedRows}
+        viewKind={currentView.view}
         filters={effectiveFilters}
         labels={resolvedToolbarLabels}
         syncStatus={filterSyncStatus}
         onAddRow={onAddRow}
+        onViewKindChange={
+          onViewKindChange
+            ? (view) => onViewKindChange(currentViewId, view)
+            : undefined
+        }
         onChange={
           onViewFiltersChange
             ? (filters) => onViewFiltersChange(currentViewId, filters)
@@ -426,6 +460,7 @@ export function CubsDatabase({
               onColumnOrderChange ? (ids) => onColumnOrderChange(currentViewId, ids) : undefined
             }
             onSelectionChange={onSelectionChange}
+            onDeleteRow={onDeleteRow}
             onColumnRename={
               onColumnRename || onPageTitleColumnChange ? handleColumnRename : undefined
             }
@@ -436,6 +471,7 @@ export function CubsDatabase({
                 : undefined
             }
             onColumnReset={onColumnReset}
+            onColumnDelete={onColumnDelete}
             onColumnWidthChange={
               onColumnWidthChange
                 ? (widths) => onColumnWidthChange(currentViewId, widths)
@@ -452,11 +488,14 @@ export function CubsDatabase({
             labels={labels}
           />
         ) : (
-          <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-divider-contrast px-4 py-8 opacity-60">
-            <Icon
-              icon={currentView.view === 'board' ? 'lucide:kanban' : 'lucide:calendar'}
-              fontSize={22}
-            />
+          <div
+            key={`${currentViewId}:${currentView.view}`}
+            className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-divider-contrast px-4 py-8 opacity-60"
+          >
+            <Icon icon={VIEW_KIND_ICON[currentView.view]} fontSize={22} />
+            <strong className="text-sm font-semibold">
+              {resolvedToolbarLabels.viewTypes[currentView.view]}
+            </strong>
             <span className="text-sm">{placeholderLabel}</span>
           </div>
         )}

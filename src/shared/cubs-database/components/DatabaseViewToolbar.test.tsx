@@ -3,12 +3,27 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { ViewFiltersV2 } from '../types'
+import type { DataViewKind, ViewFiltersV2 } from '../types'
 import { emptyViewFilters } from '../viewFilters'
-import { DatabaseViewToolbar, type DatabaseViewToolbarLabels } from './DatabaseViewToolbar'
+import {
+  DatabaseViewToolbar,
+  type DatabaseViewToolbarLabels,
+} from './DatabaseViewToolbar'
 
 const labels: DatabaseViewToolbarLabels = {
   newPage: 'Nova',
+  viewType: 'Tipo de visualização',
+  viewTypes: {
+    table: 'Tabela',
+    grid: 'Grade',
+    board: 'Quadros',
+    calendar: 'Calendário',
+    timeline: 'Cronograma',
+    graph: 'Grafos',
+  },
+  presets: 'Predefinições',
+  closePresets: 'Fechar predefinições',
+  presetsHello: 'Hello World',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -46,6 +61,7 @@ function Probe() {
     <>
       <output data-testid="filters">{JSON.stringify(filters)}</output>
       <DatabaseViewToolbar
+        viewKind="table"
         columns={[
           { id: 'name', title: 'Nome', type: 'text' },
           { id: 'area', title: 'Área', type: 'text' },
@@ -65,6 +81,7 @@ function DateProbe() {
     <>
       <output data-testid="filters">{JSON.stringify(filters)}</output>
       <DatabaseViewToolbar
+        viewKind="table"
         columns={[{ id: 'created', title: 'Criação', type: 'date' }]}
         rows={[]}
         filters={filters}
@@ -86,6 +103,7 @@ function ClearProbe() {
     <>
       <output data-testid="filters">{JSON.stringify(filters)}</output>
       <DatabaseViewToolbar
+        viewKind="table"
         columns={[
           { id: 'name', title: 'Nome', type: 'text' },
           { id: 'area', title: 'Área', type: 'text' },
@@ -99,13 +117,62 @@ function ClearProbe() {
   )
 }
 
+function ViewKindProbe() {
+  const [viewKind, setViewKind] = useState<DataViewKind>('table')
+  return (
+    <>
+      <output data-testid="view-kind">{viewKind}</output>
+      <DatabaseViewToolbar
+        viewKind={viewKind}
+        columns={[]}
+        rows={[]}
+        filters={emptyViewFilters()}
+        labels={labels}
+        onViewKindChange={setViewKind}
+      />
+    </>
+  )
+}
+
 afterEach(() => cleanup())
 
 function readDocument(): ViewFiltersV2 {
-  return JSON.parse(screen.getByTestId('filters').textContent ?? '{}') as ViewFiltersV2
+  return JSON.parse(
+    screen.getByTestId('filters').textContent ?? '{}',
+  ) as ViewFiltersV2
 }
 
 describe('DatabaseViewToolbar', () => {
+  it('troca o tipo atual por seleção única com icon-label', async () => {
+    render(<ViewKindProbe />)
+
+    fireEvent.click(
+      screen.getByRole('combobox', { name: 'Tipo de visualização' }),
+    )
+    const grade = await screen.findByRole('option', { name: 'Grade' })
+    fireEvent.click(grade)
+
+    expect(screen.getByTestId('view-kind').textContent).toBe('grid')
+    expect(
+      screen.getByRole('combobox', { name: 'Tipo de visualização' })
+        .textContent,
+    ).toContain('Grade')
+  })
+
+  it('abre as predefinições numa drawer de metade da página', () => {
+    render(<ViewKindProbe />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Predefinições' }))
+    const drawer = screen.getByRole('dialog', { name: 'Predefinições' })
+    expect(drawer.className).toContain('w-1/2')
+    expect(screen.getByText('Hello World').className).toContain('font-black')
+
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Fechar predefinições' }),
+    )
+    expect(screen.queryByRole('dialog', { name: 'Predefinições' })).toBeNull()
+  })
+
   it('limpa somente os filtros e preserva agrupamento e metadados', () => {
     render(<ClearProbe />)
     fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }))
@@ -137,7 +204,9 @@ describe('DatabaseViewToolbar', () => {
   it('salva grupo no documento sem criar chip e preserva passthrough', () => {
     render(<Probe />)
     fireEvent.click(screen.getByRole('button', { name: 'Agrupar por' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar coluna: Área' }))
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: 'Selecionar coluna: Área' }),
+    )
 
     const document = readDocument()
     expect(document.groupBy).toEqual(['area'])
@@ -161,11 +230,11 @@ describe('DatabaseViewToolbar', () => {
       { columnId: 'name', condition: 'contains', values: ['Ana'] },
     ])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remover filtro: Nome' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Remover filtro: Nome' }),
+    )
     expect(readDocument().clauses).toEqual([])
-    expect(readDocument().passthrough).toEqual([
-      ['order', 'updated_at'],
-    ])
+    expect(readDocument().passthrough).toEqual([['order', 'updated_at']])
   })
 
   it('oferece Entre somente pelo registry de date e salva os dois valores', () => {
@@ -198,6 +267,7 @@ describe('DatabaseViewToolbar', () => {
     const onAction = vi.fn()
     render(
       <DatabaseViewToolbar
+        viewKind="table"
         columns={[]}
         rows={[]}
         filters={emptyViewFilters()}
@@ -211,7 +281,9 @@ describe('DatabaseViewToolbar', () => {
       />,
     )
 
-    expect(screen.getByRole('status').textContent).toContain('Filtros alterados há 2 minutos')
+    expect(screen.getByRole('status').textContent).toContain(
+      'Filtros alterados há 2 minutos',
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Atualizar' }))
     expect(onAction).toHaveBeenCalledOnce()
   })
@@ -220,6 +292,7 @@ describe('DatabaseViewToolbar', () => {
     const onAddRow = vi.fn()
     render(
       <DatabaseViewToolbar
+        viewKind="table"
         columns={[]}
         rows={[]}
         filters={emptyViewFilters()}

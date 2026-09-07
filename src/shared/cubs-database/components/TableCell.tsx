@@ -1,10 +1,11 @@
 import { memo, useCallback } from 'react'
 import { Icon } from '@iconify/react'
-import { cn } from 'cubs-components'
+import { cn, formatDatePickerValue } from 'cubs-components'
 
 import type {
   CellChange,
   CellEditConflict,
+  CellEditorLabels,
   ColumnDataType,
   ColumnOption,
   HeaderCol,
@@ -48,6 +49,9 @@ function CellValue({
     // editor ("R$ 1.299,00" / "42%"), não o número cru do armazenamento.
     return <span className="truncate tabular-nums">{formatNumericValue(value, column.format)}</span>
   }
+  if (type === 'date') {
+    return <span className="truncate tabular-nums">{formatDatePickerValue(value)}</span>
+  }
   return (
     <span className={cn('truncate', type === 'numeric' && 'tabular-nums')}>
       {formatCellValue(value)}
@@ -60,6 +64,7 @@ function formatConflictValue(type: ColumnDataType, value: unknown, column: Heade
     return column.options?.find((option) => option.id === value)?.label ?? formatCellValue(value)
   }
   if (type === 'numeric' && column.format) return formatNumericValue(value, column.format)
+  if (type === 'date') return formatDatePickerValue(value)
   return formatCellValue(value)
 }
 
@@ -85,7 +90,7 @@ export interface TableCellProps {
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
   /** Rótulos de a11y dos editores (injetados pelo app host). */
-  labels?: { dragOption?: string }
+  labels?: CellEditorLabels
 }
 
 /**
@@ -96,8 +101,8 @@ export interface TableCellProps {
  * enganoso (ex.: o checkbox desmarcado, que pareceria um `false` real).
  *
  * MODO EDITÁVEL: com `onCellChange` presente, a célula despacha para o editor
- * do tipo no `CELL_EDITORS` (o cellMap) — tipo sem editor (date, por ora) cai
- * no render read-only. É o editor quem decide QUANDO commitar; a célula só
+ * do tipo no `CELL_EDITORS` (o cellMap). É o editor quem decide QUANDO
+ * commitar; a célula só
  * monta o `CellChange` (id da linha/coluna + valor anterior) e sobe.
  *
  * A largura é FIXA (`shrink-0` + width em px), nunca elástica: com `flex-1` a

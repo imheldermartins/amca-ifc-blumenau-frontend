@@ -39,17 +39,24 @@ export type { GuidedAddControlsProps } from './components/GuidedAddControls'
 export { VirtualScroller } from './components/VirtualScroller'
 export type { VirtualScrollerProps } from './components/VirtualScroller'
 export { TYPE_ICON } from './components/columnTypeIcons'
+export { DATA_VIEW_KINDS, VIEW_KIND_ICON, isDataViewKind } from './viewKinds'
 export { ColumnHeaderMenu } from './components/ColumnHeaderMenu'
 export type { ColumnHeaderMenuLabels, ColumnHeaderMenuProps } from './components/ColumnHeaderMenu'
 export { useShiftKey } from './components/useShiftKey'
 export { useSortableSensors } from './components/dndSensors'
 export { TableRow } from './components/TableRow'
 export type { TableRowLabels, TableRowProps } from './components/TableRow'
+export { RowActionsMenu } from './components/RowActionsMenu'
+export type {
+  RowActionsMenuLabels,
+  RowActionsMenuProps,
+} from './components/RowActionsMenu'
 export { TableCell } from './components/TableCell'
 export type { TableCellProps } from './components/TableCell'
 export {
   CELL_EDITORS,
   CheckboxCellEditor,
+  DateCellEditor,
   NumericCellEditor,
   OptionChip,
   OPTION_COLOR_CLASSES,
@@ -62,6 +69,7 @@ export type {
   CellChange,
   CellData,
   CellEditConflict,
+  CellEditorLabels,
   CellEditorProps,
   ColumnConfigPatch,
   ColumnDataType,

@@ -14,6 +14,14 @@ export { ContextMenu } from './ContextMenu'
 export type { ContextMenuItem, ContextMenuProps } from './ContextMenu'
 export { Popover } from './Popover'
 export type { PopoverProps } from './Popover'
+export { DatePicker } from './DatePicker'
+export type {
+  DatePickerLabels,
+  DatePickerProps,
+  DatePickerSelectionMode,
+} from './DatePicker'
+export { Drawer } from './Drawer'
+export type { DrawerProps } from './Drawer'
 export { Tooltip } from './Tooltip'
 export type { TooltipProps } from './Tooltip'
 export { NestedMenu } from './NestedMenu'
@@ -45,5 +53,18 @@ export {
   MASKS,
 } from './lib/masks'
 export type { CurrencyCode, MaskName } from './lib/masks'
+export {
+  formatDatePickerValue,
+  parseDatePickerValue,
+  parseDateValuePart,
+  parseMaskedDate,
+  serializeDatePickerValue,
+  serializeDateValuePart,
+} from './lib/dateValue'
+export type {
+  DateValuePart,
+  ParsedDatePickerValue,
+  SerializeDatePickerValueInput,
+} from './lib/dateValue'
 
 export { CUBS_COMPONENTS_VERSION } from './version'
