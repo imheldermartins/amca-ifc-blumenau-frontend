@@ -11,6 +11,13 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+// O Select do Radix centraliza o item ativo ao abrir. JSDOM não calcula
+// layout e não fornece scrollIntoView, mas a ausência não deve derrubar os
+// testes de seleção/teclado do componente.
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 // Radix Popper (Select/Tooltip) observa o tamanho do conteúdo para posicionar
 // o portal. JSDOM não implementa ResizeObserver; a suíte só precisa da
 // interface estável, pois não calcula layout real.

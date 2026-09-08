@@ -3,8 +3,12 @@ import { describe, expect, it } from 'vitest'
 import {
   applyLocalCellChange,
   applyLocalColumnCreated,
+  applyLocalColumnDeleted,
   applyLocalColumnRename,
+  applyLocalRowDeleted,
   applyRealtimeEvent,
+  restoreLocalColumnDeleted,
+  restoreLocalRowDeleted,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
 import { TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/databaseParser'
@@ -200,6 +204,30 @@ describe('applyLocalCellChange / applyLocalColumnRename — caminho otimista', (
 
     expect(applyLocalColumnRename(database, COLUNA, 'Status')).toBe(database)
     expect(applyLocalColumnRename(database, 'coluna-inexistente', 'X')).toBe(database)
+  })
+})
+
+describe('soft delete local — merge incremental e rollback pontual', () => {
+  it('remove e restaura uma página sem substituir o restante da base', () => {
+    const before = base()
+    const removed = applyLocalRowDeleted(before, LINHA)
+
+    expect(removed.rows).toHaveLength(0)
+    expect(applyLocalRowDeleted(removed, LINHA)).toBe(removed)
+    expect(restoreLocalRowDeleted(removed, before, LINHA).rows).toEqual(before.rows)
+  })
+
+  it('remove e restaura header + células da coluna', () => {
+    const before = base()
+    const removed = applyLocalColumnDeleted(before, COLUNA)
+
+    expect(removed.headerCols.map(({ id }) => id)).toEqual([TITLE_COLUMN_ID])
+    expect(removed.rows[0].cells[COLUNA]).toBeUndefined()
+    expect(applyLocalColumnDeleted(removed, COLUNA)).toBe(removed)
+
+    const restored = restoreLocalColumnDeleted(removed, before, COLUNA)
+    expect(restored.headerCols).toEqual(before.headerCols)
+    expect(restored.rows[0].cells[COLUNA]).toEqual({ value: 'inicial' })
   })
 })
 

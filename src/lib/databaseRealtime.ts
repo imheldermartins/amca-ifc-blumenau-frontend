@@ -153,6 +153,84 @@ export function applyLocalColumnCreated(
     : database
 }
 
+/** Remove uma página/linha localmente; eco e repetição devolvem a mesma base. */
+export function applyLocalRowDeleted(
+  database: ParsedDatabase,
+  rowId: string,
+): ParsedDatabase {
+  const index = database.rows.findIndex((row) => row.id === rowId)
+  if (index < 0) return database
+  return {
+    ...database,
+    rows: database.rows.filter((row) => row.id !== rowId),
+  }
+}
+
+/**
+ * Remove o header e as células órfãs de uma coluna sem remontar a base. As
+ * referências do snapshot podem permanecer: `reorderByIds` e os filtros já
+ * ignoram ids desconhecidos, e o backend conserva o tombstone de public key.
+ */
+export function applyLocalColumnDeleted(
+  database: ParsedDatabase,
+  columnId: string,
+): ParsedDatabase {
+  if (!database.headerCols.some((column) => column.id === columnId)) return database
+
+  return {
+    ...database,
+    headerCols: database.headerCols.filter((column) => column.id !== columnId),
+    rows: database.rows.map((row) => {
+      if (!(columnId in row.cells)) return row
+      const cells = { ...row.cells }
+      delete cells[columnId]
+      return { ...row, cells }
+    }),
+  }
+}
+
+/** Rollback pontual de uma linha removida, sem substituir mudanças concorrentes. */
+export function restoreLocalRowDeleted(
+  database: ParsedDatabase,
+  beforeDelete: ParsedDatabase,
+  rowId: string,
+): ParsedDatabase {
+  if (database.rows.some((row) => row.id === rowId)) return database
+  const oldIndex = beforeDelete.rows.findIndex((row) => row.id === rowId)
+  if (oldIndex < 0) return database
+  const rows = database.rows.slice()
+  rows.splice(Math.min(oldIndex, rows.length), 0, beforeDelete.rows[oldIndex]!)
+  return { ...database, rows }
+}
+
+/** Rollback pontual de coluna + células, preservando conteúdo recebido depois. */
+export function restoreLocalColumnDeleted(
+  database: ParsedDatabase,
+  beforeDelete: ParsedDatabase,
+  columnId: string,
+): ParsedDatabase {
+  if (database.headerCols.some((column) => column.id === columnId)) return database
+  const oldIndex = beforeDelete.headerCols.findIndex((column) => column.id === columnId)
+  if (oldIndex < 0) return database
+
+  const headerCols = database.headerCols.slice()
+  headerCols.splice(
+    Math.min(oldIndex, headerCols.length),
+    0,
+    beforeDelete.headerCols[oldIndex]!,
+  )
+  const oldRows = new Map(beforeDelete.rows.map((row) => [row.id, row]))
+  const rows = database.rows.map((row) => {
+    if (columnId in row.cells) return row
+    const oldCell = oldRows.get(row.id)?.cells[columnId]
+    return oldCell === undefined
+      ? row
+      : { ...row, cells: { ...row.cells, [columnId]: oldCell } }
+  })
+
+  return { ...database, headerCols, rows }
+}
+
 /** Aplica um patch parcial numa coluna do header (otimista). Puro. */
 function patchColumn(
   database: ParsedDatabase,

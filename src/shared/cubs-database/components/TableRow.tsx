@@ -1,33 +1,34 @@
 import { memo, useRef } from 'react'
+import type { MouseEvent } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
-import { Checkbox, cn } from 'cubs-components'
+import { Checkbox, cn, formatDatePickerValue } from 'cubs-components'
 
 import type {
   CellChange,
   CellEditConflict,
+  CellEditorLabels,
   ColumnDataType,
   ColumnOption,
   HeaderCol,
   RowData,
 } from '../types'
-import { cellErrorKey } from '../utils'
+import { cellErrorKey, formatCellValue, formatNumericValue, resolveColumnWidth } from '../utils'
 import type { ColumnHeaderMenuLabels } from './ColumnHeaderMenu'
+import { RowActionsMenu, type RowActionsMenuLabels } from './RowActionsMenu'
 import { TableCell } from './TableCell'
 
 /** Largura da célula de controles — o header usa o MESMO valor para alinhar. */
 export const CONTROL_CELL_WIDTH = 'w-24'
 
-export interface TableRowLabels extends ColumnHeaderMenuLabels {
+export interface TableRowLabels extends ColumnHeaderMenuLabels, CellEditorLabels, RowActionsMenuLabels {
   drag?: string
   select?: string
   /** Label do "selecionar todas" (header; só aparece com seleção ativa). */
   selectAll?: string
   /** Label do botão de abrir a página (ex.: "Abrir"). */
   open?: string
-  /** Label do drag handle de uma option no editor de select. */
-  dragOption?: string
   /** Label do drag handle de uma COLUNA (header). */
   dragColumn?: string
   /** Label da alça de redimensionar coluna. */
@@ -80,6 +81,14 @@ export interface TableRowProps {
   onCellEditConflict?: (conflict: CellEditConflict) => void
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
+  /** Move esta página uma posição na ordem visual atual. */
+  onMoveRow?: (rowIndex: number, direction: -1 | 1) => void
+  canMoveUp?: boolean
+  canMoveDown?: boolean
+  /** Envia a página/linha para a lixeira. */
+  onDeleteRow?: (rowId: string) => void
+  /** Clique simples na alça abre o menu; o caller pode suprimir o click pós-drag. */
+  onHandleClick?: (rowId: string, event: MouseEvent<HTMLButtonElement>) => void
   labels?: TableRowLabels
 }
 
@@ -100,7 +109,7 @@ export interface TableRowProps {
  * memoiza `labels` — um único literal inline em qualquer nível acima anula
  * este memo.
  */
-export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, indentLevel = 0, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, indentLevel = 0, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -126,7 +135,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
         zebra ? 'bg-contrast' : 'bg-background',
         // Área coberta pela seleção com Shift (âncora → linha sob o mouse).
         inShiftRange && 'bg-p-purple-500/10 dark:bg-p-purple-500/15',
-        isDragging && 'relative z-10 opacity-80',
+        isDragging && 'relative z-10 opacity-25',
       )}
     >
       <div
@@ -139,15 +148,32 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
           selected ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100 focus-within:opacity-100',
         )}
       >
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          aria-label={labels?.drag ?? 'Arrastar linha'}
-          {...(sortable ? { ...attributes, ...listeners } : {})}
-          className="cursor-grab rounded px-0.5 py-1 opacity-60 transition-colors hover:bg-active hover:opacity-100"
-        >
-          <Icon icon="lucide:grip-vertical" fontSize={18} />
-        </button>
+        <RowActionsMenu
+          trigger={
+            <button
+              type="button"
+              ref={setActivatorNodeRef}
+              aria-label={labels?.rowActions ?? 'Ações da página'}
+              {...(sortable ? { ...attributes, ...listeners } : {})}
+              onClick={onHandleClick ? (event) => onHandleClick(row.id, event) : undefined}
+              className={cn(
+                'glow-purple-hover rounded px-0.5 py-1 opacity-60 transition-colors hover:bg-active hover:opacity-100 focus-visible:outline-none',
+                sortable ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+              )}
+            >
+              <Icon icon="lucide:grip-vertical" fontSize={18} />
+            </button>
+          }
+          dragging={isDragging}
+          selected={selected}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          onSelect={() => onSelectedChange(rowIndex, !selected, false)}
+          onMoveUp={onMoveRow ? () => onMoveRow(rowIndex, -1) : undefined}
+          onMoveDown={onMoveRow ? () => onMoveRow(rowIndex, 1) : undefined}
+          onDelete={onDeleteRow ? () => onDeleteRow(row.id) : undefined}
+          labels={labels}
+        />
         <span onClickCapture={(event) => (shiftClickRef.current = event.shiftKey)} className="flex items-center">
           <Checkbox
             aria-label={labels?.select ?? 'Selecionar linha'}
@@ -159,7 +185,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
         <button
           type="button"
           onClick={() => onOpenRow?.(row)}
-          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs opacity-70 transition-colors hover:opacity-100 cursor-pointer"
+          className="flex cursor-pointer items-center gap-0.5 rounded px-1.5 py-0.5 text-xs opacity-70 transition-colors hover:opacity-100"
         >
           {labels?.open ?? 'Abrir'}
           <Icon icon="lucide:chevron-right" className="shrink-0" />
@@ -181,6 +207,89 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
           labels={labels}
         />
       ))}
+    </div>
+  )
+})
+
+export interface TableRowDragOverlayProps {
+  row: RowData
+  columns: HeaderCol[]
+  columnWidths?: Record<string, number>
+  columnTypes?: Record<string, ColumnDataType>
+  zebra: boolean
+  selected: boolean
+  indentLevel?: number
+  labels?: TableRowLabels
+}
+
+function formatOverlayCell(row: RowData, column: HeaderCol, type?: ColumnDataType): string {
+  const value = row.cells[column.id]?.value
+  if (value === undefined) return ''
+  if (type === 'checkbox') return value ? '✓' : '○'
+  if (type === 'select') {
+    return typeof value === 'string'
+      ? (column.options?.find((option) => option.id === value)?.label ?? '')
+      : ''
+  }
+  if (type === 'numeric' && column.format) return formatNumericValue(value, column.format)
+  if (type === 'date') return formatDatePickerValue(value)
+  return formatCellValue(value)
+}
+
+/** Réplica somente visual da linha ativa; nunca registra outro sortable. */
+export const TableRowDragOverlay = memo(function TableRowDragOverlay({
+  row,
+  columns,
+  columnWidths,
+  columnTypes,
+  zebra,
+  selected,
+  indentLevel = 0,
+  labels,
+}: TableRowDragOverlayProps) {
+  return (
+    <div
+      data-row-drag-overlay
+      aria-hidden="true"
+      className={cn(
+        'pointer-events-none flex w-max min-w-full items-stretch overflow-hidden rounded-lg border border-p-purple-500/30 shadow-xl ring-1 ring-p-purple-500/15',
+        zebra ? 'bg-contrast' : 'bg-background',
+      )}
+    >
+      <div
+        style={indentLevel > 0 ? { paddingLeft: Math.min(indentLevel, 4) * 10 } : undefined}
+        className={cn('flex shrink-0 items-center gap-1', CONTROL_CELL_WIDTH)}
+      >
+        <span className="text-base leading-none opacity-80">⠿</span>
+        <span
+          className={cn(
+            'flex size-4 items-center justify-center rounded border text-[10px] leading-none opacity-70',
+            selected && 'border-p-purple bg-p-purple text-white',
+          )}
+        >
+          {selected ? '✓' : null}
+        </span>
+        <span className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs opacity-70">
+          {labels?.open ?? 'Abrir'}
+          <span aria-hidden>›</span>
+        </span>
+      </div>
+
+      {columns.map((column, columnIndex) => {
+        const value = formatOverlayCell(row, column, columnTypes?.[column.id] ?? column.type)
+        return (
+          <div
+            key={column.id}
+            className={cn(
+              'flex shrink-0 items-center border-l border-divider px-2.5 py-1.5 text-sm',
+              columnIndex === columns.length - 1 && 'border-r',
+            )}
+            style={{ width: resolveColumnWidth(columnWidths?.[column.id]) }}
+          >
+            <span className="truncate">{value}</span>
+          </div>
+        )
+      })}
     </div>
   )
 })

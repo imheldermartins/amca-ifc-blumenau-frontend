@@ -43,8 +43,8 @@ aguardam a mesma chamada de refresh (o token não é rotacionado N vezes).
 ## Formulários (react-hook-form)
 
 - Os campos se registram sozinhos via contexto: envolva o form em
-  `<FormProvider {...form}>` e use `TextField`, `Checkbox`, `Select` ou
-  `Switch` (de [cubs-components](src/shared/cubs-components)) com `name` —
+  `<FormProvider {...form}>` e use `TextField`, `Checkbox`, `Select`, `Switch`
+  ou `DatePicker` (de [cubs-components](src/shared/cubs-components)) com `name` —
   estado, validação e mensagem de erro vêm do próprio campo, sem `useState`
   manual. Use `noValidate` no `<form>` (a validação é do RHF). Nenhum
   `<input>`/`<select>` avulso: os componentes existem para isso.
@@ -55,6 +55,11 @@ aguardam a mesma chamada de refresh (o token não é rotacionado N vezes).
   via `Intl.NumberFormat`; `unmaskCurrencyCents` faz o caminho de volta).
   Passe `mask="cpf"` no TextField; o valor é re-formatado a cada tecla,
   antes do RHF ler o evento.
+- **Datas** ([DatePicker.tsx](src/shared/cubs-components/DatePicker.tsx)):
+  aceita máscara `dd/mm/aaaa` e seleção no calendário, com hora e intervalo
+  opcionais. O valor entregue ao RHF já é o wire da API (`ISO` ou
+  `startISO@endISO`); sem hora, sai em UTC à meia-noite
+  (`T00:00:00.000Z`), sem depender do fuso do browser.
 - **Validators** ([src/lib/validators.ts](src/lib/validators.ts)): `required`,
   `email`, `minLength(n)`, `phoneBr`, `cpf` (com dígito verificador) — as
   mensagens de erro já vêm definidas (chaves `validation.*` do i18n).

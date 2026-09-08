@@ -8,6 +8,7 @@ import {
   type ColumnConfigPatch,
   type ColumnDataType,
   type ColumnOption,
+  type DataViewKind,
   type DataViewSettings,
   type DataViewType,
   type PageTitleColumn,
@@ -20,10 +21,14 @@ import {
   applyLocalCellChange,
   applyLocalColumnCreated,
   applyLocalColumnConfig,
+  applyLocalColumnDeleted,
   applyLocalColumnOptions,
   applyLocalColumnRename,
   applyLocalColumnType,
+  applyLocalRowDeleted,
   applyRealtimeEvent,
+  restoreLocalColumnDeleted,
+  restoreLocalRowDeleted,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
 import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/databaseParser'
@@ -83,10 +88,13 @@ export interface UsePageDatabaseResult {
     onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
     onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
     onColumnReset: (columnId: string) => void
+    onDeleteRow: (rowId: string) => void
+    onColumnDelete: (columnId: string) => void
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
+    onViewKindChange: (viewId: string, view: DataViewKind) => void
     onViewFiltersChange: (viewId: string, filters: ViewFiltersV2) => Promise<ViewFiltersV2>
   }
 }
@@ -138,6 +146,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   const mountedRef = useRef(true)
   const currentPageIdRef = useRef(pageId)
   currentPageIdRef.current = pageId
+  // Snapshot síncrono para o contexto das mutações destrutivas otimistas.
+  const databaseRef = useRef(database)
+  databaseRef.current = database
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
@@ -393,24 +404,28 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         })
       } else if (event.type === 'row-deleted') {
         setDatabase((current) => {
-          if (!current || !current.rows.some((row) => row.id === event.payload.rowId)) {
-            return current
-          }
-          return {
-            ...current,
-            rows: current.rows.filter((row) => row.id !== event.payload.rowId),
-          }
+          if (!current) return current
+          const next = applyLocalRowDeleted(current, event.payload.rowId)
+          databaseRef.current = next
+          return next
         })
         setCellErrors((current) => {
           const prefix = `${event.payload.rowId}:`
           const next = new Set([...current].filter((key) => !key.startsWith(prefix)))
           return next.size === current.size ? current : next
         })
-      } else {
-        // Remoção de coluna ainda pede a estrutura autoritativa, mas a base
-        // permanece montada durante o resync.
-        reload()
-        return
+      } else if (event.type === 'column-deleted') {
+        setDatabase((current) => {
+          if (!current) return current
+          const next = applyLocalColumnDeleted(current, event.payload.columnId)
+          databaseRef.current = next
+          return next
+        })
+        setCellErrors((current) => {
+          const suffix = `:${event.payload.columnId}`
+          const next = new Set([...current].filter((key) => !key.endsWith(suffix)))
+          return next.size === current.size ? current : next
+        })
       }
 
       // Durante a primeira leitura ou outra leitura já ativa, garante que a
@@ -601,6 +616,85 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     },
   })
 
+  const rowDeleteMutation = useMutation({
+    mutationFn: (rowId: string) => pageWriteService.deleteRow(rowId),
+    onMutate: (rowId: string) => {
+      const beforeDelete = databaseRef.current
+      if (!beforeDelete) return undefined
+      const clockKey = `structure:row-deleted:${rowId}`
+      const next = applyLocalRowDeleted(beforeDelete, rowId)
+      databaseRef.current = next
+      setDatabase(next)
+      setCellErrors((current) => {
+        const prefix = `${rowId}:`
+        return new Set([...current].filter((key) => !key.startsWith(prefix)))
+      })
+      return {
+        pageId: currentPageIdRef.current,
+        beforeDelete,
+        clockKey,
+        clockValue: clockRef.current[clockKey],
+      }
+    },
+    onError: (error, rowId, context) => {
+      notifyWriteError(error)
+      if (
+        !context ||
+        currentPageIdRef.current !== context.pageId ||
+        clockRef.current[context.clockKey] !== context.clockValue
+      ) {
+        return
+      }
+      setDatabase((current) => {
+        if (!current) return current
+        const restored = restoreLocalRowDeleted(current, context.beforeDelete, rowId)
+        databaseRef.current = restored
+        return restored
+      })
+    },
+  })
+
+  const columnDeleteMutation = useMutation({
+    mutationFn: (columnId: string) => {
+      if (!pageId || columnId === TITLE_COLUMN_ID) return Promise.resolve(null)
+      return pageWriteService.deleteColumn(pageId, columnId)
+    },
+    onMutate: (columnId: string) => {
+      const beforeDelete = databaseRef.current
+      if (!beforeDelete || columnId === TITLE_COLUMN_ID) return undefined
+      const clockKey = `structure:column-deleted:${columnId}`
+      const next = applyLocalColumnDeleted(beforeDelete, columnId)
+      databaseRef.current = next
+      setDatabase(next)
+      setCellErrors((current) => {
+        const suffix = `:${columnId}`
+        return new Set([...current].filter((key) => !key.endsWith(suffix)))
+      })
+      return {
+        pageId: currentPageIdRef.current,
+        beforeDelete,
+        clockKey,
+        clockValue: clockRef.current[clockKey],
+      }
+    },
+    onError: (error, columnId, context) => {
+      notifyWriteError(error)
+      if (
+        !context ||
+        currentPageIdRef.current !== context.pageId ||
+        clockRef.current[context.clockKey] !== context.clockValue
+      ) {
+        return
+      }
+      setDatabase((current) => {
+        if (!current) return current
+        const restored = restoreLocalColumnDeleted(current, context.beforeDelete, columnId)
+        databaseRef.current = restored
+        return restored
+      })
+    },
+  })
+
   const handleCellEditConflict = useCallback(
     (conflict: CellEditConflict) => {
       const key = cellErrorKey(conflict.rowId, conflict.columnId)
@@ -669,6 +763,8 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
     onCellChange: cellMutation.mutate,
+    onDeleteRow: rowDeleteMutation.mutate,
+    onColumnDelete: columnDeleteMutation.mutate,
     onCellEditConflict: handleCellEditConflict,
     onColumnOptionsChange: useCallback(
       (columnId: string, options: ColumnOption[]) => {
@@ -763,6 +859,14 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         pageRealtimeChannelRef.current?.previewColumnResize({ viewId, columnId, width })
       },
       [],
+    ),
+    onViewKindChange: useCallback(
+      (viewId: string, view: DataViewKind) => {
+        // Troca somente a projeção da view: o dataset atual permanece montado
+        // e a confirmação autoritativa chega pelo `view-updated` habitual.
+        saveViewPatch(viewId, { view })
+      },
+      [saveViewPatch],
     ),
     onViewFiltersChange: useCallback(
       (viewId: string, filters: ViewFiltersV2) => saveViewFilters(viewId, filters),

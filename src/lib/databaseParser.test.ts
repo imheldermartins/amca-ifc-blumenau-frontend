@@ -97,6 +97,36 @@ describe('databaseParser — coluna mestra de título', () => {
   })
 })
 
+describe('databaseParser — tipos de view', () => {
+  it.each(['table', 'grid', 'board', 'calendar', 'timeline', 'graph'] as const)(
+    'preserva o modo %s recebido no snapshot',
+    (view) => {
+      const parsed = parseDatabase({
+        page: {
+          id: '01KXVZ0000PAGE00000000001',
+          title: 'Base',
+          owner_id: '01KXVZ0000USER00000000001',
+          updated_at: '2026-08-31 16:00:00',
+          data: {
+            [VIEW_ID]: {
+              view,
+              name: 'Principal',
+              filters: '',
+              orderedHeaderCols: [],
+            },
+          },
+        },
+        columns: [],
+        dataset: [],
+        titleLabel: 'Título',
+        fallbackViewName: 'Tabela',
+      })
+
+      expect(parsed.settings[VIEW_ID].view).toBe(view)
+    },
+  )
+})
+
 describe('databaseParser — cores das opções', () => {
   it('preserva pink e purple recebidos do backend', () => {
     const [, column] = parseHeaderCols(

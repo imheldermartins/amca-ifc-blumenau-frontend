@@ -14,6 +14,8 @@ const dependencies = vi.hoisted(() => ({
   loadPage: vi.fn(),
   createRow: vi.fn(),
   createColumn: vi.fn(),
+  deleteRow: vi.fn(),
+  deleteColumn: vi.fn(),
   changeColumnType: vi.fn(),
   renameColumn: vi.fn(),
   resetColumn: vi.fn(),
@@ -41,6 +43,8 @@ vi.mock('@/services/PageWriteService', () => ({
   pageWriteService: {
     createRow: dependencies.createRow,
     createColumn: dependencies.createColumn,
+    deleteRow: dependencies.deleteRow,
+    deleteColumn: dependencies.deleteColumn,
     changeColumnType: dependencies.changeColumnType,
     renameColumn: dependencies.renameColumn,
     resetColumn: dependencies.resetColumn,
@@ -122,6 +126,8 @@ beforeEach(() => {
     type: 'text',
     data: { publicKey: { key: 'coluna', aliases: [] } },
   })
+  dependencies.deleteRow.mockResolvedValue(undefined)
+  dependencies.deleteColumn.mockResolvedValue(undefined)
   dependencies.saveViewSnapshot.mockResolvedValue(undefined)
   dependencies.patchView.mockResolvedValue(undefined)
   dependencies.saveViewFilters.mockImplementation(
@@ -280,6 +286,91 @@ describe('usePageDatabase — criação de coluna', () => {
 
     await act(async () => createRequest.resolve(column))
     expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePageDatabase — lixeira otimista', () => {
+  it('remove a página imediatamente e trata o próprio row-deleted como eco idempotente', async () => {
+    const request = deferred<unknown>()
+    dependencies.deleteRow.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onDeleteRow(ROW_ID))
+    expect(result.current.database?.rows).toHaveLength(0)
+    await waitFor(() => expect(dependencies.deleteRow).toHaveBeenCalledWith(ROW_ID))
+
+    act(() => {
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'row-deleted',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: ROW_ID,
+          updatedAt: '2026-09-07T18:00:00.000Z',
+          originUserId: 'eu',
+        },
+      })
+    })
+    expect(result.current.database?.rows).toHaveLength(0)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    await act(async () => request.resolve(undefined))
+  })
+
+  it('restaura somente a página removida quando o soft delete falha', async () => {
+    dependencies.deleteRow.mockRejectedValueOnce(new AppError('api', 'falhou', { status: 500 }))
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onDeleteRow(ROW_ID))
+    expect(result.current.database?.rows).toHaveLength(0)
+    await waitFor(() => expect(dependencies.feedback).toHaveBeenCalledTimes(1))
+
+    expect(result.current.database?.rows[0].id).toBe(ROW_ID)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('remove coluna e células sem reload e restaura ambas quando a escrita falha', async () => {
+    const request = deferred<unknown>()
+    dependencies.deleteColumn.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onColumnDelete(COLUMN_ID))
+    expect(result.current.database?.headerCols).toHaveLength(0)
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]).toBeUndefined()
+    await waitFor(() =>
+      expect(dependencies.deleteColumn).toHaveBeenCalledWith(PAGE_ID, COLUMN_ID),
+    )
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+
+    request.reject(new AppError('api', 'falhou', { status: 500 }))
+    await waitFor(() => expect(dependencies.feedback).toHaveBeenCalledTimes(1))
+    expect(result.current.database?.headerCols[0].id).toBe(COLUMN_ID)
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('inicial')
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('aplica column-deleted remoto incrementalmente sem desmontar a base', async () => {
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => {
+      result.current.realtimeOptions.onStructureChanged?.({
+        type: 'column-deleted',
+        payload: {
+          pageId: PAGE_ID,
+          columnId: COLUMN_ID,
+          updatedAt: '2026-09-07T18:00:00.000Z',
+          originUserId: 'outro',
+        },
+      })
+    })
+
+    expect(result.current.database?.headerCols).toHaveLength(0)
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]).toBeUndefined()
+    expect(result.current.loading).toBe(false)
     expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
   })
 })
@@ -690,6 +781,34 @@ describe('usePageDatabase — snapshot da view', () => {
     expect(dependencies.patchView.mock.calls[0][2]).toEqual({
       title: { key: 'title', column_name: 'Docente', mask: 'cpf' },
     })
+  })
+
+  it('troca a projeção da view otimisticamente e persiste somente seu tipo', async () => {
+    const viewId = '01KXVZ0000VIEW00000000001'
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: {
+        [viewId]: {
+          view: 'table',
+          name: 'Tabela',
+          urlKey: { key: 'tabela', aliases: [] },
+          filters: emptyFilters(),
+          orderedHeaderCols: [COLUMN_ID],
+        },
+      },
+    })
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onViewKindChange(viewId, 'timeline'))
+
+    expect(result.current.database?.settings[viewId].view).toBe('timeline')
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(1))
+    expect(dependencies.patchView).toHaveBeenCalledWith(PAGE_ID, viewId, {
+      view: 'timeline',
+    })
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
   })
 
   it('materializa o fallback e serializa drags rápidos sem perder o primeiro patch', async () => {

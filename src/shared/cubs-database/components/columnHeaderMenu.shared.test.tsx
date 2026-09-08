@@ -34,6 +34,7 @@ describe('buildColumnHeaderMenuNodes', () => {
         onColumnOptionsChange: vi.fn(),
         diverging: true,
         onColumnReset: vi.fn(),
+        onColumnDelete: vi.fn(),
       }),
     )
 
@@ -42,7 +43,25 @@ describe('buildColumnHeaderMenuNodes', () => {
       'change-type',
       'select-options',
       'reset-type',
+      'move-to-trash',
     ])
+  })
+
+  it('arma a exclusão de coluna como nó destrutivo separado por divider', () => {
+    const onColumnDelete = vi.fn()
+    const nodes = buildColumnHeaderMenuNodes(
+      createContext({ onColumnDelete }),
+    )
+
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0]).toMatchObject({
+      id: 'move-to-trash',
+      danger: true,
+      separatorBefore: true,
+      confirm: { icon: 'lucide:triangle-alert' },
+    })
+    nodes[0]?.onSelect?.()
+    expect(onColumnDelete).toHaveBeenCalledOnce()
   })
 
   it('delega ações de tipo e reset e fecha o menu', () => {

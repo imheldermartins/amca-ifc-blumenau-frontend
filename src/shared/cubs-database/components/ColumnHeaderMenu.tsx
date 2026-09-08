@@ -30,6 +30,8 @@ export interface ColumnHeaderMenuProps {
   diverging?: boolean
   /** Executa o "reset de tipos" (destrutivo). Aparece só com `diverging`. */
   onColumnReset?: () => void
+  /** Envia a coluna real para a lixeira após confirmação inline. */
+  onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
   /** Posicionamento fica com o caller (painel é `absolute`; pai `relative`). */
   className?: string
@@ -107,6 +109,7 @@ export function ColumnHeaderMenu({
   onColumnConfigChange,
   diverging,
   onColumnReset,
+  onColumnDelete,
   labels,
   className,
   style,
@@ -160,6 +163,7 @@ export function ColumnHeaderMenu({
     onColumnConfigChange,
     diverging,
     onColumnReset,
+    onColumnDelete,
     labels,
   })
 

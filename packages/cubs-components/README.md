@@ -14,14 +14,18 @@ do Vite; o `dist` existe para o `npm pack` e para o build da `cubs-database`.
 |---|---|---|
 | `TextField` | sim | máscaras, `size`, `surface` (incl. `plain`, sem chrome), adornos |
 | `Checkbox` | sim | sobre Radix; suporta `indeterminate` (só modo state) |
-| `Select` | sim | sobre Radix; `options` por prop |
+| `Select` | sim | sobre Radix; `options` por prop, com ícone opcional |
 | `Switch` | sim | — |
+| `DatePicker` | sim | máscara + calendário; hora e intervalo opcionais; wire `ISO`/`startISO@endISO` |
 | `Button` | — | `variant` × `color` (paleta ou `from-theme`) |
 | `ContextMenu` | — | painel `absolute`; posicionamento fica com o caller |
 | `Popover` | — | sobre Radix; trigger `asChild` + conteúdo LIVRE, glass |
+| `Drawer` | — | sobre Radix Dialog; painel lateral acessível com 50% da viewport |
 
 Mais `cn`, `PALETTE`/`paletteBgText`/`paletteBorderText` e
-`applyMask`/`unmask`/`formatCurrency`.
+`applyMask`/`unmask`/`formatCurrency` e os codecs de data. Quando o
+`DatePicker` não inclui horário, ele serializa a data diretamente como UTC
+`T00:00:00.000Z`, sem conversão pelo fuso local.
 
 **Dual-mode** = o mesmo componente serve react-hook-form (prop `name`, dentro
 de um `<FormProvider>`) ou estado controlado (sem `name`). Ver a seção
@@ -54,7 +58,7 @@ Cada um entra em dois passos: valor em `:root` e `.dark`, depois
 `clsx` e `tailwind-merge` são deps normais (o `cn` é do pacote). Como peer:
 `react` (>=19), `react-hook-form` (>=7.80), `@iconify/react` para quem usar
 `ContextMenu`/`Checkbox`/`Select`, e os Radix por trás de cada primitiva
-(`@radix-ui/react-checkbox`, `react-select`, `react-popover`).
+(`@radix-ui/react-checkbox`, `react-select`, `react-popover`, `react-dialog`).
 
 `react-hook-form` é peer **obrigatório**, não opcional: o dual-mode importa
 `useFormContext`/`useController` estaticamente. Quem consome só o modo state

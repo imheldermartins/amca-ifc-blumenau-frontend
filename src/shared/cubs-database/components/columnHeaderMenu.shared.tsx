@@ -15,6 +15,8 @@ const COLUMN_TYPES: ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'ch
 const TEXT_MASKS: ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date']
 
 export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
+  /** Rótulo do trigger que também funciona como drag handle. */
+  columnActions?: string
   /** Rótulo do campo de renomear (aria-label; sem label visível). */
   renameColumn?: string
   /** Rótulos exibíveis por tipo de coluna; ausente = o token cru. */
@@ -34,6 +36,8 @@ export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
   masks?: Partial<Record<ColumnMask, string>>
   /** Item destrutivo de "reset de tipos" (só aparece com divergência). */
   resetType?: string
+  moveToTrash?: string
+  confirmMoveToTrash?: string
 }
 
 export interface ColumnHeaderMenuContext {
@@ -47,6 +51,7 @@ export interface ColumnHeaderMenuContext {
   onColumnConfigChange?: (patch: ColumnConfigPatch) => void
   diverging?: boolean
   onColumnReset?: () => void
+  onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
 }
 
@@ -217,6 +222,28 @@ class ResetTypeNodeHandler extends ColumnMenuNodeHandler {
   }
 }
 
+class DeleteColumnNodeHandler extends ColumnMenuNodeHandler {
+  protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
+    if (!context.onColumnDelete) return undefined
+
+    return {
+      id: 'move-to-trash',
+      name: context.labels?.moveToTrash ?? 'Mover para lixeira',
+      icon: 'lucide:trash-2',
+      separatorBefore: true,
+      danger: true,
+      confirm: {
+        icon: 'lucide:triangle-alert',
+        label: context.labels?.confirmMoveToTrash ?? 'Confirmar mover para lixeira',
+      },
+      onSelect: () => {
+        context.onColumnDelete?.()
+        context.onClose()
+      },
+    }
+  }
+}
+
 function createColumnMenuChain(): ColumnMenuNodeHandler {
   const first = new RenameNodeHandler()
   first
@@ -225,6 +252,7 @@ function createColumnMenuChain(): ColumnMenuNodeHandler {
     .setNext(new NumericFormatNodeHandler())
     .setNext(new TextMaskNodeHandler())
     .setNext(new ResetTypeNodeHandler())
+    .setNext(new DeleteColumnNodeHandler())
   return first
 }
 

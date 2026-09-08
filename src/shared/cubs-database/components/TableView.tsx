@@ -1,7 +1,14 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
+import {
+  DndContext,
+  DragOverlay,
+  closestCenter,
+  type DragCancelEvent,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
 import {
   SortableContext,
   arrayMove,
@@ -26,7 +33,7 @@ import { buildTableGroups } from '../tableGroups'
 import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
 import { GuidedAddControls } from './GuidedAddControls'
-import { CONTROL_CELL_WIDTH, TableRow } from './TableRow'
+import { CONTROL_CELL_WIDTH, TableRow, TableRowDragOverlay } from './TableRow'
 import type { TableRowLabels } from './TableRow'
 import { TableGroupAccordion } from './TableGroupAccordion'
 import { CUBS_SCROLLBAR_CLASS_NAME } from './scrollbarStyles'
@@ -68,6 +75,8 @@ export interface TableViewProps {
   onColumnOrderChange?: (orderedHeaderCols: string[]) => void
   /** Seleção mudou → `selectedPagesIds` completo (futuro batch do realtime). */
   onSelectionChange?: (selectedPagesIds: string[]) => void
+  /** Envia uma página/linha para a lixeira. */
+  onDeleteRow?: (rowId: string) => void
   /** Renomear coluna pelo menu do header (payload do `column-renamed`). */
   onColumnRename?: (columnId: string, name: string) => void
   /** Trocar o TIPO da coluna (menu). Não-destrutivo — ver o backend. */
@@ -76,6 +85,8 @@ export interface TableViewProps {
   onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
   /** "Reset de tipos" (destrutivo) de uma coluna divergente. */
   onColumnReset?: (columnId: string) => void
+  /** Envia uma coluna real para a lixeira. */
+  onColumnDelete?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
   onColumnWidthChange?: (columnWidths: Record<string, number>) => void
   /** Frame do drag → preview efêmero para outros clientes, sem persistência. */
@@ -102,6 +113,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   isLast,
   diverging,
   dragLabel,
+  menuLabel,
   resizeLabel,
   dragHandleLayer,
   scrollLeft,
@@ -121,6 +133,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   /** Há célula divergente do tipo atual → aviso vermelho no header. */
   diverging?: boolean
   dragLabel: string
+  menuLabel: string
   resizeLabel: string
   /** Camada fora do scrollport: evita que o overflow recorte o handle. */
   dragHandleLayer: HTMLDivElement | null
@@ -196,7 +209,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
           <button
             type="button"
             ref={setActivatorNodeRef}
-            aria-label={dragLabel}
+            aria-label={onHandleClick ? menuLabel : dragLabel}
             {...attributes}
             {...listeners}
             aria-haspopup={onHandleClick ? 'menu' : undefined}
@@ -300,7 +313,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const tableContentRef = useRef<HTMLDivElement>(null)
@@ -346,6 +359,8 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
   const [dragHandleLayer, setDragHandleLayer] = useState<HTMLDivElement | null>(null)
   const [tableScrollLeft, setTableScrollLeft] = useState(0)
   const suppressHandleMenuRef = useRef<string | null>(null)
+  const suppressRowHandleMenuRef = useRef<string | null>(null)
+  const [activeRowId, setActiveRowId] = useState<string | null>(null)
 
   const validGroupBy = useMemo(
     () => groupBy.filter((id) => localColumns.some((column) => column.id === id)),
@@ -364,6 +379,11 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     () => new Map(displayRows.map((row, index) => [row.id, index])),
     [displayRows],
   )
+  const activeRow = useMemo(
+    () => (activeRowId ? localRows.find((row) => row.id === activeRowId) : undefined),
+    [activeRowId, localRows],
+  )
+  const activeRowIndex = activeRow ? localRows.indexOf(activeRow) : -1
 
   const columnTypes = useMemo(
     () => resolveColumnTypes(localColumns, localRows),
@@ -441,14 +461,58 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
 
   const handleMouseLeave = useCallback(() => dispatch({ type: 'hover', rowIndex: null }), [])
 
+  const suppressRowHandleMenuAfterDrag = useCallback((rowId: string) => {
+    suppressRowHandleMenuRef.current = rowId
+    requestAnimationFrame(() => {
+      if (suppressRowHandleMenuRef.current === rowId) suppressRowHandleMenuRef.current = null
+    })
+  }, [])
+
+  const handleRowDragStart = useCallback(({ active }: DragStartEvent) => {
+    setActiveRowId(String(active.id))
+  }, [])
+
+  const handleRowDragCancel = useCallback(
+    ({ active }: DragCancelEvent) => {
+      suppressRowHandleMenuAfterDrag(String(active.id))
+      setActiveRowId(null)
+    },
+    [suppressRowHandleMenuAfterDrag],
+  )
+
   const handleRowDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
+      suppressRowHandleMenuAfterDrag(String(active.id))
+      setActiveRowId(null)
       if (!over || active.id === over.id) return
       setLocalRows((current) => {
         const from = current.findIndex((row) => row.id === active.id)
         const to = current.findIndex((row) => row.id === over.id)
         if (from < 0 || to < 0) return current
         const next = arrayMove(current, from, to)
+        onRowOrderChange?.(next.map((row) => row.id))
+        return next
+      })
+    },
+    [onRowOrderChange, suppressRowHandleMenuAfterDrag],
+  )
+
+  const handleRowHandleClick = useCallback(
+    (rowId: string, event: MouseEvent<HTMLButtonElement>) => {
+      if (suppressRowHandleMenuRef.current !== rowId) return
+      suppressRowHandleMenuRef.current = null
+      event.preventDefault()
+      event.stopPropagation()
+    },
+    [],
+  )
+
+  const handleRowMove = useCallback(
+    (rowIndex: number, direction: -1 | 1) => {
+      setLocalRows((current) => {
+        const targetIndex = rowIndex + direction
+        if (rowIndex < 0 || targetIndex < 0 || targetIndex >= current.length) return current
+        const next = arrayMove(current, rowIndex, targetIndex)
         onRowOrderChange?.(next.map((row) => row.id))
         return next
       })
@@ -522,7 +586,11 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
   // O menu abre se QUALQUER edição de coluna estiver habilitada; sem nenhuma,
   // botão direito segue com o menu nativo do browser (tabela "burra" continua).
   const columnMenuEnabled = Boolean(
-    onColumnRename || onColumnTypeChange || onColumnOptionsChange || onColumnConfigChange,
+    onColumnRename ||
+      onColumnTypeChange ||
+      onColumnOptionsChange ||
+      onColumnConfigChange ||
+      onColumnDelete,
   )
 
   const handleHeaderContextMenu = useCallback(
@@ -590,6 +658,10 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     if (columnMenu) onColumnReset?.(columnMenu.columnId)
   }, [columnMenu, onColumnReset])
 
+  const handleMenuDelete = useCallback(() => {
+    if (columnMenu) onColumnDelete?.(columnMenu.columnId)
+  }, [columnMenu, onColumnDelete])
+
   const renderTableRow = (row: RowData, indentLevel = 0) => {
     const rowIndex = rowIndexById.get(row.id)
     if (rowIndex === undefined) return null
@@ -613,6 +685,11 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
         onCellChange={onCellChange}
         onCellEditConflict={onCellEditConflict}
         onColumnOptionsChange={onColumnOptionsChange}
+        onMoveRow={rowsSortable ? handleRowMove : undefined}
+        canMoveUp={rowsSortable && rowIndex > 0}
+        canMoveDown={rowsSortable && rowIndex < displayRows.length - 1}
+        onDeleteRow={onDeleteRow}
+        onHandleClick={handleRowHandleClick}
         labels={labels}
       />
     )
@@ -620,9 +697,12 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
 
   return (
     <div ref={containerRef} className="relative">
+      {/* `clip-path` limita apenas a pintura. O overflow clip no eixo X também
+          tira as alças fora da viewport do cálculo de scroll dos ancestrais;
+          o Y continua visível para elas flutuarem acima do header. */}
       <div
         ref={setDragHandleLayer}
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px [clip-path:inset(-1rem_0)]"
+        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px overflow-x-clip overflow-y-visible [clip-path:inset(-1rem_0)]"
       />
       <GuidedAddControls
         onAddRow={onAddRow}
@@ -679,6 +759,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                       isLast={columnIndex === localColumns.length - 1}
                       diverging={divergingColumns[column.id]}
                       dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
+                      menuLabel={labels?.columnActions ?? labels?.dragColumn ?? 'Ações da coluna'}
                       resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
                       dragHandleLayer={dragHandleLayer}
                       scrollLeft={tableScrollLeft}
@@ -729,10 +810,34 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                 renderRow={renderTableRow}
               />
             ) : (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleRowDragEnd}>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleRowDragStart}
+                onDragCancel={handleRowDragCancel}
+                onDragEnd={handleRowDragEnd}
+              >
                 <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
                   {localRows.map((row) => renderTableRow(row))}
                 </SortableContext>
+                {typeof document !== 'undefined'
+                  ? createPortal(
+                      <DragOverlay adjustScale={false}>
+                        {activeRow ? (
+                          <TableRowDragOverlay
+                            row={activeRow}
+                            columns={localColumns}
+                            columnWidths={localWidths}
+                            columnTypes={columnTypes}
+                            zebra={activeRowIndex % 2 === 0}
+                            selected={selection.ids.has(activeRow.id)}
+                            labels={labels}
+                          />
+                        ) : null}
+                      </DragOverlay>,
+                      document.body,
+                    )
+                  : null}
               </DndContext>
             )}
           </div>
@@ -763,6 +868,9 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
           diverging={divergingColumns[menuColumn.id]}
           onColumnReset={
             menuColumn.key !== 'title' && onColumnReset ? handleMenuReset : undefined
+          }
+          onColumnDelete={
+            menuColumn.key !== 'title' && onColumnDelete ? handleMenuDelete : undefined
           }
           labels={labels}
           className="top-9"

@@ -38,6 +38,7 @@ import type {
 import {
   emptyViewFilters,
   getFilterCondition,
+  isDataViewKind,
   parsePublicKeyMetadata,
   parseViewFilters,
   reconcilePublicKeys,
@@ -124,7 +125,6 @@ export const TITLE_COLUMN_ID = 'page_title'
  */
 export const FALLBACK_VIEW_ID = '01KXVZ0000FALLBACKTABLE001'
 
-const VIEW_KINDS: readonly DataViewKind[] = ['table', 'board', 'calendar']
 const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox']
 
 // --- Helpers de desserialização (tolerantes: dado ruim vira ausência) ---
@@ -322,7 +322,7 @@ export function parseRows(dataset: ApiDatasetRow[]): RowData[] {
 // --- Views (settings) ---
 
 function isViewKind(value: unknown): value is DataViewKind {
-  return VIEW_KINDS.includes(value as DataViewKind)
+  return isDataViewKind(value)
 }
 
 /** Só entram larguras numéricas finitas — a lib clampa a faixa depois. */

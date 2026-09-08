@@ -25,9 +25,12 @@ describe('TableView — menu da coluna', () => {
 
     const dragHandle = screen.getByRole('button', { name: 'Arrastar coluna' })
     const tableContent = screen.getByRole('table').firstElementChild as HTMLElement
+    const dragHandleLayer = dragHandle.parentElement as HTMLElement
 
     expect(dragHandle.className).toContain('px-2')
     expect(dragHandle.className).toContain('py-1')
+    expect(dragHandleLayer.className).toContain('overflow-x-clip')
+    expect(dragHandleLayer.className).toContain('overflow-y-visible')
     expect(tableContent.className).not.toContain('pt-3')
 
     fireEvent.click(dragHandle)
@@ -131,6 +134,164 @@ describe('TableView — menu da coluna', () => {
     expect(screen.queryByText('Mudar tipo')).toBeNull()
     expect(screen.queryByText('Resetar tipo')).toBeNull()
   })
+
+  it('confirma Mover para lixeira da coluna somente pelo triangle-alert inline', () => {
+    const onColumnDelete = vi.fn()
+    render(
+      <TableView
+        columns={[column]}
+        rows={[]}
+        onColumnOrderChange={() => undefined}
+        onColumnDelete={onColumnDelete}
+        labels={{
+          dragColumn: 'Arrastar coluna',
+          moveToTrash: 'Mover para lixeira',
+          confirmMoveToTrash: 'Confirmar coluna na lixeira',
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Arrastar coluna' }))
+    expect(screen.getByRole('separator')).not.toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover para lixeira' }))
+    expect(onColumnDelete).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirmar coluna na lixeira' }))
+    expect(onColumnDelete).toHaveBeenCalledWith('column-1')
+  })
+
+  it('não oferece lixeira para a coluna sintética de título', () => {
+    render(
+      <TableView
+        columns={[{ ...column, id: 'page_title', key: 'title' }]}
+        rows={[]}
+        onColumnDelete={() => undefined}
+      />,
+    )
+
+    fireEvent.contextMenu(screen.getByRole('columnheader'))
+    expect(screen.queryByText('Mover para lixeira')).toBeNull()
+  })
+})
+
+describe('TableView — dropdown das páginas', () => {
+  const columns = [{ id: 'name', title: 'Nome', type: 'text' as const }]
+  const rows = [
+    { id: 'row-1', cells: { name: { value: 'Ana' } } },
+    { id: 'row-2', cells: { name: { value: 'Bia' } } },
+  ]
+
+  it('restaura Abrir direto e usa a alça como trigger para selecionar e mover', async () => {
+    const onOpenRow = vi.fn()
+    const onRowOrderChange = vi.fn()
+    const onSelectionChange = vi.fn()
+    render(
+      <TableView
+        columns={columns}
+        rows={rows}
+        onOpenRow={onOpenRow}
+        onRowOrderChange={onRowOrderChange}
+        onSelectionChange={onSelectionChange}
+        labels={{ rowActions: 'Ações da página' }}
+      />,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Abrir' })[0])
+    expect(onOpenRow).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ações da página' })[0])
+    expect(screen.queryByRole('menuitem', { name: 'Abrir' })).toBeNull()
+    expect(
+      screen.getByRole('menuitem', { name: 'Mover para cima' }).hasAttribute('disabled'),
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Selecionar' }))
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith(['row-1']))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ações da página' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover para baixo' }))
+    expect(onRowOrderChange).toHaveBeenCalledWith(['row-2', 'row-1'])
+  })
+
+  it('renderiza DragOverlay da linha ativa e não abre o menu no click pós-drag', async () => {
+    render(
+      <TableView
+        columns={columns}
+        rows={rows}
+        onRowOrderChange={() => undefined}
+        labels={{ rowActions: 'Ações da página' }}
+      />,
+    )
+
+    const handle = screen.getAllByRole('button', { name: 'Ações da página' })[0]
+    const pointerDown = new MouseEvent('pointerdown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+      clientX: 10,
+      clientY: 10,
+    })
+    Object.defineProperties(pointerDown, {
+      isPrimary: { value: true },
+      pointerId: { value: 1 },
+    })
+    fireEvent(handle, pointerDown)
+    fireEvent(
+      document,
+      new MouseEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        buttons: 1,
+        clientX: 10,
+        clientY: 20,
+      }),
+    )
+
+    await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).not.toBeNull())
+    fireEvent(
+      document,
+      new MouseEvent('pointerup', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 10,
+        clientY: 20,
+      }),
+    )
+    await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).toBeNull())
+
+    fireEvent.click(handle)
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    // O PointerSensor conserva por 50 ms o listener capture que engole o
+    // click nativo pós-drop. Espere a limpeza para não contaminar o teste
+    // seguinte com um listener global ainda ativo. Desmonte primeiro para que
+    // loaders assíncronos de ícone não sobrevivam ao ambiente do arquivo.
+    cleanup()
+    await new Promise((resolve) => setTimeout(resolve, 60))
+  })
+
+  it('só exclui após o segundo clique no ícone triangle-alert', () => {
+    const onDeleteRow = vi.fn()
+    render(
+      <TableView
+        columns={columns}
+        rows={[rows[0]]}
+        onDeleteRow={onDeleteRow}
+        labels={{
+          rowActions: 'Ações da página',
+          confirmMoveToTrash: 'Confirmar página na lixeira',
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ações da página' }))
+    expect(screen.getByRole('separator')).not.toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover para lixeira' }))
+    expect(onDeleteRow).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirmar página na lixeira' }))
+    expect(onDeleteRow).toHaveBeenCalledWith('row-1')
+  })
 })
 
 describe('TableView — agrupamento e seleção visível', () => {
@@ -153,7 +314,7 @@ describe('TableView — agrupamento e seleção visível', () => {
 
     const row = screen.getAllByRole('row')[1]
     const controlCell = row.querySelector('[role="cell"]') as HTMLElement
-    const drag = screen.getByRole('button', { name: 'Arrastar linha' })
+    const drag = screen.getByRole('button', { name: 'Ações da página' })
     expect(controlCell.style.paddingLeft).toBe('10px')
     expect(drag.hasAttribute('aria-describedby')).toBe(false)
   })
