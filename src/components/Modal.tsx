@@ -5,7 +5,7 @@ import { Button, cn } from 'cubs-components'
 
 import { i18n } from '@/lib/i18n'
 
-export type ModalSize = 'sm' | 'md' | 'lg'
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 
 /**
  * Largura por tamanho — escala NATIVA do Tailwind (`max-w-sm|md|lg` = 24/28/32
@@ -13,9 +13,10 @@ export type ModalSize = 'sm' | 'md' | 'lg'
  * literal no código (nada de `max-w-${size}` montado em runtime).
  */
 const SIZES: Record<ModalSize, string> = {
-  sm: 'max-w-sm',
-  md: 'max-w-md',
-  lg: 'max-w-lg',
+  sm: 'max-w-md',
+  md: 'max-w-2xl',
+  lg: 'max-w-5xl',
+  xl: 'max-w-6xl',
 }
 
 export interface ModalProps {
@@ -83,7 +84,7 @@ export function Modal({
             'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
             'w-[calc(100%-2rem)]',
             SIZES[size],
-            'rounded-2xl bg-background shadow-dark-900/20 shadow-2xl',
+            'rounded-2xl bg-background border border-divider shadow-dark-900 shadow-2xl',
             'flex max-h-[calc(100dvh-4rem)] flex-col',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',

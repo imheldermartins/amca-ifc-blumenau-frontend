@@ -2,11 +2,10 @@ import { useLayoutEffect } from 'react'
 import { Navigate, Outlet, createFileRoute, useParams } from '@tanstack/react-router'
 
 import { useAuth } from '@/contexts/AuthContext'
-import { DEFAULT_WORKSPACE_ID } from '@/contexts/WorkspaceContext'
 
 /**
- * Layout público (pathless): agrupa sign-in/sign-up. Usuário já autenticado
- * não tem o que fazer aqui — vai direto para a workspace padrão.
+ * Layout público (pathless): agrupa login e os dois cadastros. Usuário já autenticado
+ * não tem o que fazer aqui — vai ao seletor, que respeita sua preferência.
  *
  * Reativo, como o guard privado: lê o estado do `AuthProvider` (que confere a
  * sessão uma vez no boot) em vez de disparar refresh. A tela de login NÃO faz
@@ -38,8 +37,9 @@ function PublicLayout() {
   if (!restoring && user) {
     return (
       <Navigate
-        to="/$lang/myworkspace/$workspaceId"
-        params={{ lang: lang ?? 'pt-br', workspaceId: DEFAULT_WORKSPACE_ID }}
+        to="/$lang/workspaces"
+        params={{ lang: lang ?? 'pt-br' }}
+        search={{ choose: false, tab: 'workspaces' }}
       />
     )
   }

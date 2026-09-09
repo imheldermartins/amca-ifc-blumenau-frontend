@@ -5,6 +5,7 @@ import {
   createPageNavigationState,
   normalizePageTitle,
   readPageNavigationTitle,
+  readPageNavigationWorkspaceId,
   readRowPageTitle,
 } from '@/lib/pageNavigation'
 
@@ -16,10 +17,13 @@ describe('pageNavigation', () => {
         id: 'page-child',
         cells: { [TITLE_COLUMN_ID]: { value: 'Database filha' } },
       }),
+      'workspace-current',
     )
 
     expect(readPageNavigationTitle(state, 'page-child')).toBe('Database filha')
     expect(readPageNavigationTitle(state, 'page-other')).toBeUndefined()
+    expect(readPageNavigationWorkspaceId(state, 'page-child')).toBe('workspace-current')
+    expect(readPageNavigationWorkspaceId(state, 'page-other')).toBeUndefined()
   })
 
   it('normaliza ausência, string vazia e whitespace como título ausente', () => {

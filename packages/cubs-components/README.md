@@ -16,6 +16,7 @@ do Vite; o `dist` existe para o `npm pack` e para o build da `cubs-database`.
 | `Checkbox` | sim | sobre Radix; suporta `indeterminate` (só modo state) |
 | `Select` | sim | sobre Radix; `options` por prop, com ícone opcional |
 | `Switch` | sim | — |
+| `RadioGroup` | sim | opções inline ou em coluna; semântica nativa de radio |
 | `DatePicker` | sim | máscara + calendário; hora e intervalo opcionais; wire `ISO`/`startISO@endISO` |
 | `Button` | — | `variant` × `color` (paleta ou `from-theme`) |
 | `ContextMenu` | — | painel `absolute`; posicionamento fica com o caller |

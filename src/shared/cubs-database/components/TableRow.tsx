@@ -20,7 +20,7 @@ import { RowActionsMenu, type RowActionsMenuLabels } from './RowActionsMenu'
 import { TableCell } from './TableCell'
 
 /** Largura da célula de controles — o header usa o MESMO valor para alinhar. */
-export const CONTROL_CELL_WIDTH = 'w-24'
+export const CONTROL_CELL_WIDTH = 'w-28 min-w-28 max-w-28 overflow-hidden whitespace-nowrap'
 
 export interface TableRowLabels extends ColumnHeaderMenuLabels, CellEditorLabels, RowActionsMenuLabels {
   drag?: string
@@ -109,7 +109,7 @@ export interface TableRowProps {
  * memoiza `labels` — um único literal inline em qualquer nível acima anula
  * este memo.
  */
-export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, indentLevel = 0, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -140,7 +140,6 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
     >
       <div
         role="cell"
-        style={indentLevel > 0 ? { paddingLeft: Math.min(indentLevel, 4) * 10 } : undefined}
         className={cn(
           'flex shrink-0 items-center gap-1',
           CONTROL_CELL_WIDTH,
@@ -244,7 +243,6 @@ export const TableRowDragOverlay = memo(function TableRowDragOverlay({
   columnTypes,
   zebra,
   selected,
-  indentLevel = 0,
   labels,
 }: TableRowDragOverlayProps) {
   return (
@@ -257,7 +255,6 @@ export const TableRowDragOverlay = memo(function TableRowDragOverlay({
       )}
     >
       <div
-        style={indentLevel > 0 ? { paddingLeft: Math.min(indentLevel, 4) * 10 } : undefined}
         className={cn('flex shrink-0 items-center gap-1', CONTROL_CELL_WIDTH)}
       >
         <span className="text-base leading-none opacity-80">⠿</span>

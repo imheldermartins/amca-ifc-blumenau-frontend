@@ -10,6 +10,8 @@ import { PageShell } from './PageShell'
 const dependencies = vi.hoisted(() => ({
   getPage: vi.fn(),
   listCollaborators: vi.fn(),
+  listCollaboratorCandidates: vi.fn(),
+  addCollaborator: vi.fn(),
   options: undefined as UsePageRealtimeOptions | undefined,
   user: {
     id: 'user-current',
@@ -30,7 +32,11 @@ vi.mock('@/services/DatabaseService', () => ({
 }))
 
 vi.mock('@/services/SharedPagesService', () => ({
-  sharedPagesService: { listCollaborators: dependencies.listCollaborators },
+  sharedPagesService: {
+    listCollaborators: dependencies.listCollaborators,
+    listCollaboratorCandidates: dependencies.listCollaboratorCandidates,
+    addCollaborator: dependencies.addCollaborator,
+  },
 }))
 
 vi.mock('@/contexts/AuthContext', () => ({
@@ -70,6 +76,8 @@ beforeEach(() => {
   }
   dependencies.getPage.mockResolvedValue(page('Título inicial'))
   dependencies.listCollaborators.mockResolvedValue([])
+  dependencies.listCollaboratorCandidates.mockResolvedValue([])
+  dependencies.addCollaborator.mockResolvedValue(undefined)
 })
 
 afterEach(() => cleanup())

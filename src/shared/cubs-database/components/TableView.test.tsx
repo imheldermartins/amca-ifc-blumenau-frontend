@@ -258,9 +258,12 @@ describe('TableView — dropdown das páginas', () => {
         clientY: 20,
       }),
     )
-    await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).toBeNull())
 
+    // O click nativo acontece imediatamente depois do pointerup. Dispará-lo
+    // antes de esperar o React retirar o overlay evita que uma suíte sob carga
+    // ultrapasse artificialmente os 50 ms do listener capture do PointerSensor.
     fireEvent.click(handle)
+    await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).toBeNull())
     expect(screen.queryByRole('menu')).toBeNull()
 
     // O PointerSensor conserva por 50 ms o listener capture que engole o
@@ -300,7 +303,7 @@ describe('TableView — agrupamento e seleção visível', () => {
     { id: 'area', title: 'Área', type: 'text' as const },
   ]
 
-  it('indenta linhas agrupadas e não ativa sortable de linha', () => {
+  it('mantém a célula de controles fixa em linhas agrupadas e não ativa sortable', () => {
     render(
       <TableView
         columns={columns}
@@ -315,7 +318,10 @@ describe('TableView — agrupamento e seleção visível', () => {
     const row = screen.getAllByRole('row')[1]
     const controlCell = row.querySelector('[role="cell"]') as HTMLElement
     const drag = screen.getByRole('button', { name: 'Ações da página' })
-    expect(controlCell.style.paddingLeft).toBe('10px')
+    expect(controlCell.style.paddingLeft).toBe('')
+    expect(controlCell.className).toContain('w-28')
+    expect(controlCell.className).toContain('min-w-28')
+    expect(controlCell.className).toContain('max-w-28')
     expect(drag.hasAttribute('aria-describedby')).toBe(false)
   })
 

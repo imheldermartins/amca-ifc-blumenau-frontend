@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useParams } from '@tanstack/react-router'
+import { Outlet, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { useState } from 'react'
 import { Button, Popover, Switch, cn } from 'cubs-components'
@@ -11,16 +11,14 @@ import { SearchBar } from '@components/SearchBar'
 import { SignOutConfirmationModal } from '@components/SignOutConfirmationModal'
 import { Typography } from '@components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
-import {
-  DEFAULT_WORKSPACE_ID,
-  useWorkspace,
-  type WorkspaceState,
-} from '@/contexts/WorkspaceContext'
+import { useWorkspace, type WorkspaceState } from '@/contexts/WorkspaceContext'
 import { useDialog } from '@/hooks/useDialog'
 import { useLocalStorageState } from '@/hooks/useClientStorage'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_LANGUAGE, i18n } from '@/lib/i18n'
+import { replaceQuery } from '@/lib/queryParams'
 import { THEME } from '@/lib/theme'
+import { workspacePreference } from '@/lib/workspacePreference'
 
 /**
  * Rótulo da workspace na barra superior. Os três estados são distintos de
@@ -30,14 +28,16 @@ import { THEME } from '@/lib/theme'
 function workspaceLabel({ workspace, loading, failed }: WorkspaceState): string {
   if (loading) return i18n('common.carregando')
   if (failed) return i18n('common.workspace.indisponivel')
-  return workspace?.name ?? i18n('common.workspace.sem-nome')
+  if (!workspace) return i18n('common.workspace.selecionar')
+  return workspace.name ?? i18n('common.workspace.sem-nome')
 }
 
 export function AppLayout() {
-  // `strict: false`: o layout serve TODA a área privada, e o `workspaceId` só
-  // existe na rota de workspace (em `/page/:id` e "Colaborando" não há).
-  const { lang, workspaceId } = useParams({ strict: false })
+  // `strict: false`: no shell, `workspaceId` existe na entrada da workspace;
+  // páginas compartilhadas e "Colaborando" continuam sem esse parâmetro.
+  const { lang } = useParams({ strict: false })
   const location = useLocation()
+  const navigate = useNavigate()
   // Persistida: recolher a sidebar é preferência, e o usuário espera que ela
   // continue recolhida no próximo acesso. Antes era `useState(false)`, que
   // esquecia a cada navegação/reload.
@@ -51,11 +51,17 @@ export function AppLayout() {
   const globalSettingsDialog = useDialog()
   const signOutDialog = useDialog()
 
-  // A workspace é parte do caminho, então o link dela carrega o id. Fora da
-  // rota de workspace (ex.: uma página compartilhada) o id não está na URL —
-  // aí o destino é a workspace PADRÃO, a mesma dos redirects de login.
+  // Sem workspace no caminho, o link volta ao seletor explícito: não existe
+  // mais um id global ou uma workspace padrão embutida no frontend.
   const currentLang = lang ?? DEFAULT_LANGUAGE.slug
-  const workspaceHref = `/${currentLang}/myworkspace/${workspaceId ?? DEFAULT_WORKSPACE_ID}`
+  const currentWorkspaceId = workspaceState.workspaceId
+    ?? (auth.user ? workspacePreference.get(auth.user.id) : undefined)
+  const workspaceHref = currentWorkspaceId
+    ? `/${currentLang}/myworkspace/${currentWorkspaceId}`
+    : location.pathname
+  const collaboratingHref = currentWorkspaceId
+    ? `/${currentLang}/colaborando?workspace=${currentWorkspaceId}`
+    : `/${currentLang}/colaborando`
   const userLabel = auth.user?.name ?? auth.user?.email ?? i18n('pages.app.account-menu.user')
 
   function openGlobalSettings(fragment: GlobalSettingsFragment) {
@@ -74,15 +80,50 @@ export function AppLayout() {
     await auth.signOut()
   }
 
+  function openWorkspaceArea() {
+    const workspace = workspaceState.workspace
+    if (workspace?.role === 'superadmin') {
+      void navigate({
+        to: '/$lang/workspaces/$workspaceId/settings/general',
+        params: { lang: currentLang, workspaceId: workspace.id },
+        search: (previous) => replaceQuery(previous, {}),
+      })
+      return
+    }
+
+    if (!currentWorkspaceId) return
+    void navigate({
+      to: '/$lang/myworkspace/$workspaceId',
+      params: { lang: currentLang, workspaceId: currentWorkspaceId },
+      search: (previous) => replaceQuery(previous, {}),
+    })
+  }
+
   const navItems = [
-    { name: i18n('common.navigation.home'), href: workspaceHref, icon: 'lucide:grip' },
+    {
+      name: i18n('common.navigation.home'),
+      href: workspaceHref,
+      activePath: workspaceHref,
+      icon: 'lucide:grip',
+    },
     {
       name: i18n('common.navigation.colaborando'),
-      href: `/${currentLang}/colaborando`,
+      href: collaboratingHref,
+      activePath: `/${currentLang}/colaborando`,
       icon: 'lucide:users',
     },
-    { name: i18n('common.navigation.chat'), href: `${workspaceHref}/mychat`, icon: 'cuida:chatbubble-outline' },
-    { name: i18n('common.navigation.agenda'), href: `${workspaceHref}/schedule`, icon: 'cuida:calendar-clear-outline' },
+    {
+      name: i18n('common.navigation.chat'),
+      href: `${workspaceHref}/mychat`,
+      activePath: `${workspaceHref}/mychat`,
+      icon: 'cuida:chatbubble-outline',
+    },
+    {
+      name: i18n('common.navigation.agenda'),
+      href: `${workspaceHref}/schedule`,
+      activePath: `${workspaceHref}/schedule`,
+      icon: 'cuida:calendar-clear-outline',
+    },
   ]
 
   return (
@@ -110,10 +151,10 @@ export function AppLayout() {
             variant='text'
             color='from-theme'
             className='min-w-0 max-w-full px-2 py-1 hover:bg-active/50'
-            onClick={() => openGlobalSettings('#workspace')}
+            onClick={openWorkspaceArea}
             aria-label={i18n('common.workspace.abrir-detalhes')}
           >
-            <Icon icon='lucide:graduation-cap' fontSize={20} className={THEME.textMuted} />
+            <Icon icon={workspaceState.workspace?.icon ?? 'lucide:boxes'} fontSize={20} className={THEME.textMuted} />
             <Typography variant="subtitle" as='span' className='truncate ml-0.5'>
               {workspaceLabel(workspaceState)}
             </Typography>
@@ -135,12 +176,16 @@ export function AppLayout() {
               <ul className={cn('flex flex-col gap-1')}>
                 {navItems.map((item, index) => (
                   <li key={index}>
-                    <Link
-                      to={item.href}
+                    <a
+                      href={item.href}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        void navigate({ href: item.href })
+                      }}
                       className={cn(
                         collapsed ? 'w-9' : 'w-full',
                         'h-9 px-2 flex flex-nowrap justify-start items-center rounded text-sm ease-in-out duration-300 transition-[width,color,background-color,box-shadow] overflow-clip',
-                        location.pathname === item.href
+                        location.pathname === item.activePath
                           ? 'bg-p-purple text-light-100'
                           : 'glow-purple-hover hover:bg-active',
                       )}
@@ -149,7 +194,7 @@ export function AppLayout() {
                       <Typography variant="body" as="span" className={cn('whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}>
                         {item.name}
                       </Typography>
-                    </Link>
+                    </a>
                   </li>
                 ))}
               </ul>
@@ -244,7 +289,6 @@ export function AppLayout() {
         {...globalSettingsDialog.dialogProps}
         fragment={settingsFragment}
         onFragmentChange={setSettingsFragment}
-        workspaceState={workspaceState}
       />
 
       <SignOutConfirmationModal

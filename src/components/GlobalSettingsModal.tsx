@@ -2,17 +2,15 @@ import { Button, cn } from 'cubs-components'
 
 import { Modal } from '@components/Modal'
 import { Typography } from '@components/Typography'
-import type { WorkspaceState } from '@/contexts/WorkspaceContext'
 import { i18n } from '@/lib/i18n'
 
-export type GlobalSettingsFragment = '#profile' | '#workspace' | '#settings'
+export type GlobalSettingsFragment = '#profile' | '#settings'
 
 export interface GlobalSettingsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   fragment: GlobalSettingsFragment
   onFragmentChange: (fragment: GlobalSettingsFragment) => void
-  workspaceState: WorkspaceState
 }
 
 const SECTIONS: Array<{
@@ -20,7 +18,6 @@ const SECTIONS: Array<{
   labelKey: string
 }> = [
   { fragment: '#profile', labelKey: 'pages.app.global-settings.profile' },
-  { fragment: '#workspace', labelKey: 'pages.app.global-settings.workspace' },
   { fragment: '#settings', labelKey: 'pages.app.global-settings.settings' },
 ]
 
@@ -33,7 +30,6 @@ export function GlobalSettingsModal({
   onOpenChange,
   fragment,
   onFragmentChange,
-  workspaceState,
 }: GlobalSettingsModalProps) {
   const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
 
@@ -41,7 +37,7 @@ export function GlobalSettingsModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      size="lg"
+      size="xl"
       accessibleTitle={i18n('pages.app.global-settings.title')}
       className="p-0"
     >
@@ -82,17 +78,6 @@ export function GlobalSettingsModal({
           className="min-w-0 p-5"
         >
           <Typography variant="h2">{i18n(activeSection.labelKey)}</Typography>
-
-          {activeSection.fragment === '#workspace' && (
-            <div className="mt-5">
-              <Typography variant="caption" as="p" className="mb-2">
-                {i18n('common.workspace.debug-contexto')}
-              </Typography>
-              <pre className="max-h-60 overflow-auto rounded bg-contrast p-3 text-xs">
-                {JSON.stringify(workspaceState, null, 2)}
-              </pre>
-            </div>
-          )}
         </section>
       </div>
     </Modal>

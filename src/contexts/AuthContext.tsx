@@ -14,6 +14,8 @@ import {
   type AuthUser,
   type SignInInput,
   type SignUpInput,
+  type SignUpResult,
+  type WorkspaceSignUpInput,
 } from '@/services/AuthService'
 import { sessionStore } from '@/services/sessionStore'
 import { socketService } from '@/services/SocketService'
@@ -34,7 +36,8 @@ export interface AuthState {
   /** O primeiro `restore()` (checagem da sessão no boot) ainda não respondeu. */
   restoring: boolean
   signIn: (input: SignInInput) => Promise<AuthUser>
-  signUp: (input: SignUpInput) => Promise<AuthUser>
+  signUp: (input: SignUpInput) => Promise<SignUpResult>
+  signUpWithWorkspace: (input: WorkspaceSignUpInput) => Promise<SignUpResult>
   signOut: () => Promise<void>
 }
 
@@ -98,9 +101,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signUp = useCallback(async (input: SignUpInput) => {
-    const created = await authService.signUp(input)
-    setUser(created)
-    return created
+    const result = await authService.signUp(input)
+    setUser(result.user)
+    return result
+  }, [])
+
+  const signUpWithWorkspace = useCallback(async (input: WorkspaceSignUpInput) => {
+    const result = await authService.signUpWithWorkspace(input)
+    setUser(result.user)
+    return result
   }, [])
 
   const signOut = useCallback(async () => {
@@ -115,8 +124,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthState>(
-    () => ({ user, isAuthenticated: user !== null, restoring, signIn, signUp, signOut }),
-    [user, restoring, signIn, signUp, signOut],
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      restoring,
+      signIn,
+      signUp,
+      signUpWithWorkspace,
+      signOut,
+    }),
+    [user, restoring, signIn, signUp, signUpWithWorkspace, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

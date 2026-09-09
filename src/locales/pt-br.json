@@ -19,7 +19,7 @@
       "detalhes": "Detalhes da workspace",
       "sem-nome": "Workspace sem nome",
       "indisponivel": "Workspace indisponível",
-      "debug-contexto": "Contexto da workspace (temporário)"
+      "selecionar": "Selecionar workspace"
     },
     "navigation": {
       "agenda": "Agenda",
@@ -58,7 +58,8 @@
       "bem-vindo-ao-cubs": "Bem-vindo ao <green>{{appName}}</green>!",
       "descricao": "Sua plataforma está sendo construída. Entre ou crie uma conta para começar.",
       "entrar": "Entrar",
-      "criar-conta": "Criar conta"
+      "criar-conta": "Criar conta",
+      "criar-areas-de-trabalho": "Crie suas Áreas de trabalho"
     },
     "sign-in": {
       "entre-seja-bem-vindo": "Entre e seja bem-vindo!",
@@ -92,9 +93,188 @@
       "erro-email-em-uso": "Este e-mail já está em uso.",
       "erro-generico": "Não foi possível criar a conta. Tente novamente."
     },
+    "workspace-sign-up": {
+      "title": "Crie suas Áreas de trabalho",
+      "subtitle": "Use sua chave para criar a conta e configurar sua primeira workspace.",
+      "steps": {
+        "label": "Etapas do cadastro",
+        "key": "Chave",
+        "account": "Conta",
+        "workspace": "Workspace"
+      },
+      "key": {
+        "title": "Informe sua chave",
+        "description": "Vamos conferir a chave e preencher os dados associados a ela.",
+        "field": "Chave única do sistema",
+        "placeholder": "cubs_ws_v1_...",
+        "continue": "Continuar",
+        "validating": "Validando...",
+        "invalid": "Esta chave não é válida para criar uma workspace.",
+        "error": "Não foi possível validar a chave. Tente novamente."
+      },
+      "account": {
+        "title": "Complete seu cadastro",
+        "description": "Nome e e-mail vieram da chave. Você pode revisá-los antes de continuar.",
+        "continue": "Continuar"
+      },
+      "workspace": {
+        "title": "Nomeie sua primeira workspace",
+        "description": "Você poderá alterar o nome e escolher um ícone depois.",
+        "field": "Nome da área de trabalho",
+        "placeholder": "Ex.: Minha área de trabalho",
+        "default-name": "Area de Trabalho do {{firstName}}"
+      },
+      "finish": {
+        "create": "Criar conta e workspace",
+        "creating": "Criando...",
+        "error": "Não foi possível concluir o cadastro. Confira os dados e tente novamente."
+      },
+      "back": "Voltar",
+      "has-account": "Já tem uma conta?",
+      "sign-in": "Entrar"
+    },
+    "workspaces": {
+      "selector": {
+        "title": "Suas workspaces",
+        "subtitle": "Escolha uma área de trabalho ou use uma chave para começar.",
+        "list-label": "Workspaces disponíveis",
+        "empty": "Você ainda não participa de nenhuma workspace.",
+        "error": "Não foi possível carregar suas workspaces.",
+        "enter": "Entrar",
+        "settings": "Configurações",
+        "preferred": "Abrir direto após o login",
+        "new": "Criar ou entrar em workspace",
+        "role-superadmin": "Superadmin",
+        "role-member": "Member",
+        "tabs-label": "Áreas de workspaces",
+        "tab-workspaces": "Workspaces",
+        "tab-organization": "Organização"
+      },
+      "access": {
+        "title": "Criar ou entrar em Workspace",
+        "subtitle": "Sua chave é pessoal, temporária e validada pela API.",
+        "tab-create": "Criar",
+        "tab-join": "Entrar",
+        "tab-organization": "Organização",
+        "tabs-label": "Escolha o fluxo da workspace",
+        "name": "Nome da área de trabalho",
+        "name-placeholder": "Ex.: IFC Blumenau",
+        "organization": "Organização",
+        "organization-placeholder": "Selecione a organização",
+        "organization-required": "Escolha uma organização para a nova workspace.",
+        "organization-missing": "Sua próxima workspace precisa pertencer a uma organização.",
+        "organization-create-link": "Criar uma organização agora",
+        "key": "Chave única do sistema",
+        "key-placeholder": "cubs_ws_v1_...",
+        "key-invalid": "A chave não é válida para sua conta ou para este fluxo.",
+        "create": "Criar workspace",
+        "creating": "Criando...",
+        "join": "Entrar na workspace",
+        "joining": "Entrando...",
+        "back": "Voltar às workspaces",
+        "error": "Não foi possível concluir. Confira a chave e tente novamente."
+      },
+      "organization": {
+        "list-title": "Organizações",
+        "list-description": "Selecione uma organização para ver suas workspaces e usuários.",
+        "list-label": "Suas organizações",
+        "list-empty": "Você ainda não participa de nenhuma organização.",
+        "new": "Nova",
+        "workspace-count_one": "{{count}} workspace",
+        "workspace-count_other": "{{count}} workspaces",
+        "detail-empty-title": "Organize suas workspaces",
+        "detail-empty-description": "Mantenha sua área individual separada e crie uma organização quando precisar reunir outras workspaces e pessoas.",
+        "create-title": "Criar organização",
+        "create-description": "Escolha a primeira workspace. Você precisa ser superadmin dela.",
+        "name": "Nome da organização",
+        "name-placeholder": "Ex.: Instituto Federal Catarinense",
+        "first-workspace": "Primeira workspace",
+        "create": "Criar e vincular",
+        "creating": "Criando...",
+        "created": "Organização criada e workspace vinculada.",
+        "link-title": "Vincular workspace",
+        "link-description": "Associe outra workspace individual a uma organização que você administra.",
+        "workspace-to-link": "Workspace a vincular",
+        "link": "Vincular workspace",
+        "linking": "Vinculando...",
+        "linked": "Workspace vinculada.",
+        "no-workspace": "Não há uma workspace individual administrada por você para iniciar a organização.",
+        "nothing-to-link": "Crie uma organização e mantenha uma workspace individual disponível para fazer um novo vínculo.",
+        "load-error": "Não foi possível carregar organizações e workspaces.",
+        "error": "Não foi possível concluir a operação. Confira suas permissões.",
+        "create-workspace": "Criar workspace",
+        "workspaces-title": "Workspaces da organização",
+        "workspaces-description": "Áreas vinculadas a esta organização das quais você participa.",
+        "workspaces-list": "Workspaces da organização",
+        "workspaces-empty": "Você ainda não participa de nenhuma workspace desta organização.",
+        "users-title": "Usuários da organização",
+        "users-description": "Escolha a workspace e informe o e-mail completo para adicionar o usuário à organização e à workspace como member.",
+        "current-organization": "Organização",
+        "current-workspace": "Workspace atual",
+        "current-workspace-placeholder": "Selecione a workspace",
+        "search-users": "E-mail do usuário",
+        "search-users-help": "O resultado só aparece quando o e-mail completo corresponde a um usuário.",
+        "users-list": "Usuários encontrados",
+        "users-empty": "Nenhum usuário corresponde exatamente a este e-mail.",
+        "users-error": "Não foi possível buscar os usuários.",
+        "users-no-organization": "Você precisa ser superadmin de uma organização para gerenciar seus usuários.",
+        "users-no-permission": "Somente superadmins da organização podem adicionar usuários.",
+        "users-no-workspace": "Esta organização não possui uma workspace administrada por você.",
+        "user-add": "Adicionar",
+        "user-adding": "Adicionando...",
+        "user-added": "Adicionado",
+        "user-add-error": "Não foi possível adicionar o usuário à organização e à workspace."
+      },
+      "settings": {
+        "title": "Configuração da workspace",
+        "back": "Voltar para a workspace",
+        "exit": "Sair",
+        "navigation": "Configurações da workspace",
+        "general": "Geral",
+        "members": "Usuários",
+        "general-description": "Atualize a identidade exibida para esta área de trabalho.",
+        "name": "Nome da Workspace",
+        "icon": "Ícone da Workspace",
+        "save": "Salvar alterações",
+        "saving": "Salvando...",
+        "saved": "Alterações salvas.",
+        "save-error": "Não foi possível salvar as alterações.",
+        "members-description": "As roles controlam quem pode acessar este painel.",
+        "member-name": "Usuário",
+        "member-email": "E-mail",
+        "member-role": "Role",
+        "role-superadmin": "superadmin",
+        "role-member": "member",
+        "members-error": "Não foi possível carregar os usuários.",
+        "role-error": "Não foi possível alterar a role.",
+        "last-superadmin": "A workspace precisa manter pelo menos um superadmin.",
+        "loading": "Carregando workspace...",
+        "load-error": "Não foi possível carregar esta workspace."
+      },
+      "icons": {
+        "choose": "Escolher ícone",
+        "search": "Buscar ícone",
+        "empty": "Nenhum ícone encontrado.",
+        "loading": "Carregando ícones...",
+        "load-more": "Mostrar mais",
+        "cuida": "Cuida",
+        "lucide": "Lucide"
+      },
+      "denied": {
+        "title": "Acesso não permitido",
+        "description": "Sua role não permite acessar o painel de configuração desta workspace.",
+        "back": "Voltar às workspaces"
+      }
+    },
     "app": {
       "ola-mundo": "Hello world",
       "descricao-outlet": "Esta área é renderizada dentro do Outlet da rota /app.",
+      "chat": {
+        "description": "As conversas desta workspace aparecerão aqui."
+      },
+      "schedule": {
+        "description": "Os compromissos desta workspace aparecerão aqui."
+      },
       "account-menu": {
         "open": "Abrir menu da conta",
         "user": "Usuário",
@@ -106,7 +286,6 @@
         "title": "Configurações globais",
         "navigation": "Seções das configurações globais",
         "profile": "Perfil do usuário",
-        "workspace": "Workspace",
         "settings": "Configurações"
       },
       "page-settings": {
@@ -122,7 +301,13 @@
         "you": "(você)",
         "people-with-access": "Colaboradores vinculados",
         "collaborators-empty": "Esta página não possui outros colaboradores.",
-        "collaborators-error": "Não foi possível carregar os colaboradores."
+        "collaborators-error": "Não foi possível carregar os colaboradores.",
+        "add-collaborator": "Adicionar à página",
+        "search-workspace-users": "Buscar usuários da workspace atual",
+        "candidates-empty": "Nenhum outro usuário da workspace está disponível.",
+        "candidates-error": "Não foi possível buscar ou adicionar o usuário.",
+        "add-collaborator-action": "Adicionar",
+        "adding-collaborator": "Adicionando..."
       },
       "sign-out": {
         "title": "Confirmar logout",

@@ -14,6 +14,25 @@ export interface SignUpInput {
   password: string
 }
 
+export interface WorkspaceSignUpInput extends SignUpInput {
+  key: string
+  workspaceName: string
+}
+
+export interface RegisteredWorkspace {
+  id: string
+  name: string | null
+}
+
+export interface SignUpResult {
+  user: AuthUser
+  workspace: RegisteredWorkspace
+}
+
+export type WorkspaceKeyPreview =
+  | { valid: false }
+  | { valid: true; name: string; email: string }
+
 export interface SignInInput {
   email: string
   password: string
@@ -26,6 +45,10 @@ export class InvalidCredentialsError extends Error {}
 interface SessionResponse {
   user: AuthUser
   accessToken: string
+}
+
+interface RegistrationResponse extends SessionResponse {
+  workspace: RegisteredWorkspace
 }
 
 // O ApiService rejeita sempre AppError — o status HTTP já vem normalizado.
@@ -49,15 +72,43 @@ function hasStatus(error: unknown, status: number): boolean {
  * `useEffect` do `AuthProvider` (não no guard de rota, que não faz fetch).
  */
 export class AuthService {
-  async signUp(input: SignUpInput): Promise<AuthUser> {
+  async signUp(input: SignUpInput): Promise<SignUpResult> {
     try {
-      const { user, accessToken } = await apiService.post<SessionResponse>('/auth/register', {
-        name: input.name.trim() || null,
+      const { user, accessToken, workspace } = await apiService.post<RegistrationResponse>('/auth/register', {
+        name: input.name.trim(),
         email: input.email.trim().toLowerCase(),
         password: input.password,
       })
       sessionStore.set(accessToken)
-      return user
+      return { user, workspace }
+    } catch (error) {
+      if (hasStatus(error, 409)) {
+        throw new EmailInUseError()
+      }
+      throw error
+    }
+  }
+
+  previewWorkspaceKey(key: string): Promise<WorkspaceKeyPreview> {
+    return apiService.post<WorkspaceKeyPreview>('/auth/workspace-key/preview', {
+      key: key.trim(),
+    })
+  }
+
+  async signUpWithWorkspace(input: WorkspaceSignUpInput): Promise<SignUpResult> {
+    try {
+      const { user, accessToken, workspace } = await apiService.post<RegistrationResponse>(
+        '/auth/register/workspace',
+        {
+          key: input.key.trim(),
+          name: input.name.trim(),
+          email: input.email.trim().toLowerCase(),
+          password: input.password,
+          workspaceName: input.workspaceName.trim(),
+        },
+      )
+      sessionStore.set(accessToken)
+      return { user, workspace }
     } catch (error) {
       if (hasStatus(error, 409)) {
         throw new EmailInUseError()

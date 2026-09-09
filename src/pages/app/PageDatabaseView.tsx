@@ -10,6 +10,7 @@ import type {
 
 import { PageShell } from '@components/PageShell'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { formatRelativeTime } from '@/lib/formatRelativeTime'
@@ -54,6 +55,7 @@ const EMPTY_ROWS: RowData[] = []
 export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
+  const { workspaceId } = useWorkspace()
   const {
     database,
     loading,
@@ -270,9 +272,13 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       navigate({
         to: '/$lang/page/$pageId',
         params: { lang: currentLang, pageId: row.id },
-        state: createPageNavigationState(row.id, readRowPageTitle(row)),
+        state: createPageNavigationState(row.id, readRowPageTitle(row), workspaceId),
+        search: (previous) => ({
+          ...previous,
+          ...(workspaceId ? { workspace: workspaceId } : {}),
+        }),
       }),
-    [navigate, currentLang],
+    [navigate, currentLang, workspaceId],
   )
 
   // Terreno do batchRealtimeUpdate: agir sobre N páginas de uma vez (a

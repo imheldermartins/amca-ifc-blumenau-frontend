@@ -29,6 +29,18 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Erros do axios carregam `config.data` dentro da causa. Não anexamos a causa
+ * em endpoints de credencial para uma chave ou senha nunca aparecer no console.
+ */
+function canExposeAxiosCause(url: string): boolean {
+  return ![
+    '/auth/login',
+    '/auth/register',
+    '/auth/workspace-key/preview',
+  ].some((sensitivePath) => url.includes(sensitivePath))
+}
+
 /** Converte qualquer erro num AppError, extraindo o que der do axios. */
 export function toAppError(scope: ErrorScope, error: unknown): AppError {
   if (error instanceof AppError) return error
@@ -43,7 +55,7 @@ export function toAppError(scope: ErrorScope, error: unknown): AppError {
 
     return new AppError(scope, `${method} ${url} → ${status ?? 'sem resposta'}: ${detail}`, {
       ...(status !== undefined && { status }),
-      cause: error,
+      ...(canExposeAxiosCause(url) && { cause: error }),
     })
   }
 

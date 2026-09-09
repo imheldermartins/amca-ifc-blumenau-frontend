@@ -191,8 +191,39 @@ Preferência persistida em `localStorage` (`cubs.theme`), aplicada como classe
 `.dark` no `<html>`. Um script inline no [index.html](index.html) aplica o
 tema salvo antes do React montar (sem flash); sem preferência salva, vale o
 `prefers-color-scheme` do sistema. Toggle: [ThemeToggle](src/components/ThemeToggle.tsx)
-(no header do `/app` e flutuante nas páginas públicas), estado via
+(no `AppLayout` e flutuante nas páginas públicas), estado via
 [useTheme](src/hooks/useTheme.ts) e lógica em [theme.ts](src/lib/theme.ts).
+
+## Workspaces
+
+O cadastro comum cria junto uma workspace individual chamada `Area de Trabalho
+do <primeiro nome>` e entra diretamente nela. A landing também oferece
+`/$lang/create-workspaces`: um multiform público recebe uma chave `create`,
+preenche nome/e-mail emitidos para revisão e cria conta + primeira workspace em
+um único submit. A chave fica apenas em memória e nunca entra na URL ou no
+`localStorage`.
+
+Depois do login, o usuário escolhe uma workspace real em `/$lang/workspaces`
+ou usa `/$lang/workspaces/new?tab=create|join`. Nessa tela autenticada, as duas
+operações exigem uma chave single-use emitida pelo backend e vinculada ao
+nome/e-mail da conta. A criação pede também o nome da área; a entrada cria uma
+membership `member`.
+
+Cada membership carrega `role` (`superadmin`/`member`) e `pageRootId`. A root do
+criador conserva o id da workspace; cada membro posterior recebe uma página
+ULID própria e de sua propriedade. A relação organização → workspaces é 1:N,
+enquanto `organizationId` nulo identifica uma área independente.
+
+`superadmin` configura nome/ícone e roles em rotas full-screen sob
+`/$lang/workspaces/$workspaceId/settings`; `member` pode abrir somente a sua
+root e é encaminhado a `/$lang/access-denied` ao tentar acessar o painel. CASL
+espelha essa experiência no cliente, mas a API repete a autorização e responde
+403 `{ message: "Acesso não permitido" }`.
+
+A preferência “abrir direto” usa `clientStorage` (`cubs.preferredWorkspace`)
+com `{ userId, workspaceId }`. Ela não atravessa contas e só é usada enquanto
+a workspace continuar na listagem autorizada; `?choose=true` força a seleção.
+Este módulo é HTTP-only e não participa das salas/eventos de realtime.
 
 ## Rotas
 
@@ -204,12 +235,22 @@ idioma padrão.
 | `/$lang/` | pública | Rota inicial (`HomePage`) |
 | `/$lang/sign-in` | pública (deslogado) | `SignInPage` |
 | `/$lang/sign-up` | pública (deslogado) | `SignUpPage` |
-| `/$lang/app` | privada | `AppLayout` com `<Outlet />` para as rotas internas |
+| `/$lang/create-workspaces` | pública (deslogado) | chave → conta → primeira workspace |
+| `/$lang/workspaces` | privada | seletor de workspaces |
+| `/$lang/workspaces/new` | privada | tabs de criar/entrar (`?tab=create|join`) |
+| `/$lang/workspaces/$workspaceId/settings/general` | privada (`superadmin`) | nome e IconPicker |
+| `/$lang/workspaces/$workspaceId/settings/members` | privada (`superadmin`) | usuários e roles |
+| `/$lang/access-denied` | privada | acesso não permitido |
+| `/$lang/myworkspace/$workspaceId` | privada + `AppLayout` | root da membership |
+| `/$lang/page/$pageId` | privada + `AppLayout` | página pelo id |
+| `/$lang/colaborando` | privada + `AppLayout` | páginas compartilhadas |
 
-Guards (em `beforeLoad`):
+Guards:
 
-- `_public` (sign-in/sign-up): usuário autenticado é redirecionado para `/$lang/app`.
-- `app`: sem sessão, redireciona para `/$lang/sign-in`.
+- `_public` (sign-in/sign-up): usuário autenticado segue para
+  `/$lang/workspaces`.
+- `_private`: sem sessão, redireciona para `/$lang/sign-in`.
+- o painel de workspace acrescenta o gate de role e a API repete a checagem.
 
 ### Anatomia (file-based routing, convenção de diretórios)
 
@@ -225,18 +266,30 @@ src/routes/
     ├── index.tsx       → "/$lang/"      (HomePage)
     ├── _public/        →   grupo SEM url (_ = pathless layout): guard de deslogado
     │   ├── route.tsx
-    │   ├── sign-in.tsx → "/$lang/sign-in"
-    │   └── sign-up.tsx → "/$lang/sign-up"
-    └── app/            → "/$lang/app"   (privada)
-        ├── route.tsx   →   guard de auth + AppLayout (<Outlet />)
-        └── index.tsx   → "/$lang/app/"  (AppHomePage)
+    │   ├── sign-in.tsx          → "/$lang/sign-in"
+    │   ├── sign-up.tsx          → "/$lang/sign-up"
+    │   └── create-workspaces.tsx → "/$lang/create-workspaces"
+    └── _private/       →   grupo SEM url: guard de autenticado
+        ├── route.tsx
+        ├── access-denied.tsx
+        ├── _app/       →   grupo SEM url: AppLayout + WorkspaceProvider
+        │   ├── route.tsx
+        │   ├── myworkspace/$workspaceId.tsx
+        │   ├── page/$pageId.tsx
+        │   └── colaborando.tsx
+        └── workspaces/
+            ├── index.tsx
+            ├── new.tsx
+            └── $workspaceId/settings/
+                ├── route.tsx
+                ├── general.tsx
+                └── members.tsx
 ```
 
 Regras de nome:
 
-- `route.tsx` — o layout/guard do diretório (roda `beforeLoad` e rende o
-  `<Outlet />` dos filhos);
-- `index.tsx` — a rota exata do segmento (`/$lang/app/`);
+- `route.tsx` — o layout/guard do diretório e o `<Outlet />` dos filhos;
+- `index.tsx` — a rota exata do segmento;
 - `$param/` — segmento dinâmico (vira `useParams()`);
 - `_nome/` — agrupa filhos sob um layout **sem** aparecer na URL;
 - prefixo `-` (arquivo ou pasta) — ignorado pelo router (helpers, componentes);
@@ -267,10 +320,10 @@ Página pública `/pt-br/sobre`:
    o path do `createFileRoute` se você errar). Navegue com
    `<Link to="/$lang/sobre" params={{ lang }}>`.
 
-Página privada `/pt-br/app/config`: mesmo processo, mas o arquivo vai DENTRO
-de `app/` — `src/routes/$lang/app/config.tsx` com
-`createFileRoute('/$lang/app/config')`. Ela herda o guard de auth e o layout
-do `app/route.tsx` automaticamente e renderiza no `<Outlet />` dele.
+Página privada com chrome: mesmo processo, mas o arquivo vai dentro de
+`src/routes/$lang/_private/_app/`; ela herda o guard de auth, `AppLayout` e
+`WorkspaceProvider`. Uma tela privada full-screen (como seleção/configuração de
+workspace) vai diretamente sob `_private`, fora de `_app`.
 
 Sub-área nova com guard próprio (ex.: `/admin`): crie `src/routes/$lang/admin/route.tsx`
 com o `beforeLoad` do guard + component com `<Outlet />`, e os filhos como

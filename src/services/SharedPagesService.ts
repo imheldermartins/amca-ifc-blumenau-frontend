@@ -37,6 +37,18 @@ export class SharedPagesService {
   listCollaborators(pageId: string): Promise<ApiPageCollaborator[]> {
     return apiService.get<ApiPageCollaborator[]>(`/pages/${pageId}/collaborators`)
   }
+
+  listCollaboratorCandidates(pageId: string, query: string): Promise<ApiPageCollaborator[]> {
+    return apiService.get<ApiPageCollaborator[]>(
+      `/pages/${pageId}/collaborator-candidates?q=${encodeURIComponent(query)}`,
+    )
+  }
+
+  addCollaborator(pageId: string, userId: string): Promise<void> {
+    return apiService
+      .post(`/pages/${pageId}/collaborators`, { userIds: [userId] })
+      .then(() => undefined)
+  }
 }
 
 export const sharedPagesService = new SharedPagesService()

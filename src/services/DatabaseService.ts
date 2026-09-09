@@ -38,8 +38,7 @@ export class DatabaseService {
   }
 
   /**
-   * Página de entrada da workspace para o usuário do token. É GET-or-create no
-   * backend: se o usuário ainda não tem uma nessa workspace, ela nasce aqui.
+   * Página de entrada da workspace vinculada ao membro autenticado.
    * Único ponto do fluxo que fala de workspace — o resto fala de página.
    */
   getEntryPage(workspaceId: string): Promise<ApiPage> {

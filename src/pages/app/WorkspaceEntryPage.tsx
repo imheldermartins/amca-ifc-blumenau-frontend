@@ -6,7 +6,7 @@ import { databaseService } from '@/services/DatabaseService'
 
 /**
  * Entrada pela workspace. A workspace NÃO é a unidade de trabalho — ela só
- * resolve o PONTO DE ENTRADA (`/workspaces/:id/page_root`, GET-or-create).
+ * resolve o PONTO DE ENTRADA do membro (`/workspaces/:id/page_root`).
  * Com o id em mãos, o resto é idêntico a abrir qualquer página pelo
  * `/page/:id`: mesma view, mesma sala de realtime.
  */
@@ -21,6 +21,12 @@ export function WorkspaceEntryPage() {
 
     setPageId(undefined)
     setFailed(false)
+    if (!workspaceId) {
+      setFailed(true)
+      return () => {
+        active = false
+      }
+    }
     databaseService
       .getEntryPage(workspaceId)
       .then((page) => {

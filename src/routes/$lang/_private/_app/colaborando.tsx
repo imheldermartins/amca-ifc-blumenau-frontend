@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 
 import { CollaboratingPage } from '@/pages/app/CollaboratingPage'
 
-/** Páginas compartilhadas COMIGO (sou membro, não dono). */
-export const Route = createFileRoute('/$lang/_private/colaborando')({
+export const Route = createFileRoute('/$lang/_private/_app/colaborando')({
   component: CollaboratingPage,
 })

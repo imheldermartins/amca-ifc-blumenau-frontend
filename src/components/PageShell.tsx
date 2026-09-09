@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import { Collaborators } from '@components/Collaborators'
 import {
@@ -136,6 +136,12 @@ export function PageShell({
   const [collaborators, setCollaborators] = useState<ApiPageCollaborator[]>([])
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false)
   const [collaboratorsFailed, setCollaboratorsFailed] = useState(false)
+  const [collaboratorCandidates, setCollaboratorCandidates] = useState<ApiPageCollaborator[]>([])
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const deferredCandidateQuery = useDeferredValue(candidateQuery)
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [candidatesFailed, setCandidatesFailed] = useState(false)
+  const [addingCollaboratorId, setAddingCollaboratorId] = useState<string | null>(null)
   const [pageSettingsFragment, setPageSettingsFragment] = useState<PageSettingsFragment>(
     () => readPageSettingsFragment(window.location.hash) ?? DEFAULT_PAGE_SETTINGS_FRAGMENT,
   )
@@ -202,6 +208,10 @@ export function PageShell({
   const visualCollaborators = useMemo(
     () => visualParticipants.filter((participant) => participant.id !== auth.user?.id),
     [auth.user?.id, visualParticipants],
+  )
+  const visualCollaboratorCandidates = useMemo(
+    () => assignUserVisualIdentities(collaboratorCandidates),
+    [collaboratorCandidates],
   )
   const contentViewLabels = useMemo<PageContentViewLabels>(
     () => ({
@@ -341,6 +351,51 @@ export function PageShell({
     }
   }, [pageId])
 
+  useEffect(() => {
+    if (!pageId || !pageSettingsOpen || pageSettingsFragment !== '#collaborators') {
+      setCollaboratorCandidates([])
+      setCandidatesLoading(false)
+      setCandidatesFailed(false)
+      return
+    }
+    let active = true
+    setCandidatesLoading(true)
+    setCandidatesFailed(false)
+    sharedPagesService
+      .listCollaboratorCandidates(pageId, deferredCandidateQuery)
+      .then((loaded) => {
+        if (active) setCollaboratorCandidates(loaded)
+      })
+      .catch(() => {
+        if (active) setCandidatesFailed(true)
+      })
+      .finally(() => {
+        if (active) setCandidatesLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [deferredCandidateQuery, pageId, pageSettingsFragment, pageSettingsOpen])
+
+  const addCollaborator = useCallback(async (userId: string) => {
+    if (!pageId || addingCollaboratorId) return
+    const candidate = collaboratorCandidates.find((item) => item.id === userId)
+    if (!candidate) return
+    setAddingCollaboratorId(userId)
+    setCandidatesFailed(false)
+    try {
+      await sharedPagesService.addCollaborator(pageId, userId)
+      setCollaborators((current) => current.some((item) => item.id === userId)
+        ? current
+        : [...current, candidate])
+      setCollaboratorCandidates((current) => current.filter((item) => item.id !== userId))
+    } catch {
+      setCandidatesFailed(true)
+    } finally {
+      setAddingCollaboratorId(null)
+    }
+  }, [addingCollaboratorId, collaboratorCandidates, pageId])
+
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
       <header className="mb-8 flex flex-col-reverse">
@@ -411,6 +466,13 @@ export function PageShell({
         collaborators={visualCollaborators}
         loading={collaboratorsLoading}
         failed={collaboratorsFailed}
+        collaboratorCandidates={visualCollaboratorCandidates}
+        candidateQuery={candidateQuery}
+        onCandidateQueryChange={setCandidateQuery}
+        candidatesLoading={candidatesLoading}
+        candidatesFailed={candidatesFailed}
+        addingCollaboratorId={addingCollaboratorId}
+        onAddCollaborator={addCollaborator}
       />
     </div>
   )

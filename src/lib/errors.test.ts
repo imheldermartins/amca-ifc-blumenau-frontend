@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AppError, classifyWriteError } from '@/lib/errors'
+import { AppError, classifyWriteError, toAppError } from '@/lib/errors'
 
 /**
  * `classifyWriteError` é o mapa que decide a mensagem de uma escrita que
@@ -35,5 +35,25 @@ describe('classifyWriteError', () => {
     expect(classifyWriteError(new Error('boom'))).toBe('generico')
     expect(classifyWriteError('string solta')).toBe('generico')
     expect(classifyWriteError(undefined)).toBe('generico')
+  })
+})
+
+describe('toAppError', () => {
+  it('não mantém o AxiosError com senha ou chave como causa logável', () => {
+    const axiosError = {
+      isAxiosError: true,
+      message: 'Request failed',
+      config: {
+        method: 'post',
+        url: '/auth/register/workspace',
+        data: JSON.stringify({ password: 'secret1', key: 'cubs_ws_v1_secret' }),
+      },
+      response: { status: 400, data: { message: 'Dados inválidos' } },
+    }
+
+    const error = toAppError('api', axiosError)
+
+    expect(error.message).toBe('POST /auth/register/workspace → 400: Dados inválidos')
+    expect(error.cause).toBeUndefined()
   })
 })

@@ -9,7 +9,7 @@ import { PageDatabaseView } from '@/pages/app/PageDatabaseView'
  * herdado pela árvore de `page_edges`).
  */
 export function PageRoutePage() {
-  const { pageId } = useParams({ from: '/$lang/_private/page/$pageId' })
+  const { pageId } = useParams({ from: '/$lang/_private/_app/page/$pageId' })
   const initialTitle = useLocation({
     select: (location) => readPageNavigationTitle(location.state, pageId),
   })

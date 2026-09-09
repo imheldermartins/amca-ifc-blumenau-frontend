@@ -5,7 +5,6 @@ import { Icon } from '@iconify/react'
 import { Button, TextField } from 'cubs-components'
 
 import { useAuth } from '@contexts/AuthContext'
-import { DEFAULT_WORKSPACE_ID } from '@/contexts/WorkspaceContext'
 import { i18n } from '@/lib/i18n'
 import { combineRules, validators } from '@/lib/validators'
 import { EmailInUseError } from '@/services/AuthService'
@@ -30,10 +29,11 @@ export function SignUpPage() {
   const signUp = useMutation({
     mutationFn: (values: SignUpFormValues) =>
       auth.signUp({ name: values.name, email: values.email, password: values.password }),
-    onSuccess: () =>
+    onSuccess: ({ workspace }) =>
       navigate({
         to: '/$lang/myworkspace/$workspaceId',
-        params: { lang, workspaceId: DEFAULT_WORKSPACE_ID },
+        params: { lang, workspaceId: workspace.id },
+        replace: true,
       }),
   })
 

@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { Trans } from 'react-i18next'
 import { Button } from 'cubs-components'
 
@@ -35,6 +35,13 @@ export function HomePage() {
           {i18n('pages.home.criar-conta')}
         </Button>
       </div>
+      <Link
+        to="/$lang/create-workspaces"
+        params={{ lang }}
+        className="mt-5 text-sm font-semibold text-p-purple-600 hover:underline"
+      >
+        {i18n('pages.home.criar-areas-de-trabalho')}
+      </Link>
     </main>
   )
 }

@@ -1,4 +1,5 @@
-import { Button, cn } from 'cubs-components'
+import { Icon } from '@iconify/react'
+import { Button, TextField, cn } from 'cubs-components'
 
 import { Avatar } from '@components/Avatar'
 import { Modal } from '@components/Modal'
@@ -21,6 +22,13 @@ export interface PageSettingsModalProps {
   collaborators: readonly UserVisualIdentity[]
   loading: boolean
   failed: boolean
+  collaboratorCandidates: readonly UserVisualIdentity[]
+  candidateQuery: string
+  onCandidateQueryChange: (query: string) => void
+  candidatesLoading: boolean
+  candidatesFailed: boolean
+  addingCollaboratorId: string | null
+  onAddCollaborator: (userId: string) => void
 }
 
 const SECTIONS: Array<{ fragment: PageSettingsFragment; labelKey: string }> = [
@@ -30,7 +38,7 @@ const SECTIONS: Array<{ fragment: PageSettingsFragment; labelKey: string }> = [
 
 function IdentityRow({ user, current = false }: { user: UserVisualIdentity; current?: boolean }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg border border-divider p-2.5">
+    <li className="flex items-center gap-3 py-2.5">
       <Avatar
         slug={user.slug}
         color={user.color}
@@ -68,6 +76,13 @@ export function PageSettingsModal({
   collaborators,
   loading,
   failed,
+  collaboratorCandidates,
+  candidateQuery,
+  onCandidateQueryChange,
+  candidatesLoading,
+  candidatesFailed,
+  addingCollaboratorId,
+  onAddCollaborator,
 }: PageSettingsModalProps) {
   const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
 
@@ -83,7 +98,7 @@ export function PageSettingsModal({
         <nav
           role="tablist"
           aria-label={i18n('pages.app.page-settings.navigation')}
-          className="flex flex-col gap-1 border-r border-divider p-3"
+          className="flex flex-col gap-1 p-3"
         >
           {SECTIONS.map((section) => {
             const selected = section.fragment === activeSection.fragment
@@ -123,7 +138,7 @@ export function PageSettingsModal({
                 <dt className="text-muted-foreground">
                   {i18n('pages.app.page-settings.page-name')}
                 </dt>
-                <dd className="mt-1 break-words font-medium">
+                <dd className="mt-1 wrap-break-word font-medium">
                   {pageTitle ? pageTitle : <PageTitleSkeleton />}
                 </dd>
               </div>
@@ -137,7 +152,66 @@ export function PageSettingsModal({
           )}
 
           {activeSection.fragment === '#collaborators' && (
-            <div className="mt-5 grid gap-5">
+            <div className="mt-5 grid gap-5 pb-8">
+              <section aria-labelledby="page-settings-add-collaborator">
+                <Typography
+                  id="page-settings-add-collaborator"
+                  variant="caption"
+                  as="h3"
+                  className="mb-2"
+                >
+                  {i18n('pages.app.page-settings.add-collaborator')}
+                </Typography>
+                <TextField
+                  type="search"
+                  value={candidateQuery}
+                  onChange={(event) => onCandidateQueryChange(event.target.value)}
+                  aria-label={i18n('pages.app.page-settings.search-workspace-users')}
+                  placeholder={i18n('pages.app.page-settings.search-workspace-users')}
+                  startAdornment={<Icon icon="lucide:search" className="size-4" />}
+                />
+                {candidatesLoading ? (
+                  <p role="status" className="mt-2 text-sm text-muted-foreground">
+                    {i18n('common.carregando')}
+                  </p>
+                ) : candidatesFailed ? (
+                  <p role="alert" className="mt-2 text-sm text-p-red">
+                    {i18n('pages.app.page-settings.candidates-error')}
+                  </p>
+                ) : collaboratorCandidates.length === 0 ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {i18n('pages.app.page-settings.candidates-empty')}
+                  </p>
+                ) : (
+                  <ul className="mt-2 max-h-44 divide-y divide-divider">
+                    {collaboratorCandidates.map((candidate) => (
+                      <li key={candidate.id} className="flex items-center gap-3 py-2.5">
+                        <Avatar
+                          slug={candidate.slug}
+                          color={candidate.color}
+                          label={candidate.name ?? candidate.email}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{candidate.name ?? candidate.email}</p>
+                          {candidate.name && <p className="truncate text-xs text-muted-foreground">{candidate.email}</p>}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="filled"
+                          color="purple"
+                          disabled={addingCollaboratorId === candidate.id}
+                          onClick={() => onAddCollaborator(candidate.id)}
+                        >
+                          {i18n(addingCollaboratorId === candidate.id
+                            ? 'pages.app.page-settings.adding-collaborator'
+                            : 'pages.app.page-settings.add-collaborator-action')}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
               {currentUser && (
                 <section aria-labelledby="page-settings-current-user">
                   <Typography
@@ -148,7 +222,7 @@ export function PageSettingsModal({
                   >
                     {i18n('pages.app.page-settings.current-user')}
                   </Typography>
-                  <ul>
+                  <ul className="divide-y divide-divider">
                     <IdentityRow user={currentUser} current />
                   </ul>
                 </section>
@@ -177,7 +251,7 @@ export function PageSettingsModal({
                     {i18n('pages.app.page-settings.collaborators-empty')}
                   </p>
                 ) : (
-                  <ul className="grid gap-2">
+                  <ul className="divide-y divide-divider">
                     {collaborators.map((collaborator) => (
                       <IdentityRow key={collaborator.id} user={collaborator} />
                     ))}
