@@ -16,23 +16,32 @@ import { Route as LangPublicRouteRouteImport } from './routes/$lang/_public/rout
 import { Route as LangPrivateRouteRouteImport } from './routes/$lang/_private/route'
 import { Route as LangPublicSignUpRouteImport } from './routes/$lang/_public/sign-up'
 import { Route as LangPublicSignInRouteImport } from './routes/$lang/_public/sign-in'
-import { Route as LangPublicCreateWorkspacesRouteImport } from './routes/$lang/_public/create-workspaces'
 import { Route as LangPrivateAccessDeniedRouteImport } from './routes/$lang/_private/access-denied'
 import { Route as LangPrivateWorkspacesRouteRouteImport } from './routes/$lang/_private/workspaces/route'
 import { Route as LangPrivateAppRouteRouteImport } from './routes/$lang/_private/_app/route'
 import { Route as LangPrivateWorkspacesIndexRouteImport } from './routes/$lang/_private/workspaces/index'
+import { Route as LangPrivateOrganizationsIndexRouteImport } from './routes/$lang/_private/organizations/index'
+import { Route as LangPublicVerifyEmailTokenRouteImport } from './routes/$lang/_public/verify-email.$token'
+import { Route as LangPublicInviteTokenRouteImport } from './routes/$lang/_public/invite.$token'
 import { Route as LangPrivateWorkspacesNewRouteImport } from './routes/$lang/_private/workspaces/new'
+import { Route as LangPrivateOrganizationsNewRouteImport } from './routes/$lang/_private/organizations/new'
+import { Route as LangPrivateOrganizationsOrganizationIdRouteImport } from './routes/$lang/_private/organizations/$organizationId'
 import { Route as LangPrivateAppColaborandoRouteImport } from './routes/$lang/_private/_app/colaborando'
 import { Route as LangPrivateWorkspacesWorkspaceIdRouteRouteImport } from './routes/$lang/_private/workspaces/$workspaceId/route'
 import { Route as LangPrivateAppPagePageIdRouteImport } from './routes/$lang/_private/_app/page/$pageId'
 import { Route as LangPrivateAppMyworkspaceWorkspaceIdRouteImport } from './routes/$lang/_private/_app/myworkspace/$workspaceId'
 import { Route as LangPrivateWorkspacesWorkspaceIdSettingsRouteRouteImport } from './routes/$lang/_private/workspaces/$workspaceId/settings/route'
 import { Route as LangPrivateWorkspacesWorkspaceIdSettingsIndexRouteImport } from './routes/$lang/_private/workspaces/$workspaceId/settings/index'
+import { Route as LangPrivateAccessScopeScopeIdIndexRouteImport } from './routes/$lang/_private/access/$scope/$scopeId/index'
 import { Route as LangPrivateAppMyworkspaceWorkspaceIdIndexRouteImport } from './routes/$lang/_private/_app/myworkspace/$workspaceId/index'
 import { Route as LangPrivateWorkspacesWorkspaceIdSettingsMembersRouteImport } from './routes/$lang/_private/workspaces/$workspaceId/settings/members'
 import { Route as LangPrivateWorkspacesWorkspaceIdSettingsGeneralRouteImport } from './routes/$lang/_private/workspaces/$workspaceId/settings/general'
+import { Route as LangPrivateAccessScopeScopeIdRolesRouteImport } from './routes/$lang/_private/access/$scope/$scopeId/roles'
 import { Route as LangPrivateAppMyworkspaceWorkspaceIdScheduleRouteImport } from './routes/$lang/_private/_app/myworkspace/$workspaceId/schedule'
 import { Route as LangPrivateAppMyworkspaceWorkspaceIdMychatRouteImport } from './routes/$lang/_private/_app/myworkspace/$workspaceId/mychat'
+import { Route as LangPrivateAccessScopeScopeIdRequestsIndexRouteImport } from './routes/$lang/_private/access/$scope/$scopeId/requests/index'
+import { Route as LangPrivateAccessScopeScopeIdRequestsRequestIdRouteImport } from './routes/$lang/_private/access/$scope/$scopeId/requests/$requestId'
+import { Route as LangPrivateAccessScopeScopeIdMemberMemberIdRouteImport } from './routes/$lang/_private/access/$scope/$scopeId/member/$memberId'
 
 const LangRouteRoute = LangRouteRouteImport.update({
   id: '/$lang',
@@ -67,12 +76,6 @@ const LangPublicSignInRoute = LangPublicSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => LangPublicRouteRoute,
 } as any)
-const LangPublicCreateWorkspacesRoute =
-  LangPublicCreateWorkspacesRouteImport.update({
-    id: '/create-workspaces',
-    path: '/create-workspaces',
-    getParentRoute: () => LangPublicRouteRoute,
-  } as any)
 const LangPrivateAccessDeniedRoute = LangPrivateAccessDeniedRouteImport.update({
   id: '/access-denied',
   path: '/access-denied',
@@ -94,11 +97,40 @@ const LangPrivateWorkspacesIndexRoute =
     path: '/',
     getParentRoute: () => LangPrivateWorkspacesRouteRoute,
   } as any)
+const LangPrivateOrganizationsIndexRoute =
+  LangPrivateOrganizationsIndexRouteImport.update({
+    id: '/organizations/',
+    path: '/organizations/',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
+const LangPublicVerifyEmailTokenRoute =
+  LangPublicVerifyEmailTokenRouteImport.update({
+    id: '/verify-email/$token',
+    path: '/verify-email/$token',
+    getParentRoute: () => LangPublicRouteRoute,
+  } as any)
+const LangPublicInviteTokenRoute = LangPublicInviteTokenRouteImport.update({
+  id: '/invite/$token',
+  path: '/invite/$token',
+  getParentRoute: () => LangPublicRouteRoute,
+} as any)
 const LangPrivateWorkspacesNewRoute =
   LangPrivateWorkspacesNewRouteImport.update({
     id: '/new',
     path: '/new',
     getParentRoute: () => LangPrivateWorkspacesRouteRoute,
+  } as any)
+const LangPrivateOrganizationsNewRoute =
+  LangPrivateOrganizationsNewRouteImport.update({
+    id: '/organizations/new',
+    path: '/organizations/new',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
+const LangPrivateOrganizationsOrganizationIdRoute =
+  LangPrivateOrganizationsOrganizationIdRouteImport.update({
+    id: '/organizations/$organizationId',
+    path: '/organizations/$organizationId',
+    getParentRoute: () => LangPrivateRouteRoute,
   } as any)
 const LangPrivateAppColaborandoRoute =
   LangPrivateAppColaborandoRouteImport.update({
@@ -136,6 +168,12 @@ const LangPrivateWorkspacesWorkspaceIdSettingsIndexRoute =
     path: '/',
     getParentRoute: () => LangPrivateWorkspacesWorkspaceIdSettingsRouteRoute,
   } as any)
+const LangPrivateAccessScopeScopeIdIndexRoute =
+  LangPrivateAccessScopeScopeIdIndexRouteImport.update({
+    id: '/access/$scope/$scopeId/',
+    path: '/access/$scope/$scopeId/',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
 const LangPrivateAppMyworkspaceWorkspaceIdIndexRoute =
   LangPrivateAppMyworkspaceWorkspaceIdIndexRouteImport.update({
     id: '/',
@@ -154,6 +192,12 @@ const LangPrivateWorkspacesWorkspaceIdSettingsGeneralRoute =
     path: '/general',
     getParentRoute: () => LangPrivateWorkspacesWorkspaceIdSettingsRouteRoute,
   } as any)
+const LangPrivateAccessScopeScopeIdRolesRoute =
+  LangPrivateAccessScopeScopeIdRolesRouteImport.update({
+    id: '/access/$scope/$scopeId/roles',
+    path: '/access/$scope/$scopeId/roles',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
 const LangPrivateAppMyworkspaceWorkspaceIdScheduleRoute =
   LangPrivateAppMyworkspaceWorkspaceIdScheduleRouteImport.update({
     id: '/schedule',
@@ -166,6 +210,24 @@ const LangPrivateAppMyworkspaceWorkspaceIdMychatRoute =
     path: '/mychat',
     getParentRoute: () => LangPrivateAppMyworkspaceWorkspaceIdRoute,
   } as any)
+const LangPrivateAccessScopeScopeIdRequestsIndexRoute =
+  LangPrivateAccessScopeScopeIdRequestsIndexRouteImport.update({
+    id: '/access/$scope/$scopeId/requests/',
+    path: '/access/$scope/$scopeId/requests/',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
+const LangPrivateAccessScopeScopeIdRequestsRequestIdRoute =
+  LangPrivateAccessScopeScopeIdRequestsRequestIdRouteImport.update({
+    id: '/access/$scope/$scopeId/requests/$requestId',
+    path: '/access/$scope/$scopeId/requests/$requestId',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
+const LangPrivateAccessScopeScopeIdMemberMemberIdRoute =
+  LangPrivateAccessScopeScopeIdMemberMemberIdRouteImport.update({
+    id: '/access/$scope/$scopeId/member/$memberId',
+    path: '/access/$scope/$scopeId/member/$memberId',
+    getParentRoute: () => LangPrivateRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -173,41 +235,59 @@ export interface FileRoutesByFullPath {
   '/$lang/': typeof LangIndexRoute
   '/$lang/workspaces': typeof LangPrivateWorkspacesRouteRouteWithChildren
   '/$lang/access-denied': typeof LangPrivateAccessDeniedRoute
-  '/$lang/create-workspaces': typeof LangPublicCreateWorkspacesRoute
   '/$lang/sign-in': typeof LangPublicSignInRoute
   '/$lang/sign-up': typeof LangPublicSignUpRoute
   '/$lang/workspaces/$workspaceId': typeof LangPrivateWorkspacesWorkspaceIdRouteRouteWithChildren
   '/$lang/colaborando': typeof LangPrivateAppColaborandoRoute
+  '/$lang/organizations/$organizationId': typeof LangPrivateOrganizationsOrganizationIdRoute
+  '/$lang/organizations/new': typeof LangPrivateOrganizationsNewRoute
   '/$lang/workspaces/new': typeof LangPrivateWorkspacesNewRoute
+  '/$lang/invite/$token': typeof LangPublicInviteTokenRoute
+  '/$lang/verify-email/$token': typeof LangPublicVerifyEmailTokenRoute
+  '/$lang/organizations/': typeof LangPrivateOrganizationsIndexRoute
   '/$lang/workspaces/': typeof LangPrivateWorkspacesIndexRoute
   '/$lang/workspaces/$workspaceId/settings': typeof LangPrivateWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/myworkspace/$workspaceId': typeof LangPrivateAppMyworkspaceWorkspaceIdRouteWithChildren
   '/$lang/page/$pageId': typeof LangPrivateAppPagePageIdRoute
   '/$lang/myworkspace/$workspaceId/mychat': typeof LangPrivateAppMyworkspaceWorkspaceIdMychatRoute
   '/$lang/myworkspace/$workspaceId/schedule': typeof LangPrivateAppMyworkspaceWorkspaceIdScheduleRoute
+  '/$lang/access/$scope/$scopeId/roles': typeof LangPrivateAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangPrivateWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangPrivateWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/myworkspace/$workspaceId/': typeof LangPrivateAppMyworkspaceWorkspaceIdIndexRoute
+  '/$lang/access/$scope/$scopeId/': typeof LangPrivateAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings/': typeof LangPrivateWorkspacesWorkspaceIdSettingsIndexRoute
+  '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangPrivateAccessScopeScopeIdMemberMemberIdRoute
+  '/$lang/access/$scope/$scopeId/requests/$requestId': typeof LangPrivateAccessScopeScopeIdRequestsRequestIdRoute
+  '/$lang/access/$scope/$scopeId/requests/': typeof LangPrivateAccessScopeScopeIdRequestsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/$lang': typeof LangIndexRoute
   '/$lang/access-denied': typeof LangPrivateAccessDeniedRoute
-  '/$lang/create-workspaces': typeof LangPublicCreateWorkspacesRoute
   '/$lang/sign-in': typeof LangPublicSignInRoute
   '/$lang/sign-up': typeof LangPublicSignUpRoute
   '/$lang/workspaces/$workspaceId': typeof LangPrivateWorkspacesWorkspaceIdRouteRouteWithChildren
   '/$lang/colaborando': typeof LangPrivateAppColaborandoRoute
+  '/$lang/organizations/$organizationId': typeof LangPrivateOrganizationsOrganizationIdRoute
+  '/$lang/organizations/new': typeof LangPrivateOrganizationsNewRoute
   '/$lang/workspaces/new': typeof LangPrivateWorkspacesNewRoute
+  '/$lang/invite/$token': typeof LangPublicInviteTokenRoute
+  '/$lang/verify-email/$token': typeof LangPublicVerifyEmailTokenRoute
+  '/$lang/organizations': typeof LangPrivateOrganizationsIndexRoute
   '/$lang/workspaces': typeof LangPrivateWorkspacesIndexRoute
   '/$lang/page/$pageId': typeof LangPrivateAppPagePageIdRoute
   '/$lang/myworkspace/$workspaceId/mychat': typeof LangPrivateAppMyworkspaceWorkspaceIdMychatRoute
   '/$lang/myworkspace/$workspaceId/schedule': typeof LangPrivateAppMyworkspaceWorkspaceIdScheduleRoute
+  '/$lang/access/$scope/$scopeId/roles': typeof LangPrivateAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangPrivateWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangPrivateWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/myworkspace/$workspaceId': typeof LangPrivateAppMyworkspaceWorkspaceIdIndexRoute
+  '/$lang/access/$scope/$scopeId': typeof LangPrivateAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings': typeof LangPrivateWorkspacesWorkspaceIdSettingsIndexRoute
+  '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangPrivateAccessScopeScopeIdMemberMemberIdRoute
+  '/$lang/access/$scope/$scopeId/requests/$requestId': typeof LangPrivateAccessScopeScopeIdRequestsRequestIdRoute
+  '/$lang/access/$scope/$scopeId/requests': typeof LangPrivateAccessScopeScopeIdRequestsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -219,22 +299,31 @@ export interface FileRoutesById {
   '/$lang/_private/_app': typeof LangPrivateAppRouteRouteWithChildren
   '/$lang/_private/workspaces': typeof LangPrivateWorkspacesRouteRouteWithChildren
   '/$lang/_private/access-denied': typeof LangPrivateAccessDeniedRoute
-  '/$lang/_public/create-workspaces': typeof LangPublicCreateWorkspacesRoute
   '/$lang/_public/sign-in': typeof LangPublicSignInRoute
   '/$lang/_public/sign-up': typeof LangPublicSignUpRoute
   '/$lang/_private/workspaces/$workspaceId': typeof LangPrivateWorkspacesWorkspaceIdRouteRouteWithChildren
   '/$lang/_private/_app/colaborando': typeof LangPrivateAppColaborandoRoute
+  '/$lang/_private/organizations/$organizationId': typeof LangPrivateOrganizationsOrganizationIdRoute
+  '/$lang/_private/organizations/new': typeof LangPrivateOrganizationsNewRoute
   '/$lang/_private/workspaces/new': typeof LangPrivateWorkspacesNewRoute
+  '/$lang/_public/invite/$token': typeof LangPublicInviteTokenRoute
+  '/$lang/_public/verify-email/$token': typeof LangPublicVerifyEmailTokenRoute
+  '/$lang/_private/organizations/': typeof LangPrivateOrganizationsIndexRoute
   '/$lang/_private/workspaces/': typeof LangPrivateWorkspacesIndexRoute
   '/$lang/_private/workspaces/$workspaceId/settings': typeof LangPrivateWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/_private/_app/myworkspace/$workspaceId': typeof LangPrivateAppMyworkspaceWorkspaceIdRouteWithChildren
   '/$lang/_private/_app/page/$pageId': typeof LangPrivateAppPagePageIdRoute
   '/$lang/_private/_app/myworkspace/$workspaceId/mychat': typeof LangPrivateAppMyworkspaceWorkspaceIdMychatRoute
   '/$lang/_private/_app/myworkspace/$workspaceId/schedule': typeof LangPrivateAppMyworkspaceWorkspaceIdScheduleRoute
+  '/$lang/_private/access/$scope/$scopeId/roles': typeof LangPrivateAccessScopeScopeIdRolesRoute
   '/$lang/_private/workspaces/$workspaceId/settings/general': typeof LangPrivateWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/_private/workspaces/$workspaceId/settings/members': typeof LangPrivateWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/_private/_app/myworkspace/$workspaceId/': typeof LangPrivateAppMyworkspaceWorkspaceIdIndexRoute
+  '/$lang/_private/access/$scope/$scopeId/': typeof LangPrivateAccessScopeScopeIdIndexRoute
   '/$lang/_private/workspaces/$workspaceId/settings/': typeof LangPrivateWorkspacesWorkspaceIdSettingsIndexRoute
+  '/$lang/_private/access/$scope/$scopeId/member/$memberId': typeof LangPrivateAccessScopeScopeIdMemberMemberIdRoute
+  '/$lang/_private/access/$scope/$scopeId/requests/$requestId': typeof LangPrivateAccessScopeScopeIdRequestsRequestIdRoute
+  '/$lang/_private/access/$scope/$scopeId/requests/': typeof LangPrivateAccessScopeScopeIdRequestsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -244,41 +333,59 @@ export interface FileRouteTypes {
     | '/$lang/'
     | '/$lang/workspaces'
     | '/$lang/access-denied'
-    | '/$lang/create-workspaces'
     | '/$lang/sign-in'
     | '/$lang/sign-up'
     | '/$lang/workspaces/$workspaceId'
     | '/$lang/colaborando'
+    | '/$lang/organizations/$organizationId'
+    | '/$lang/organizations/new'
     | '/$lang/workspaces/new'
+    | '/$lang/invite/$token'
+    | '/$lang/verify-email/$token'
+    | '/$lang/organizations/'
     | '/$lang/workspaces/'
     | '/$lang/workspaces/$workspaceId/settings'
     | '/$lang/myworkspace/$workspaceId'
     | '/$lang/page/$pageId'
     | '/$lang/myworkspace/$workspaceId/mychat'
     | '/$lang/myworkspace/$workspaceId/schedule'
+    | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
     | '/$lang/myworkspace/$workspaceId/'
+    | '/$lang/access/$scope/$scopeId/'
     | '/$lang/workspaces/$workspaceId/settings/'
+    | '/$lang/access/$scope/$scopeId/member/$memberId'
+    | '/$lang/access/$scope/$scopeId/requests/$requestId'
+    | '/$lang/access/$scope/$scopeId/requests/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/$lang'
     | '/$lang/access-denied'
-    | '/$lang/create-workspaces'
     | '/$lang/sign-in'
     | '/$lang/sign-up'
     | '/$lang/workspaces/$workspaceId'
     | '/$lang/colaborando'
+    | '/$lang/organizations/$organizationId'
+    | '/$lang/organizations/new'
     | '/$lang/workspaces/new'
+    | '/$lang/invite/$token'
+    | '/$lang/verify-email/$token'
+    | '/$lang/organizations'
     | '/$lang/workspaces'
     | '/$lang/page/$pageId'
     | '/$lang/myworkspace/$workspaceId/mychat'
     | '/$lang/myworkspace/$workspaceId/schedule'
+    | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
     | '/$lang/myworkspace/$workspaceId'
+    | '/$lang/access/$scope/$scopeId'
     | '/$lang/workspaces/$workspaceId/settings'
+    | '/$lang/access/$scope/$scopeId/member/$memberId'
+    | '/$lang/access/$scope/$scopeId/requests/$requestId'
+    | '/$lang/access/$scope/$scopeId/requests'
   id:
     | '__root__'
     | '/'
@@ -289,22 +396,31 @@ export interface FileRouteTypes {
     | '/$lang/_private/_app'
     | '/$lang/_private/workspaces'
     | '/$lang/_private/access-denied'
-    | '/$lang/_public/create-workspaces'
     | '/$lang/_public/sign-in'
     | '/$lang/_public/sign-up'
     | '/$lang/_private/workspaces/$workspaceId'
     | '/$lang/_private/_app/colaborando'
+    | '/$lang/_private/organizations/$organizationId'
+    | '/$lang/_private/organizations/new'
     | '/$lang/_private/workspaces/new'
+    | '/$lang/_public/invite/$token'
+    | '/$lang/_public/verify-email/$token'
+    | '/$lang/_private/organizations/'
     | '/$lang/_private/workspaces/'
     | '/$lang/_private/workspaces/$workspaceId/settings'
     | '/$lang/_private/_app/myworkspace/$workspaceId'
     | '/$lang/_private/_app/page/$pageId'
     | '/$lang/_private/_app/myworkspace/$workspaceId/mychat'
     | '/$lang/_private/_app/myworkspace/$workspaceId/schedule'
+    | '/$lang/_private/access/$scope/$scopeId/roles'
     | '/$lang/_private/workspaces/$workspaceId/settings/general'
     | '/$lang/_private/workspaces/$workspaceId/settings/members'
     | '/$lang/_private/_app/myworkspace/$workspaceId/'
+    | '/$lang/_private/access/$scope/$scopeId/'
     | '/$lang/_private/workspaces/$workspaceId/settings/'
+    | '/$lang/_private/access/$scope/$scopeId/member/$memberId'
+    | '/$lang/_private/access/$scope/$scopeId/requests/$requestId'
+    | '/$lang/_private/access/$scope/$scopeId/requests/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -363,13 +479,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPublicSignInRouteImport
       parentRoute: typeof LangPublicRouteRoute
     }
-    '/$lang/_public/create-workspaces': {
-      id: '/$lang/_public/create-workspaces'
-      path: '/create-workspaces'
-      fullPath: '/$lang/create-workspaces'
-      preLoaderRoute: typeof LangPublicCreateWorkspacesRouteImport
-      parentRoute: typeof LangPublicRouteRoute
-    }
     '/$lang/_private/access-denied': {
       id: '/$lang/_private/access-denied'
       path: '/access-denied'
@@ -398,12 +507,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPrivateWorkspacesIndexRouteImport
       parentRoute: typeof LangPrivateWorkspacesRouteRoute
     }
+    '/$lang/_private/organizations/': {
+      id: '/$lang/_private/organizations/'
+      path: '/organizations'
+      fullPath: '/$lang/organizations/'
+      preLoaderRoute: typeof LangPrivateOrganizationsIndexRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
+    '/$lang/_public/verify-email/$token': {
+      id: '/$lang/_public/verify-email/$token'
+      path: '/verify-email/$token'
+      fullPath: '/$lang/verify-email/$token'
+      preLoaderRoute: typeof LangPublicVerifyEmailTokenRouteImport
+      parentRoute: typeof LangPublicRouteRoute
+    }
+    '/$lang/_public/invite/$token': {
+      id: '/$lang/_public/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/$lang/invite/$token'
+      preLoaderRoute: typeof LangPublicInviteTokenRouteImport
+      parentRoute: typeof LangPublicRouteRoute
+    }
     '/$lang/_private/workspaces/new': {
       id: '/$lang/_private/workspaces/new'
       path: '/new'
       fullPath: '/$lang/workspaces/new'
       preLoaderRoute: typeof LangPrivateWorkspacesNewRouteImport
       parentRoute: typeof LangPrivateWorkspacesRouteRoute
+    }
+    '/$lang/_private/organizations/new': {
+      id: '/$lang/_private/organizations/new'
+      path: '/organizations/new'
+      fullPath: '/$lang/organizations/new'
+      preLoaderRoute: typeof LangPrivateOrganizationsNewRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
+    '/$lang/_private/organizations/$organizationId': {
+      id: '/$lang/_private/organizations/$organizationId'
+      path: '/organizations/$organizationId'
+      fullPath: '/$lang/organizations/$organizationId'
+      preLoaderRoute: typeof LangPrivateOrganizationsOrganizationIdRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
     }
     '/$lang/_private/_app/colaborando': {
       id: '/$lang/_private/_app/colaborando'
@@ -447,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPrivateWorkspacesWorkspaceIdSettingsIndexRouteImport
       parentRoute: typeof LangPrivateWorkspacesWorkspaceIdSettingsRouteRoute
     }
+    '/$lang/_private/access/$scope/$scopeId/': {
+      id: '/$lang/_private/access/$scope/$scopeId/'
+      path: '/access/$scope/$scopeId'
+      fullPath: '/$lang/access/$scope/$scopeId/'
+      preLoaderRoute: typeof LangPrivateAccessScopeScopeIdIndexRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
     '/$lang/_private/_app/myworkspace/$workspaceId/': {
       id: '/$lang/_private/_app/myworkspace/$workspaceId/'
       path: '/'
@@ -468,6 +619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPrivateWorkspacesWorkspaceIdSettingsGeneralRouteImport
       parentRoute: typeof LangPrivateWorkspacesWorkspaceIdSettingsRouteRoute
     }
+    '/$lang/_private/access/$scope/$scopeId/roles': {
+      id: '/$lang/_private/access/$scope/$scopeId/roles'
+      path: '/access/$scope/$scopeId/roles'
+      fullPath: '/$lang/access/$scope/$scopeId/roles'
+      preLoaderRoute: typeof LangPrivateAccessScopeScopeIdRolesRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
     '/$lang/_private/_app/myworkspace/$workspaceId/schedule': {
       id: '/$lang/_private/_app/myworkspace/$workspaceId/schedule'
       path: '/schedule'
@@ -481,6 +639,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lang/myworkspace/$workspaceId/mychat'
       preLoaderRoute: typeof LangPrivateAppMyworkspaceWorkspaceIdMychatRouteImport
       parentRoute: typeof LangPrivateAppMyworkspaceWorkspaceIdRoute
+    }
+    '/$lang/_private/access/$scope/$scopeId/requests/': {
+      id: '/$lang/_private/access/$scope/$scopeId/requests/'
+      path: '/access/$scope/$scopeId/requests'
+      fullPath: '/$lang/access/$scope/$scopeId/requests/'
+      preLoaderRoute: typeof LangPrivateAccessScopeScopeIdRequestsIndexRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
+    '/$lang/_private/access/$scope/$scopeId/requests/$requestId': {
+      id: '/$lang/_private/access/$scope/$scopeId/requests/$requestId'
+      path: '/access/$scope/$scopeId/requests/$requestId'
+      fullPath: '/$lang/access/$scope/$scopeId/requests/$requestId'
+      preLoaderRoute: typeof LangPrivateAccessScopeScopeIdRequestsRequestIdRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
+    }
+    '/$lang/_private/access/$scope/$scopeId/member/$memberId': {
+      id: '/$lang/_private/access/$scope/$scopeId/member/$memberId'
+      path: '/access/$scope/$scopeId/member/$memberId'
+      fullPath: '/$lang/access/$scope/$scopeId/member/$memberId'
+      preLoaderRoute: typeof LangPrivateAccessScopeScopeIdMemberMemberIdRouteImport
+      parentRoute: typeof LangPrivateRouteRoute
     }
   }
 }
@@ -581,27 +760,51 @@ interface LangPrivateRouteRouteChildren {
   LangPrivateAppRouteRoute: typeof LangPrivateAppRouteRouteWithChildren
   LangPrivateWorkspacesRouteRoute: typeof LangPrivateWorkspacesRouteRouteWithChildren
   LangPrivateAccessDeniedRoute: typeof LangPrivateAccessDeniedRoute
+  LangPrivateOrganizationsOrganizationIdRoute: typeof LangPrivateOrganizationsOrganizationIdRoute
+  LangPrivateOrganizationsNewRoute: typeof LangPrivateOrganizationsNewRoute
+  LangPrivateOrganizationsIndexRoute: typeof LangPrivateOrganizationsIndexRoute
+  LangPrivateAccessScopeScopeIdRolesRoute: typeof LangPrivateAccessScopeScopeIdRolesRoute
+  LangPrivateAccessScopeScopeIdIndexRoute: typeof LangPrivateAccessScopeScopeIdIndexRoute
+  LangPrivateAccessScopeScopeIdMemberMemberIdRoute: typeof LangPrivateAccessScopeScopeIdMemberMemberIdRoute
+  LangPrivateAccessScopeScopeIdRequestsRequestIdRoute: typeof LangPrivateAccessScopeScopeIdRequestsRequestIdRoute
+  LangPrivateAccessScopeScopeIdRequestsIndexRoute: typeof LangPrivateAccessScopeScopeIdRequestsIndexRoute
 }
 
 const LangPrivateRouteRouteChildren: LangPrivateRouteRouteChildren = {
   LangPrivateAppRouteRoute: LangPrivateAppRouteRouteWithChildren,
   LangPrivateWorkspacesRouteRoute: LangPrivateWorkspacesRouteRouteWithChildren,
   LangPrivateAccessDeniedRoute: LangPrivateAccessDeniedRoute,
+  LangPrivateOrganizationsOrganizationIdRoute:
+    LangPrivateOrganizationsOrganizationIdRoute,
+  LangPrivateOrganizationsNewRoute: LangPrivateOrganizationsNewRoute,
+  LangPrivateOrganizationsIndexRoute: LangPrivateOrganizationsIndexRoute,
+  LangPrivateAccessScopeScopeIdRolesRoute:
+    LangPrivateAccessScopeScopeIdRolesRoute,
+  LangPrivateAccessScopeScopeIdIndexRoute:
+    LangPrivateAccessScopeScopeIdIndexRoute,
+  LangPrivateAccessScopeScopeIdMemberMemberIdRoute:
+    LangPrivateAccessScopeScopeIdMemberMemberIdRoute,
+  LangPrivateAccessScopeScopeIdRequestsRequestIdRoute:
+    LangPrivateAccessScopeScopeIdRequestsRequestIdRoute,
+  LangPrivateAccessScopeScopeIdRequestsIndexRoute:
+    LangPrivateAccessScopeScopeIdRequestsIndexRoute,
 }
 
 const LangPrivateRouteRouteWithChildren =
   LangPrivateRouteRoute._addFileChildren(LangPrivateRouteRouteChildren)
 
 interface LangPublicRouteRouteChildren {
-  LangPublicCreateWorkspacesRoute: typeof LangPublicCreateWorkspacesRoute
   LangPublicSignInRoute: typeof LangPublicSignInRoute
   LangPublicSignUpRoute: typeof LangPublicSignUpRoute
+  LangPublicInviteTokenRoute: typeof LangPublicInviteTokenRoute
+  LangPublicVerifyEmailTokenRoute: typeof LangPublicVerifyEmailTokenRoute
 }
 
 const LangPublicRouteRouteChildren: LangPublicRouteRouteChildren = {
-  LangPublicCreateWorkspacesRoute: LangPublicCreateWorkspacesRoute,
   LangPublicSignInRoute: LangPublicSignInRoute,
   LangPublicSignUpRoute: LangPublicSignUpRoute,
+  LangPublicInviteTokenRoute: LangPublicInviteTokenRoute,
+  LangPublicVerifyEmailTokenRoute: LangPublicVerifyEmailTokenRoute,
 }
 
 const LangPublicRouteRouteWithChildren = LangPublicRouteRoute._addFileChildren(
