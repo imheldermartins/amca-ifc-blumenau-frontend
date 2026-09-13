@@ -58,6 +58,7 @@
       "bem-vindo-ao-cubs": "Bem-vindo ao <green>{{appName}}</green>!",
       "descricao": "Sua plataforma está sendo construída. Entre ou crie uma conta para começar.",
       "entrar": "Entrar",
+      "entrar-conta": "Entrar na conta",
       "criar-conta": "Criar conta",
       "criar-areas-de-trabalho": "Crie suas Áreas de trabalho"
     },
@@ -77,7 +78,7 @@
     },
     "sign-up": {
       "crie-sua-conta": "Crie sua conta",
-      "subtitulo": "Leva menos de um minuto.",
+      "subtitulo": "Informe seus dados. A senha será definida após validar o e-mail.",
       "campo-nome": "Nome",
       "campo-nome-placeholder": "Seu nome",
       "campo-email": "E-mail",
@@ -91,72 +92,56 @@
       "ja-tem-conta": "Já tem uma conta?",
       "link-entrar": "Entrar",
       "erro-email-em-uso": "Este e-mail já está em uso.",
-      "erro-generico": "Não foi possível criar a conta. Tente novamente."
+      "erro-generico": "Não foi possível iniciar a validação. Tente novamente.",
+      "botao-continuar": "Enviar link de validação",
+      "enviando-validacao": "Enviando link...",
+      "verifique-email": "Verifique seu e-mail",
+      "verifique-email-descricao": "Enviamos para {{email}} o link para definir sua senha e ativar a conta.",
+      "verifique-email-ajuda": "Abra o link recebido nesta caixa de entrada. Ele expira em 24 horas e substitui qualquer link anterior.",
+      "entrega-pendente": "A conta pendente foi salva, mas o SMTP ainda não confirmou o envio. Tente reenviar após o contador.",
+      "reenviar": "Reenviar link",
+      "reenviar-em": "Reenviar em {{seconds}}s"
     },
-    "workspace-sign-up": {
-      "title": "Crie suas Áreas de trabalho",
-      "subtitle": "Use sua chave para criar a conta e configurar sua primeira workspace.",
-      "steps": {
-        "label": "Etapas do cadastro",
-        "key": "Chave",
-        "account": "Conta",
-        "workspace": "Workspace"
-      },
-      "key": {
-        "title": "Informe sua chave",
-        "description": "Vamos conferir a chave e preencher os dados associados a ela.",
-        "field": "Chave única do sistema",
-        "placeholder": "cubs_ws_v1_...",
-        "continue": "Continuar",
-        "validating": "Validando...",
-        "invalid": "Esta chave não é válida para criar uma workspace.",
-        "error": "Não foi possível validar a chave. Tente novamente."
-      },
-      "account": {
-        "title": "Complete seu cadastro",
-        "description": "Nome e e-mail vieram da chave. Você pode revisá-los antes de continuar.",
-        "continue": "Continuar"
-      },
-      "workspace": {
-        "title": "Nomeie sua primeira workspace",
-        "description": "Você poderá alterar o nome e escolher um ícone depois.",
-        "field": "Nome da área de trabalho",
-        "placeholder": "Ex.: Minha área de trabalho",
-        "default-name": "Area de Trabalho do {{firstName}}"
-      },
-      "finish": {
-        "create": "Criar conta e workspace",
-        "creating": "Criando...",
-        "error": "Não foi possível concluir o cadastro. Confira os dados e tente novamente."
-      },
-      "back": "Voltar",
-      "has-account": "Já tem uma conta?",
-      "sign-in": "Entrar"
+    "verify-email": {
+      "title": "Defina sua senha",
+      "subtitle": "O e-mail {{email}} foi confirmado. Escolha sua senha para entrar.",
+      "loading": "Validando o link recebido...",
+      "invalid": "Este link é inválido, expirou ou já foi utilizado. Solicite um novo link de validação.",
+      "invite": "Ao concluir, você aceitará o convite de {{author}} para {{scope}} com a role {{role}}.",
+      "activate": "Ativar conta e entrar",
+      "activating": "Ativando conta...",
+      "error": "Não foi possível ativar a conta. Confira o link e tente novamente."
+    },
+    "invite": {
+      "title": "Você recebeu um convite",
+      "description": "{{author}} convidou você para {{scope}} com a role {{role}}.",
+      "expires": "Válido até {{date}}.",
+      "invalid": "Este convite expirou, foi removido ou atingiu o limite de aceites.",
+      "accept": "Aceitar convite",
+      "accepting": "Aceitando...",
+      "sign-in": "Entrar para aceitar",
+      "sign-up": "Criar conta com este convite",
+      "error": "Não foi possível aceitar este convite. Confirme se ele pertence ao e-mail da sua conta."
     },
     "workspaces": {
       "selector": {
         "title": "Suas workspaces",
-        "subtitle": "Escolha uma área de trabalho ou use uma chave para começar.",
+        "subtitle": "Crie novas workspaces dentro de uma organização ou entre em uma workspace por convite.",
         "list-label": "Workspaces disponíveis",
         "empty": "Você ainda não participa de nenhuma workspace.",
         "error": "Não foi possível carregar suas workspaces.",
         "enter": "Entrar",
         "settings": "Configurações",
         "preferred": "Abrir direto após o login",
-        "new": "Criar ou entrar em workspace",
-        "role-superadmin": "Superadmin",
+        "new": "Criar workspace",
         "role-member": "Member",
         "tabs-label": "Áreas de workspaces",
         "tab-workspaces": "Workspaces",
         "tab-organization": "Organização"
       },
       "access": {
-        "title": "Criar ou entrar em Workspace",
-        "subtitle": "Sua chave é pessoal, temporária e validada pela API.",
-        "tab-create": "Criar",
-        "tab-join": "Entrar",
-        "tab-organization": "Organização",
-        "tabs-label": "Escolha o fluxo da workspace",
+        "title": "Criar workspace",
+        "subtitle": "Toda nova workspace precisa pertencer a uma organização.",
         "name": "Nome da área de trabalho",
         "name-placeholder": "Ex.: IFC Blumenau",
         "organization": "Organização",
@@ -164,15 +149,10 @@
         "organization-required": "Escolha uma organização para a nova workspace.",
         "organization-missing": "Sua próxima workspace precisa pertencer a uma organização.",
         "organization-create-link": "Criar uma organização agora",
-        "key": "Chave única do sistema",
-        "key-placeholder": "cubs_ws_v1_...",
-        "key-invalid": "A chave não é válida para sua conta ou para este fluxo.",
         "create": "Criar workspace",
         "creating": "Criando...",
-        "join": "Entrar na workspace",
-        "joining": "Entrando...",
         "back": "Voltar às workspaces",
-        "error": "Não foi possível concluir. Confira a chave e tente novamente."
+        "error": "Não foi possível concluir. Confira os dados e tente novamente."
       },
       "organization": {
         "list-title": "Organizações",
@@ -185,7 +165,7 @@
         "detail-empty-title": "Organize suas workspaces",
         "detail-empty-description": "Mantenha sua área individual separada e crie uma organização quando precisar reunir outras workspaces e pessoas.",
         "create-title": "Criar organização",
-        "create-description": "Escolha a primeira workspace. Você precisa ser superadmin dela.",
+        "create-description": "Escolha a primeira workspace. Você precisa ser owner dela.",
         "name": "Nome da organização",
         "name-placeholder": "Ex.: Instituto Federal Catarinense",
         "first-workspace": "Primeira workspace",
@@ -217,8 +197,8 @@
         "users-list": "Usuários encontrados",
         "users-empty": "Nenhum usuário corresponde exatamente a este e-mail.",
         "users-error": "Não foi possível buscar os usuários.",
-        "users-no-organization": "Você precisa ser superadmin de uma organização para gerenciar seus usuários.",
-        "users-no-permission": "Somente superadmins da organização podem adicionar usuários.",
+        "users-no-organization": "Você precisa ser owner de uma organização para gerenciar seus usuários.",
+        "users-no-permission": "Somente membros autorizados da organização podem adicionar usuários.",
         "users-no-workspace": "Esta organização não possui uma workspace administrada por você.",
         "user-add": "Adicionar",
         "user-adding": "Adicionando...",
@@ -243,11 +223,9 @@
         "member-name": "Usuário",
         "member-email": "E-mail",
         "member-role": "Role",
-        "role-superadmin": "superadmin",
         "role-member": "member",
         "members-error": "Não foi possível carregar os usuários.",
         "role-error": "Não foi possível alterar a role.",
-        "last-superadmin": "A workspace precisa manter pelo menos um superadmin.",
         "loading": "Carregando workspace...",
         "load-error": "Não foi possível carregar esta workspace."
       },
@@ -377,6 +355,7 @@
       "cubs-database": {
         "nova": "Nova",
         "view-tipo": "Tipo de visualização",
+        "adicionar-view": "Adicionar view",
         "predefinicoes": "Predefinições",
         "fechar-predefinicoes": "Fechar predefinições",
         "predefinicoes-conteudo": "Hello World",
@@ -524,5 +503,154 @@
         }
       }
     }
+  },
+  "access": {
+    "back": "Voltar",
+    "navigation": "Gestão de acesso",
+    "members": "Membros",
+    "member": "Membro",
+    "roles": "Templates de roles",
+    "role": "Role vinculada",
+    "template": "Template",
+    "permissions": "Permissões",
+    "effective-permissions": "Permissões efetivas",
+    "owner": "Owner",
+    "no-role": "Sem template",
+    "owner-help": "O owner administra esta área pela propriedade. Seu acesso não depende de um template e não pode ser reduzido por outros membros.",
+    "add-member": "Adicionar membro",
+    "invite-title": "Convidar pessoas",
+    "invite-type": "Forma do convite",
+    "invite-email": "Convite por e-mail",
+    "invite-link": "Link genérico",
+    "search-email": "Pesquisar",
+    "registered-email": "Conta encontrada. O usuário ainda precisará aceitar o convite recebido.",
+    "unregistered-email": "E-mail ainda não cadastrado. O convite também validará o e-mail e abrirá a definição de senha.",
+    "already-member": "Este usuário já faz parte desta área.",
+    "send-invite": "Enviar convite",
+    "create-link": "Criar link",
+    "copy-link": "Copiar link",
+    "generic-link": "Link genérico",
+    "expiration": "Expiração",
+    "no-expiration": "Sem limite de tempo",
+    "acceptance-limit": "Limite de aceites",
+    "unlimited": "Sem limites",
+    "custom": "Personalizado",
+    "custom-limit": "Quantidade máxima de aceites",
+    "active-invites": "Convites e links",
+    "expire-link": "Expirar",
+    "notification-pending": "O convite foi salvo, mas o SMTP ainda não confirmou o envio.",
+    "email": "E-mail da conta",
+    "save": "Salvar",
+    "saved": "Alterações salvas.",
+    "error": "Não foi possível concluir. Confira suas permissões e atualize a tela.",
+    "empty-members": "Ainda não há membros vinculados.",
+    "create-role-first": "Crie um template de role antes de adicionar membros.",
+    "default-role": "Padrão",
+    "default-role-help": "A role padrão pode ser editada, mas não pode ser excluída.",
+    "delete-role": "Excluir role",
+    "show-org-roles": "Ver roles da organização",
+    "hide-org-roles": "Ocultar roles da organização",
+    "organization-workspace-roles": "Roles das workspaces desta organização",
+    "organization-workspace-roles-help": "Estas roles são somente leitura aqui. Copie uma delas para editar uma versão independente nesta workspace.",
+    "copy-to-workspace": "Copiar para esta workspace",
+    "edit-template": "Editar o template vinculado",
+    "new-role": "Novo template",
+    "role-name": "Nome do template",
+    "shared-template-help": "As alterações deste template valem para todos os membros vinculados a ele.",
+    "subpages-help": "Exige a permissão de editar esta página. Quando desligado, a edição não se estende às subpáginas.",
+    "requests": "Solicitações",
+    "role-on-accept": "Role que será vinculada no aceite",
+    "accept": "Aceitar solicitação",
+    "reject": "Recusar",
+    "empty-requests": "Nenhuma solicitação encontrada.",
+    "status": {
+      "pending": "Pendente",
+      "accepted": "Aceita",
+      "rejected": "Recusada",
+      "canceled": "Cancelada",
+      "expired": "Expirada"
+    },
+    "decided-at": "Decidida em {{date}}",
+    "scope": {
+      "organization": "Organização",
+      "workspace": "Workspace",
+      "page": "Página"
+    },
+    "permission": {
+      "organization": {
+        "read": {
+          "view": "Visualizar esta área",
+          "members": "Visualizar membros",
+          "roles": "Visualizar templates de roles",
+          "workspaces": "Visualizar todas as workspaces"
+        },
+        "write": {
+          "update": "Editar informações",
+          "create": "Criar e vincular workspaces",
+          "add_members": "Adicionar e aceitar membros",
+          "promote_members": "Alterar roles dos membros",
+          "create_org_roles": "Criar e editar templates da organização",
+          "manage_workspaces": "Administrar todas as workspaces"
+        }
+      },
+      "workspace": {
+        "read": {
+          "view": "Visualizar esta área",
+          "members": "Visualizar membros",
+          "roles": "Visualizar templates de roles"
+        },
+        "write": {
+          "update": "Editar informações",
+          "create": "Criar páginas",
+          "add_members": "Adicionar e aceitar membros",
+          "promote_members": "Alterar roles dos membros",
+          "create_wk_roles": "Criar e editar templates da workspace",
+          "manage_pages": "Administrar todas as páginas"
+        }
+      },
+      "page": {
+        "read": {
+          "view": "Visualizar esta área",
+          "members": "Visualizar membros",
+          "roles": "Visualizar templates de roles",
+          "subpages": "Visualizar subpáginas"
+        },
+        "write": {
+          "update": "Editar esta página",
+          "create": "Criar subpáginas",
+          "add_members": "Adicionar e aceitar membros",
+          "promote_members": "Alterar roles dos membros",
+          "edit_subpages": "Editar subpáginas",
+          "delete": "Excluir esta página",
+          "create_page_roles": "Criar e editar templates da página"
+        }
+      }
+    },
+    "manage-permissions": "Gerenciar membros e permissões",
+    "template-permissions": "Permissões do template vinculado"
+  },
+  "organization": {
+    "title": "Organizações",
+    "single": "Organização",
+    "subtitle": "Pessoas, permissões e workspaces da sua organização.",
+    "create": "Criar organização",
+    "creating": "Criando organização…",
+    "open": "Abrir organização",
+    "empty": "Você ainda não participa de uma organização.",
+    "workspace-count": "{{count}} workspaces",
+    "workspaces-back": "Minhas workspaces",
+    "name": "Nome da organização",
+    "create-help": "Sua conta validada será definida como owner. Depois da criação, você poderá adicionar e vincular workspaces.",
+    "create-error": "Não foi possível criar a organização. Confira o nome e tente novamente.",
+    "workspaces": "Workspaces",
+    "new-workspace": "Nova workspace",
+    "empty-workspaces": "Esta organização ainda não possui workspaces.",
+    "enter": "Entrar",
+    "request": "Solicitar acesso",
+    "requested": "Solicitação enviada",
+    "notification-pending": "A solicitação foi salva. O envio do e-mail aos responsáveis ainda não foi confirmado.",
+    "link-workspace": "Vincular uma workspace sua",
+    "link-help": "Ao vincular, o owner da organização passa a administrar esta workspace e suas páginas.",
+    "link": "Vincular workspace"
   }
 }
