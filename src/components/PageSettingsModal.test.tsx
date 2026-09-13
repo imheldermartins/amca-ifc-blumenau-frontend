@@ -38,13 +38,7 @@ function props(overrides: Partial<PageSettingsModalProps> = {}): PageSettingsMod
     collaborators: [collaborator],
     loading: false,
     failed: false,
-    collaboratorCandidates: [],
-    candidateQuery: '',
-    onCandidateQueryChange: vi.fn(),
-    candidatesLoading: false,
-    candidatesFailed: false,
-    addingCollaboratorId: null,
-    onAddCollaborator: vi.fn(),
+    onOpenPermissions: vi.fn(),
     ...overrides,
   }
 }
@@ -86,20 +80,11 @@ describe('PageSettingsModal', () => {
     expect(screen.getByText('Esta página não possui outros colaboradores.')).toBeTruthy()
   })
 
-  it('busca e adiciona somente os candidatos recebidos da workspace', () => {
-    const onCandidateQueryChange = vi.fn()
-    const onAddCollaborator = vi.fn()
-    render(<PageSettingsModal {...props({
-      collaboratorCandidates: [collaborator],
-      onCandidateQueryChange,
-      onAddCollaborator,
-    })} />)
-
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar usuários da workspace atual' }), {
-      target: { value: 'outra' },
-    })
-    expect(onCandidateQueryChange).toHaveBeenCalledWith('outra')
-    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
-    expect(onAddCollaborator).toHaveBeenCalledWith(collaborator.id)
+  it('leva a gestão para a tela com roles e permissões', () => {
+    const onOpenPermissions = vi.fn()
+    render(<PageSettingsModal {...props({onOpenPermissions})} />)
+    expect(screen.queryByRole('searchbox')).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: 'Gerenciar membros e permissões'}))
+    expect(onOpenPermissions).toHaveBeenCalledOnce()
   })
 })

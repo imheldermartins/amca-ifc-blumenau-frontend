@@ -20,6 +20,9 @@ const dependencies = vi.hoisted(() => ({
   } as AuthUser | null,
 }))
 
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn(), useParams: () => ({ lang: 'pt-br' }) }))
+vi.mock('@/hooks/usePageAccess', () => ({ usePageAccess: () => ({data: {permissions: {read: ['view', 'members'], write: ['add_members']}}}) }))
+
 vi.mock('@/hooks/usePageRealtime', () => ({
   usePageRealtime: (_pageId: string | undefined, options: UsePageRealtimeOptions) => {
     dependencies.options = options

@@ -15,7 +15,7 @@ export interface CollaboratorsProps {
   viewers: number
   loading?: boolean
   settingsOpen: boolean
-  onOpenSettings: () => void
+  onOpenSettings?: () => void
 }
 
 /**
@@ -43,14 +43,15 @@ export function Collaborators({
       aria-label={i18n('pages.app.page-settings.open-collaborators', {
         count: participants.length,
       })}
-      aria-haspopup="dialog"
       aria-expanded={settingsOpen}
+      aria-haspopup="dialog"
       aria-controls="page-settings-dialog"
       aria-busy={loading}
       data-viewers={viewers}
       data-participants={participants.length}
       title={i18n('pages.app.page-settings.active-connections', { count: viewers })}
       onClick={onOpenSettings}
+      disabled={!onOpenSettings}
     >
       {participants.length === 0 ? (
         <Icon icon="lucide:users" fontSize={20} />
