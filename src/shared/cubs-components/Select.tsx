@@ -46,9 +46,7 @@ function SelectView({
   const selectedLabel = selectedOption?.label
   const field = (
     <RadixSelect.Root
-      // Radix trata '' como "sem valor"; passar undefined é o que faz o
-      // placeholder aparecer em vez de um item vazio selecionado.
-      value={value === '' ? undefined : value}
+      value={value}
       onValueChange={onValueChange}
       disabled={disabled}
     >
