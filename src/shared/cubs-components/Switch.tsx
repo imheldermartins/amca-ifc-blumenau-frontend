@@ -2,7 +2,15 @@ import { useController, useFormContext } from 'react-hook-form'
 
 import { cn } from './lib/utils'
 
-interface SwitchViewProps {
+interface SwitchAccessibilityProps {
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-controls'?: string
+}
+
+interface SwitchViewProps extends SwitchAccessibilityProps {
   /** Estado atual do switch. */
   checked: boolean
   /** Recebe o novo estado ao alternar. */
@@ -14,7 +22,7 @@ interface SwitchViewProps {
 }
 
 /** Switch visual, sempre controlado (recebe checked/onCheckedChange). */
-function SwitchView({ checked, onCheckedChange, label, disabled, className }: SwitchViewProps) {
+function SwitchView({ checked, onCheckedChange, label, disabled, className, ...accessibility }: SwitchViewProps) {
   return (
     <label
       className={cn(
@@ -26,6 +34,7 @@ function SwitchView({ checked, onCheckedChange, label, disabled, className }: Sw
       <button
         type="button"
         role="switch"
+        {...accessibility}
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onCheckedChange(!checked)}
@@ -67,7 +76,7 @@ function FormSwitch({ name, ...rest }: FormSwitchProps) {
  * `name` presente = modo form (exige <FormProvider> acima); sem `name` = modo
  * state (checked/onCheckedChange obrigatórios).
  */
-export interface SwitchProps {
+export interface SwitchProps extends SwitchAccessibilityProps {
   label?: string
   disabled?: boolean
   className?: string

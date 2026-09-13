@@ -16,6 +16,7 @@ do Vite; o `dist` existe para o `npm pack` e para o build da `cubs-database`.
 | `Checkbox` | sim | sobre Radix; suporta `indeterminate` (só modo state) |
 | `Select` | sim | sobre Radix; `options` por prop, com ícone opcional |
 | `Switch` | sim | — |
+| `SwitchAccordion` | sim | label à esquerda, switch à direita; filhos dependem do pai |
 | `RadioGroup` | sim | opções inline ou em coluna; semântica nativa de radio |
 | `DatePicker` | sim | máscara + calendário; hora e intervalo opcionais; wire `ISO`/`startISO@endISO` |
 | `Button` | — | `variant` × `color` (paleta ou `from-theme`) |
@@ -31,6 +32,17 @@ Mais `cn`, `PALETTE`/`paletteBgText`/`paletteBorderText` e
 **Dual-mode** = o mesmo componente serve react-hook-form (prop `name`, dentro
 de um `<FormProvider>`) ou estado controlado (sem `name`). Ver a seção
 "Componentes dual-mode" no `CLAUDE.md` da raiz.
+
+`SwitchAccordion` recebe `label`, `description` opcional e `children` opcionais.
+Ao desligar o pai, recolhe e desabilita os controles filhos, preservando seus
+valores para uma reativação. O consumidor deve considerar a dependência do pai
+na validação e na autorização, pois o componente cuida somente da interação.
+
+```tsx
+<SwitchAccordion label="Editar páginas" name="permissions.write">
+  <SwitchAccordion label="Editar subpáginas" name="permissions.editSubpages" />
+</SwitchAccordion>
+```
 
 ## Contrato de tokens (obrigatório)
 
