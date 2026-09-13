@@ -31,13 +31,12 @@ export class AppError extends Error {
 
 /**
  * Erros do axios carregam `config.data` dentro da causa. Não anexamos a causa
- * em endpoints de credencial para uma chave ou senha nunca aparecer no console.
+ * em endpoints de credencial para uma senha nunca aparecer no console.
  */
 function canExposeAxiosCause(url: string): boolean {
   return ![
     '/auth/login',
     '/auth/register',
-    '/auth/workspace-key/preview',
   ].some((sensitivePath) => url.includes(sensitivePath))
 }
 

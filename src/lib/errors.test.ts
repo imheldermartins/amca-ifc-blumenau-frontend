@@ -39,21 +39,21 @@ describe('classifyWriteError', () => {
 })
 
 describe('toAppError', () => {
-  it('não mantém o AxiosError com senha ou chave como causa logável', () => {
+  it('não mantém o AxiosError com senha como causa logável', () => {
     const axiosError = {
       isAxiosError: true,
       message: 'Request failed',
       config: {
         method: 'post',
-        url: '/auth/register/workspace',
-        data: JSON.stringify({ password: 'secret1', key: 'cubs_ws_v1_secret' }),
+        url: '/auth/register',
+        data: JSON.stringify({ password: 'secret1' }),
       },
       response: { status: 400, data: { message: 'Dados inválidos' } },
     }
 
     const error = toAppError('api', axiosError)
 
-    expect(error.message).toBe('POST /auth/register/workspace → 400: Dados inválidos')
+    expect(error.message).toBe('POST /auth/register → 400: Dados inválidos')
     expect(error.cause).toBeUndefined()
   })
 })

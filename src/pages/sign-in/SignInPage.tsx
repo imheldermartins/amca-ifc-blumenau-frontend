@@ -1,3 +1,5 @@
+import { useQueryParams } from '@/hooks/useQueryParams'
+import { readAuthReturnTo } from '@/lib/authReturnTo'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
@@ -17,6 +19,7 @@ export function SignInPage() {
   const { lang } = useParams({ from: '/$lang/_public/sign-in' })
   const navigate = useNavigate()
   const auth = useAuth()
+  const returnTo=readAuthReturnTo(useQueryParams<'returnTo'>().get('returnTo'))
 
   const form = useForm<SignInFormValues>({
     mode: 'onTouched',
@@ -26,7 +29,7 @@ export function SignInPage() {
   const signIn = useMutation({
     mutationFn: (values: SignInFormValues) => auth.signIn(values),
     onSuccess: () =>
-      navigate({
+      returnTo ? navigate({href:returnTo,replace:true}) : navigate({
         to: '/$lang/workspaces',
         params: { lang },
         search: { choose: false, tab: 'workspaces' },
@@ -111,6 +114,7 @@ export function SignInPage() {
             <Link
               to="/$lang/sign-up"
               params={{ lang }}
+              search={{returnTo}}
               className="font-semibold text-light-100 hover:underline"
             >
               {i18n('pages.sign-in.link-criar-conta')}

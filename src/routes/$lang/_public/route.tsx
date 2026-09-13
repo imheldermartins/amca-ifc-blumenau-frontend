@@ -1,5 +1,7 @@
+import { useQueryParams } from '@/hooks/useQueryParams'
+import { readAuthReturnTo } from '@/lib/authReturnTo'
 import { useLayoutEffect } from 'react'
-import { Navigate, Outlet, createFileRoute, useParams } from '@tanstack/react-router'
+import { Navigate, Outlet, createFileRoute, useParams, useNavigate, useLocation } from '@tanstack/react-router'
 
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -18,6 +20,8 @@ export const Route = createFileRoute('/$lang/_public')({
 function PublicLayout() {
   const { lang } = useParams({ strict: false })
   const { user, restoring } = useAuth()
+  const location = useLocation()
+  const returnTo=readAuthReturnTo(useQueryParams<'returnTo'>().get('returnTo'))
 
   // As telas públicas têm temas fixos (light no cadastro, purple no login),
   // sem alternância. A preferência continua intacta: ao sair daqui, o tema
@@ -34,7 +38,9 @@ function PublicLayout() {
 
   // Enquanto confere a sessão, não decide: mostrar o login e depois pular para
   // a workspace (se houver sessão) seria um flash.
-  if (!restoring && user) {
+  const isEmailAction = /\/(?:verify-email|invite)\//.test(location.pathname)
+  if (!restoring && user && !isEmailAction) {
+    if(returnTo)return <ReturnTo href={returnTo}/>
     return (
       <Navigate
         to="/$lang/workspaces"
@@ -46,3 +52,5 @@ function PublicLayout() {
 
   return restoring ? null : <Outlet />
 }
+
+function ReturnTo({href}:{href:string}) { const navigate=useNavigate();useLayoutEffect(()=>{void navigate({href,replace:true})},[href,navigate]);return null }

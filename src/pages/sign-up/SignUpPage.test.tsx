@@ -13,6 +13,8 @@ vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ lang: 'pt-br' }),
 }))
 
+vi.mock('@/hooks/useQueryParams', () => ({useQueryParams: () => ({get: () => undefined})}))
+
 vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ signUp: mocks.signUp }),
 }))
@@ -28,13 +30,14 @@ import { SignUpPage } from './SignUpPage'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.signUp.mockResolvedValue({
-    user: { id: 'user-1', name: 'Helder da Silva', email: 'helder@ifc.edu.br' },
-    workspace: { id: 'workspace-1', name: 'Area de Trabalho do Helder' },
+    verificationRequired: true,
+    email: 'helder@ifc.edu.br',
+    notificationPending: false,
   })
 })
 
 describe('SignUpPage', () => {
-  it('entra diretamente na workspace privada devolvida pelo cadastro comum', async () => {
+  it('solicita a validação do e-mail antes de criar a sessão', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
@@ -46,19 +49,13 @@ describe('SignUpPage', () => {
 
     fireEvent.change(screen.getByLabelText('Nome'), { target: { value: 'Helder da Silva' } })
     fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'helder@ifc.edu.br' } })
-    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'segredo1' } })
-    fireEvent.change(screen.getByLabelText('Confirmar senha'), { target: { value: 'segredo1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar link de validação' }))
 
     await waitFor(() => expect(mocks.signUp).toHaveBeenCalledWith({
       name: 'Helder da Silva',
       email: 'helder@ifc.edu.br',
-      password: 'segredo1',
     }))
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/$lang/myworkspace/$workspaceId',
-      params: { lang: 'pt-br', workspaceId: 'workspace-1' },
-      replace: true,
-    }))
+    expect(mocks.navigate).not.toHaveBeenCalled()
+    expect(await screen.findByText('Verifique seu e-mail')).toBeTruthy()
   })
 })

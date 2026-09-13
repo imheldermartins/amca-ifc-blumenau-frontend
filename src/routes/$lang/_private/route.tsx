@@ -1,6 +1,7 @@
-import { Navigate, Outlet, createFileRoute, useParams } from '@tanstack/react-router'
+import { Navigate, Outlet, createFileRoute, useParams, useLocation } from '@tanstack/react-router'
 
 import { useAuth } from '@/contexts/AuthContext'
+import { readAuthReturnTo } from '@/lib/authReturnTo'
 
 /**
  * Área privada (pathless): exige autenticação; sem sessão, volta para o
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/$lang/_private')({
 function PrivateLayout() {
   const { lang } = useParams({ strict: false })
   const { user, restoring } = useAuth()
+  const location=useLocation()
 
   // Ainda conferindo a sessão do cookie: não monta nada e não redireciona —
   // sem isto, um usuário logado piscaria no sign-in antes de o refresh voltar.
@@ -28,7 +30,8 @@ function PrivateLayout() {
 
   // Sessão confirmada como AUSENTE: fora daqui.
   if (!user) {
-    return <Navigate to="/$lang/sign-in" params={{ lang: lang ?? 'pt-br' }} />
+    const returnTo = readAuthReturnTo(location.pathname)
+    return <Navigate to="/$lang/sign-in" params={{ lang: lang ?? 'pt-br' }} search={{ returnTo }} />
   }
 
   return <Outlet />

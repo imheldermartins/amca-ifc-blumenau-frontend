@@ -12,10 +12,10 @@ import {
 import {
   authService,
   type AuthUser,
+  type ActivationResult,
   type SignInInput,
   type SignUpInput,
   type SignUpResult,
-  type WorkspaceSignUpInput,
 } from '@/services/AuthService'
 import { sessionStore } from '@/services/sessionStore'
 import { socketService } from '@/services/SocketService'
@@ -37,7 +37,7 @@ export interface AuthState {
   restoring: boolean
   signIn: (input: SignInInput) => Promise<AuthUser>
   signUp: (input: SignUpInput) => Promise<SignUpResult>
-  signUpWithWorkspace: (input: WorkspaceSignUpInput) => Promise<SignUpResult>
+  completeVerification: (token: string, input: { name?: string; password: string }) => Promise<ActivationResult>
   signOut: () => Promise<void>
 }
 
@@ -101,13 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const signUp = useCallback(async (input: SignUpInput) => {
-    const result = await authService.signUp(input)
-    setUser(result.user)
-    return result
+    return authService.signUp(input)
   }, [])
 
-  const signUpWithWorkspace = useCallback(async (input: WorkspaceSignUpInput) => {
-    const result = await authService.signUpWithWorkspace(input)
+  const completeVerification = useCallback(async (token: string, input: { name?: string; password: string }) => {
+    const result = await authService.completeVerification(token, input)
     setUser(result.user)
     return result
   }, [])
@@ -130,10 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       restoring,
       signIn,
       signUp,
-      signUpWithWorkspace,
+      completeVerification,
       signOut,
     }),
-    [user, restoring, signIn, signUp, signUpWithWorkspace, signOut],
+    [user, restoring, signIn, signUp, completeVerification, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

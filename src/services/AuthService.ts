@@ -11,12 +11,10 @@ export interface AuthUser extends UserIdentity {
 export interface SignUpInput {
   name: string
   email: string
-  password: string
-}
-
-export interface WorkspaceSignUpInput extends SignUpInput {
-  key: string
-  workspaceName: string
+  inviteToken?: string
+  returnTo?: string
+  /** Mantido no tipo durante a transição; a primeira etapa nunca envia a senha. */
+  password?: string
 }
 
 export interface RegisteredWorkspace {
@@ -25,13 +23,36 @@ export interface RegisteredWorkspace {
 }
 
 export interface SignUpResult {
-  user: AuthUser
-  workspace: RegisteredWorkspace
+  verificationRequired: true
+  email: string
+  notificationPending: boolean
 }
 
-export type WorkspaceKeyPreview =
-  | { valid: false }
-  | { valid: true; name: string; email: string }
+export interface VerificationPreview {
+  valid: boolean
+  email?: string
+  name?: string | null
+  invite?: { scopeType: 'organization' | 'workspace' | 'page'; scopeId: string; scopeName: string; roleName: string; authorName: string } | null
+}
+
+export interface ActivationResult {
+  user: AuthUser
+  workspace: RegisteredWorkspace
+  inviteAccepted: boolean | null
+}
+
+export interface InvitePreview {
+  valid: boolean
+  scopeType?: 'organization' | 'workspace' | 'page'
+  scopeId?: string
+  scopeName?: string
+  roleName?: string
+  authorName?: string
+  recipientEmail?: string | null
+  expiresAt?: string | null
+  acceptanceLimit?: number | null
+  acceptanceCount?: number
+}
 
 export interface SignInInput {
   email: string
@@ -47,8 +68,9 @@ interface SessionResponse {
   accessToken: string
 }
 
-interface RegistrationResponse extends SessionResponse {
+interface ActivationResponse extends SessionResponse {
   workspace: RegisteredWorkspace
+  inviteAccepted: boolean | null
 }
 
 // O ApiService rejeita sempre AppError — o status HTTP já vem normalizado.
@@ -74,13 +96,12 @@ function hasStatus(error: unknown, status: number): boolean {
 export class AuthService {
   async signUp(input: SignUpInput): Promise<SignUpResult> {
     try {
-      const { user, accessToken, workspace } = await apiService.post<RegistrationResponse>('/auth/register', {
+      return await apiService.post<SignUpResult>('/auth/register', {
         name: input.name.trim(),
         email: input.email.trim().toLowerCase(),
-        password: input.password,
+        ...(input.inviteToken ? { inviteToken: input.inviteToken } : {}),
+        ...(input.returnTo ? { returnTo: input.returnTo } : {}),
       })
-      sessionStore.set(accessToken)
-      return { user, workspace }
     } catch (error) {
       if (hasStatus(error, 409)) {
         throw new EmailInUseError()
@@ -89,32 +110,28 @@ export class AuthService {
     }
   }
 
-  previewWorkspaceKey(key: string): Promise<WorkspaceKeyPreview> {
-    return apiService.post<WorkspaceKeyPreview>('/auth/workspace-key/preview', {
-      key: key.trim(),
-    })
+  previewVerification(token: string): Promise<VerificationPreview> {
+    return apiService.get<VerificationPreview>('/auth/verification/' + encodeURIComponent(token))
   }
 
-  async signUpWithWorkspace(input: WorkspaceSignUpInput): Promise<SignUpResult> {
-    try {
-      const { user, accessToken, workspace } = await apiService.post<RegistrationResponse>(
-        '/auth/register/workspace',
-        {
-          key: input.key.trim(),
-          name: input.name.trim(),
-          email: input.email.trim().toLowerCase(),
-          password: input.password,
-          workspaceName: input.workspaceName.trim(),
-        },
-      )
-      sessionStore.set(accessToken)
-      return { user, workspace }
-    } catch (error) {
-      if (hasStatus(error, 409)) {
-        throw new EmailInUseError()
-      }
-      throw error
-    }
+  resendVerification(email: string): Promise<SignUpResult> {
+    return apiService.post<SignUpResult>('/auth/verification/resend', { email: email.trim().toLowerCase() })
+  }
+
+  async completeVerification(token: string, input: { name?: string; password: string }): Promise<ActivationResult> {
+    const { user, accessToken, workspace, inviteAccepted } = await apiService.post<ActivationResponse>(
+      '/auth/verification/' + encodeURIComponent(token) + '/complete', input,
+    )
+    sessionStore.set(accessToken)
+    return { user, workspace, inviteAccepted }
+  }
+
+  previewInvite(token: string): Promise<InvitePreview> {
+    return apiService.get<InvitePreview>('/invites/' + encodeURIComponent(token))
+  }
+
+  acceptInvite(token: string): Promise<{ accepted: true }> {
+    return apiService.post<{ accepted: true }>('/invites/' + encodeURIComponent(token) + '/accept')
   }
 
   async signIn(input: SignInInput): Promise<AuthUser> {
