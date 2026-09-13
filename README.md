@@ -196,29 +196,25 @@ tema salvo antes do React montar (sem flash); sem preferência salva, vale o
 
 ## Workspaces
 
-O cadastro comum cria junto uma workspace individual chamada `Area de Trabalho
-do <primeiro nome>` e entra diretamente nela. A landing também oferece
-`/$lang/create-workspaces`: um multiform público recebe uma chave `create`,
-preenche nome/e-mail emitidos para revisão e cria conta + primeira workspace em
-um único submit. A chave fica apenas em memória e nunca entra na URL ou no
-`localStorage`.
+O cadastro comum começa com nome e e-mail. O link recebido valida o endereço,
+abre a definição de senha e cria uma workspace pessoal chamada `Area de Trabalho
+do <primeiro nome>`. Convites para organização, workspace ou página seguem o
+mesmo fluxo de validação quando o destinatário ainda não possui conta.
 
-Depois do login, o usuário escolhe uma workspace real em `/$lang/workspaces`
-ou usa `/$lang/workspaces/new?tab=create|join`. Nessa tela autenticada, as duas
-operações exigem uma chave single-use emitida pelo backend e vinculada ao
-nome/e-mail da conta. A criação pede também o nome da área; a entrada cria uma
-membership `member`.
+Depois do login, o usuário escolhe uma workspace real em `/$lang/workspaces`.
+Uma workspace adicional é criada em `/$lang/workspaces/new` dentro de uma
+organização na qual a conta tenha `write.create`. A entrada de terceiros ocorre
+por convite individual ou link genérico com a role escolhida pelo autor.
 
-Cada membership carrega `role` (`superadmin`/`member`) e `pageRootId`. A root do
-criador conserva o id da workspace; cada membro posterior recebe uma página
-ULID própria e de sua propriedade. A relação organização → workspaces é 1:N,
-enquanto `organizationId` nulo identifica uma área independente.
+Cada membership carrega a role vinculada e `pageRootId`. A root do criador
+conserva o id da workspace; cada membro posterior recebe uma página ULID própria
+e de sua propriedade. A relação organização → workspaces é 1:N, e `isPersonal`
+indica explicitamente a área pessoal no contrato da API.
 
-`superadmin` configura nome/ícone e roles em rotas full-screen sob
-`/$lang/workspaces/$workspaceId/settings`; `member` pode abrir somente a sua
-root e é encaminhado a `/$lang/access-denied` ao tentar acessar o painel. CASL
-espelha essa experiência no cliente, mas a API repete a autorização e responde
-403 `{ message: "Acesso não permitido" }`.
+Nome, ícone, membros e roles ficam disponíveis conforme as permissões efetivas
+em rotas full-screen sob `/$lang/workspaces/$workspaceId/settings`. A UI espelha
+essa experiência, mas a API repete a autorização e responde 403
+`{ message: "Acesso não permitido" }`.
 
 A preferência “abrir direto” usa `clientStorage` (`cubs.preferredWorkspace`)
 com `{ userId, workspaceId }`. Ela não atravessa contas e só é usada enquanto
@@ -235,11 +231,10 @@ idioma padrão.
 | `/$lang/` | pública | Rota inicial (`HomePage`) |
 | `/$lang/sign-in` | pública (deslogado) | `SignInPage` |
 | `/$lang/sign-up` | pública (deslogado) | `SignUpPage` |
-| `/$lang/create-workspaces` | pública (deslogado) | chave → conta → primeira workspace |
 | `/$lang/workspaces` | privada | seletor de workspaces |
-| `/$lang/workspaces/new` | privada | tabs de criar/entrar (`?tab=create|join`) |
-| `/$lang/workspaces/$workspaceId/settings/general` | privada (`superadmin`) | nome e IconPicker |
-| `/$lang/workspaces/$workspaceId/settings/members` | privada (`superadmin`) | usuários e roles |
+| `/$lang/workspaces/new` | privada | criação dentro de uma organização |
+| `/$lang/workspaces/$workspaceId/settings/general` | privada e autorizada | nome e IconPicker |
+| `/$lang/workspaces/$workspaceId/settings/members` | privada e autorizada | usuários e roles |
 | `/$lang/access-denied` | privada | acesso não permitido |
 | `/$lang/myworkspace/$workspaceId` | privada + `AppLayout` | root da membership |
 | `/$lang/page/$pageId` | privada + `AppLayout` | página pelo id |
@@ -267,8 +262,7 @@ src/routes/
     ├── _public/        →   grupo SEM url (_ = pathless layout): guard de deslogado
     │   ├── route.tsx
     │   ├── sign-in.tsx          → "/$lang/sign-in"
-    │   ├── sign-up.tsx          → "/$lang/sign-up"
-    │   └── create-workspaces.tsx → "/$lang/create-workspaces"
+    │   └── sign-up.tsx          → "/$lang/sign-up"
     └── _private/       →   grupo SEM url: guard de autenticado
         ├── route.tsx
         ├── access-denied.tsx
