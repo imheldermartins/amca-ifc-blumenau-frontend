@@ -28,7 +28,7 @@ export function WorkspaceSettingsLayout() {
   if (workspace.isError || !workspace.data) {
     return <FullScreenMessage message={i18n('pages.workspaces.settings.load-error')} error />
   }
-  if (!defineWorkspaceAbility(workspace.data.role).can('manage', 'WorkspaceSettings')) {
+  if (!defineWorkspaceAbility(workspace.data).can('manage', 'WorkspaceSettings') && !defineWorkspaceAbility(workspace.data).can('manage', 'WorkspaceMembers')) {
     return <Navigate to="/$lang/access-denied" params={{ lang: language }} replace />
   }
 
@@ -66,7 +66,7 @@ export function WorkspaceSettingsLayout() {
             </Typography>
           </div>
           <nav aria-label={i18n('pages.workspaces.settings.navigation')} className="flex flex-col gap-1">
-            {sections.map((section) => (
+            {sections.filter(section => defineWorkspaceAbility(workspace.data).can('manage', section.icon === 'lucide:users' ? 'WorkspaceMembers' : 'WorkspaceSettings')).map((section) => (
               <Link
                 key={section.to}
                 to={section.to}

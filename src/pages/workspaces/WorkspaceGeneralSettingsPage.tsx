@@ -1,3 +1,4 @@
+import { can } from '@/services/AccessService'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { FormProvider, useForm } from 'react-hook-form'
 import { Button, TextField } from 'cubs-components'
@@ -58,6 +59,7 @@ export function WorkspaceGeneralSettingsPage() {
           className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2"
           onSubmit={form.handleSubmit((values) => mutation.mutate(values))}
         >
+          <fieldset disabled={!can(workspace, "write", "update")} className="contents">
           <TextField
             name="name"
             label={i18n('pages.workspaces.settings.name')}
@@ -70,7 +72,7 @@ export function WorkspaceGeneralSettingsPage() {
             rules={validators.required()}
           />
           <div className="flex items-center gap-3 md:col-span-2">
-            <Button type="submit" variant="filled" color="purple" disabled={mutation.isPending}>
+            <Button type="submit" variant="filled" color="purple" disabled={mutation.isPending || !can(workspace, "write", "update")}>
               {i18n(mutation.isPending ? 'pages.workspaces.settings.saving' : 'pages.workspaces.settings.save')}
             </Button>
             {mutation.isSuccess && !form.formState.isDirty && (
@@ -80,6 +82,7 @@ export function WorkspaceGeneralSettingsPage() {
               <span role="alert" className="text-sm text-p-red">{i18n('pages.workspaces.settings.save-error')}</span>
             )}
           </div>
+          </fieldset>
         </form>
       </FormProvider>
     </section>

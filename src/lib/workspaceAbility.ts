@@ -1,26 +1,14 @@
 import { Ability, AbilityBuilder } from '@casl/ability'
-
-export type WorkspaceRole = 'superadmin' | 'member'
+import { can as granted, type ScopeAccess } from '@/services/AccessService'
+export type WorkspaceRole = string | null
 export type WorkspaceAction = 'read' | 'manage'
-export type WorkspaceSubject =
-  | 'Workspace'
-  | 'WorkspaceRoot'
-  | 'WorkspaceSettings'
-  | 'WorkspaceMembers'
+export type WorkspaceSubject = 'Workspace' | 'WorkspaceRoot' | 'WorkspaceSettings' | 'WorkspaceMembers'
 export type WorkspaceAbility = Ability<[WorkspaceAction, WorkspaceSubject]>
-
-/** Espelho comportamental da matriz da API; a API continua autoritativa. */
-export function defineWorkspaceAbility(role: WorkspaceRole | null): WorkspaceAbility {
-  const { can, build } = new AbilityBuilder<WorkspaceAbility>(Ability)
-
-  if (role === 'superadmin' || role === 'member') {
-    can('read', 'Workspace')
-    can('read', 'WorkspaceRoot')
-  }
-  if (role === 'superadmin') {
-    can('manage', 'WorkspaceSettings')
-    can('manage', 'WorkspaceMembers')
-  }
-
+export function defineWorkspaceAbility(access: Partial<ScopeAccess> | WorkspaceRole): WorkspaceAbility {
+  const {can,build}=new AbilityBuilder<WorkspaceAbility>(Ability)
+  const scope=typeof access==='object'?access:null
+  if(granted(scope,'read','view')){can('read','Workspace');can('read','WorkspaceRoot')}
+  if(granted(scope,'write','update'))can('manage','WorkspaceSettings')
+  if(granted(scope,'read','members')||granted(scope,'write','promote_members')||granted(scope,'write','add_members'))can('manage','WorkspaceMembers')
   return build()
 }

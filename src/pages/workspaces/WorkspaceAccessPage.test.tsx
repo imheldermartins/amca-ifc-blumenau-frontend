@@ -30,8 +30,6 @@ vi.mock('@/services/WorkspaceService', () => ({
     listMine: mocks.listMine,
     listOrganizations: mocks.listOrganizations,
     create: vi.fn(),
-    join: vi.fn(),
-    validateKey: vi.fn(),
   },
 }))
 
@@ -46,7 +44,7 @@ import { WorkspaceAccessPage } from './WorkspaceAccessPage'
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.listOrganizations.mockResolvedValue([
-    { id: 'organization-admin', name: 'IFC', data: {}, role: 'superadmin', workspaceCount: 1 },
+    { id: 'organization-admin', name: 'IFC', data: {}, permissions: {read: ['view'], write: ['create']}, workspaceCount: 1 },
   ])
   mocks.listMine.mockResolvedValue([
     {
@@ -55,6 +53,7 @@ beforeEach(() => {
       data: {},
       organizationId: null,
       organizationName: null,
+      isPersonal: true,
       icon: 'lucide:user-round',
       createdByUserId: 'user-1',
       role: 'superadmin',

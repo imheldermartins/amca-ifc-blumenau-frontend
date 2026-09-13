@@ -1,3 +1,4 @@
+import { can } from '@/services/AccessService'
 import { Icon } from '@iconify/react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from '@tanstack/react-router'
@@ -90,7 +91,7 @@ export function WorkspaceSelectorPage() {
               variant="text"
               color="from-theme"
               className={cn(tab === candidate && 'bg-background shadow-sm')}
-              onClick={() => queryParams.set({ tab: candidate, choose: true }, { replace: true })}
+              onClick={() => candidate === 'organization' ? (leavingPageRef.current = true, navigate({href: '/' + lang + '/organizations'})) : queryParams.set({ tab: candidate, choose: true }, { replace: true })}
             >
               {i18n(`pages.workspaces.selector.tab-${candidate}`)}
             </Button>
@@ -133,7 +134,7 @@ export function WorkspaceSelectorPage() {
                             {workspace.name ?? i18n('common.workspace.sem-nome')}
                           </Typography>
                           <Typography variant="caption" as="p" className="text-dark-100 dark:text-light-900">
-                            {i18n(`pages.workspaces.selector.role-${workspace.role}`)}
+                            {workspace.isOwner ? i18n('access.owner') : workspace.roleName || i18n('access.member')}
                             {workspace.organizationName ? ` · ${workspace.organizationName}` : ''}
                           </Typography>
                           <Switch
@@ -150,7 +151,7 @@ export function WorkspaceSelectorPage() {
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {workspace.role === 'superadmin' && (
+                        {can(workspace, 'write', 'update') && (
                           <Button
                             type="button"
                             variant="text"
@@ -188,7 +189,7 @@ export function WorkspaceSelectorPage() {
                 void navigate({
                   to: '/$lang/workspaces/new',
                   params: { lang: lang ?? 'pt-br' },
-                  search: { tab: 'create' },
+                  search: {},
                 })
               }}
             >

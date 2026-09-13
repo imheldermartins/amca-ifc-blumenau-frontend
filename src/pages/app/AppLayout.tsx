@@ -1,3 +1,4 @@
+import { can } from '@/services/AccessService'
 import { Outlet, useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { useState } from 'react'
@@ -29,7 +30,7 @@ function workspaceLabel({ workspace, loading, failed }: WorkspaceState): string 
   if (loading) return i18n('common.carregando')
   if (failed) return i18n('common.workspace.indisponivel')
   if (!workspace) return i18n('common.workspace.selecionar')
-  return workspace.name ?? i18n('common.workspace.sem-nome')
+  return (workspace.organizationName ? workspace.organizationName + ' • ' : '') + (workspace.name ?? i18n('common.workspace.sem-nome'))
 }
 
 export function AppLayout() {
@@ -82,10 +83,10 @@ export function AppLayout() {
 
   function openWorkspaceArea() {
     const workspace = workspaceState.workspace
-    if (workspace?.role === 'superadmin') {
+    if (can(workspace, 'write', 'update')) {
       void navigate({
         to: '/$lang/workspaces/$workspaceId/settings/general',
-        params: { lang: currentLang, workspaceId: workspace.id },
+        params: { lang: currentLang, workspaceId: workspace!.id },
         search: (previous) => replaceQuery(previous, {}),
       })
       return

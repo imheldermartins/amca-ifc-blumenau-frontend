@@ -1,15 +1,16 @@
+import type { ScopeAccess } from './AccessService'
 import { apiService } from '@/services/ApiService'
 import type { WorkspaceRole } from '@/lib/workspaceAbility'
 
 export type WorkspaceIcon = `${'cuida' | 'lucide'}:${string}`
-export type WorkspaceKeyPurpose = 'create' | 'join'
 
-export interface ApiWorkspace {
+export interface ApiWorkspace extends Partial<ScopeAccess> {
   id: string
   name: string | null
   data: Record<string, unknown>
   organizationId: string | null
   organizationName: string | null
+  isPersonal: boolean
   icon: WorkspaceIcon
   createdByUserId: string | null
   role: WorkspaceRole
@@ -24,27 +25,12 @@ export interface ApiWorkspaceMember {
   pageRootId: string
 }
 
-export interface WorkspaceKeyValidation {
-  valid: boolean
-  purpose?: WorkspaceKeyPurpose
-  role?: WorkspaceRole
-  workspace?: { id: string; name: string | null }
-}
-
-export interface ApiOrganization {
+export interface ApiOrganization extends Partial<ScopeAccess> {
   id: string
   name: string
   data: Record<string, unknown>
   role: WorkspaceRole
   workspaceCount: number
-}
-
-export interface ApiOrganizationWorkspaceUser {
-  id: string
-  name: string | null
-  email: string
-  organizationRole: WorkspaceRole | null
-  workspaceRole: WorkspaceRole | null
 }
 
 export class WorkspaceService {
@@ -56,19 +42,8 @@ export class WorkspaceService {
     return apiService.get<ApiWorkspace>(`/workspaces/${workspaceId}`)
   }
 
-  validateKey(key: string, purpose: WorkspaceKeyPurpose): Promise<WorkspaceKeyValidation> {
-    return apiService.post<WorkspaceKeyValidation>('/workspaces/access-keys/validate', {
-      key,
-      purpose,
-    })
-  }
-
-  create(input: { name: string; key: string; organizationId?: string }): Promise<ApiWorkspace> {
+  create(input: { name: string; organizationId: string }): Promise<ApiWorkspace> {
     return apiService.post<ApiWorkspace>('/workspaces', input)
-  }
-
-  join(key: string): Promise<ApiWorkspace> {
-    return apiService.post<ApiWorkspace>('/workspaces/join', { key })
   }
 
   update(
@@ -85,11 +60,11 @@ export class WorkspaceService {
   updateMemberRole(
     workspaceId: string,
     userId: string,
-    role: WorkspaceRole,
+    roleId: string,
   ): Promise<ApiWorkspaceMember[]> {
     return apiService.put<ApiWorkspaceMember[]>(
       `/workspaces/${workspaceId}/members/${userId}/role`,
-      { role },
+      { roleId },
     )
   }
 
@@ -97,7 +72,7 @@ export class WorkspaceService {
     return apiService.get<ApiOrganization[]>('/organizations')
   }
 
-  createOrganization(input: { name: string; workspaceId: string }): Promise<ApiOrganization> {
+  createOrganization(input: { name: string }): Promise<ApiOrganization> {
     return apiService.post<ApiOrganization>('/organizations', input)
   }
 
@@ -108,25 +83,7 @@ export class WorkspaceService {
     )
   }
 
-  searchOrganizationWorkspaceUsers(
-    organizationId: string,
-    workspaceId: string,
-    query: string,
-  ): Promise<ApiOrganizationWorkspaceUser[]> {
-    return apiService.get<ApiOrganizationWorkspaceUser[]>(
-      `/organizations/${organizationId}/workspaces/${workspaceId}/users?q=${encodeURIComponent(query)}`,
-    )
-  }
 
-  addOrganizationWorkspaceUser(
-    organizationId: string,
-    workspaceId: string,
-    userId: string,
-  ): Promise<ApiOrganizationWorkspaceUser> {
-    return apiService.post<ApiOrganizationWorkspaceUser>(
-      `/organizations/${organizationId}/workspaces/${workspaceId}/users/${userId}`,
-    )
-  }
 }
 
 export const workspaceService = new WorkspaceService()

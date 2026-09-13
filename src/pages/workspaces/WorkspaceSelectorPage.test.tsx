@@ -62,9 +62,10 @@ beforeEach(() => {
       data: {},
       organizationId: 'organization-1',
       organizationName: 'IFC',
+      isPersonal: false,
       icon: 'lucide:boxes',
       createdByUserId: 'user-1',
-      role: 'superadmin',
+      permissions: {read: ['view'], write: ['update']},
       pageRootId: 'page-admin',
     },
     {
@@ -73,6 +74,7 @@ beforeEach(() => {
       data: {},
       organizationId: 'organization-1',
       organizationName: 'IFC',
+      isPersonal: false,
       icon: 'lucide:box',
       createdByUserId: 'user-2',
       role: 'member',
@@ -82,7 +84,7 @@ beforeEach(() => {
 })
 
 describe('WorkspaceSelectorPage', () => {
-  it('expõe configurações somente para superadmin e mantém Entrar como acesso à workspace', async () => {
+  it('expõe configurações conforme a permissão de edição e mantém Entrar como acesso à workspace', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
@@ -140,12 +142,7 @@ describe('WorkspaceSelectorPage', () => {
       </QueryClientProvider>,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Criar workspace' }))
-    expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/$lang/workspaces/new',
-      params: { lang: 'pt-br' },
-      search: { tab: 'create', organization: 'organization-1' },
-    })
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({href: '/pt-br/organizations', replace: true}))
 
     mocks.chooseExplicitly = false
     mocks.tab = 'workspaces'
