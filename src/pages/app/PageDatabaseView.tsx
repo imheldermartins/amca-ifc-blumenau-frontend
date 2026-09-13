@@ -1,8 +1,11 @@
+import { usePageAccess } from '@/hooks/usePageAccess'
+import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
   DatabaseViewToolbarSyncStatus,
+  DataViewKind,
   DataViewSettings,
   HeaderCol,
   RowData,
@@ -53,6 +56,9 @@ const EMPTY_ROWS: RowData[] = []
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
 export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
+  const permissions = usePageAccess(pageId)
+  const mayEdit = can(permissions.data, 'write', 'update')
+  const mayEditRows = mayEdit && can(permissions.data, 'write', 'edit_subpages')
   const { lang } = useParams({ strict: false })
   const navigate = useNavigate()
   const { workspaceId } = useWorkspace()
@@ -65,7 +71,11 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     realtimeOptions,
     handlers,
   } = usePageDatabase(pageId)
+  const addView = handlers.onAddView
+  const duplicateView = handlers.onDuplicateView
+  const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
+  const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
   const [relativeNow, setRelativeNow] = useState(() => Date.now())
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
@@ -74,9 +84,17 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     columns,
     preferredViewId,
     scopeKey: pageId,
-    onPersistFilters: handlers.onViewFiltersChange,
+    onPersistFilters: mayEdit ? handlers.onViewFiltersChange : async () => undefined,
   })
   const changeView = viewQuery.changeView
+
+  useEffect(() => {
+    if (!pendingCreatedView || !pageId || pendingCreatedView.pageId !== pageId) return
+    if (!settings[pendingCreatedView.viewId]) return
+    setPreferredViewId(pendingCreatedView.viewId)
+    changeView(pendingCreatedView.viewId)
+    setPendingCreatedView(null)
+  }, [changeView, pageId, pendingCreatedView, settings])
 
   const broken = failed || failedToResolve
   const currentLang = lang ?? 'pt-br'
@@ -265,6 +283,47 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     [changeView],
   )
 
+  const handleAddView = useCallback(
+    async (kind: DataViewKind) => {
+      if (!pageId) return
+      try {
+        const viewId = await addView(kind, viewQuery.activeViewId)
+        setPendingCreatedView({ pageId, viewId })
+      } catch {
+        // O hook já mostra o erro e relê o snapshot após uma falha HTTP.
+      }
+    },
+    [addView, pageId, viewQuery.activeViewId],
+  )
+
+  const handleDuplicateView = useCallback(async (viewId: string) => {
+    if (!pageId) return
+    try {
+      const createdId = await duplicateView(viewId)
+      setPendingCreatedView({ pageId, viewId: createdId })
+    } catch {
+      // O hook mostra o erro e relê o snapshot.
+    }
+  }, [duplicateView, pageId])
+
+  const handleDeleteView = useCallback(async (viewId: string) => {
+    if (!pageId) return
+    const nextId = Object.keys(settings).find((id) => id !== viewId)
+    try {
+      await deleteView(viewId)
+      if (viewQuery.activeViewId !== viewId) return
+      if (nextId) {
+        setPreferredViewId(nextId)
+        changeView(nextId)
+      } else {
+        const createdId = await addView('table', '')
+        setPendingCreatedView({ pageId, viewId: createdId })
+      }
+    } catch {
+      // O hook mostra o erro e relê o snapshot.
+    }
+  }, [addView, changeView, deleteView, pageId, settings, viewQuery.activeViewId])
+
   // Descer na árvore é abrir a filha como página — a MESMA view, outro id,
   // outra sala. É o modelo recursivo do backend virando navegação.
   const handleOpenRow = useCallback(
@@ -290,29 +349,29 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   // Mesma razão do `labels` acima: os rótulos saem do i18next, que o linter
   // não relaciona com o slug de idioma da rota.
   const viewMenuItems = useCallback(
-    (viewId: string) => [
+    (viewId: string, actions: { startRename: () => void }) => [
       {
         id: 'rename',
         label: i18n('pages.app.cubs-database.menu.renomear'),
         icon: 'lucide:pencil',
-        onSelect: () => console.log('[cubs-database] renomear view', viewId),
+        onSelect: actions.startRename,
       },
       {
         id: 'duplicate',
         label: i18n('pages.app.cubs-database.menu.duplicar'),
         icon: 'lucide:copy',
-        onSelect: () => console.log('[cubs-database] duplicar view', viewId),
+        onSelect: () => { void handleDuplicateView(viewId) },
       },
       {
         id: 'delete',
         label: i18n('pages.app.cubs-database.menu.excluir'),
         icon: 'lucide:trash-2',
         danger: true,
-        onSelect: () => console.log('[cubs-database] excluir view', viewId),
+        onSelect: () => { void handleDeleteView(viewId) },
       },
     ],
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [currentLang],
+    [currentLang, handleDeleteView, handleDuplicateView],
   )
 
   return (
@@ -337,16 +396,21 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
           )}
           placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
           onOpenRow={handleOpenRow}
-          {...handlers}
-          onAddRow={pageId && !broken ? handlers.onAddRow : undefined}
+          {...(mayEdit ? handlers : {})}
+          onCellChange={mayEditRows ? handlers.onCellChange : undefined}
+          onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
+          onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
           onViewChange={handleViewChange}
+          onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}
+          addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
           onViewFiltersChange={viewQuery.changeLocal}
           onSelectionChange={handleSelectionChange}
-          onAddColumn={pageId && !broken ? handlers.onAddColumn : undefined}
+          onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
           labels={labels}
           toolbarLabels={toolbarLabels}
           filterSyncStatus={filterSyncStatus}
-          viewMenuItems={viewMenuItems}
+          viewMenuItems={mayEdit ? viewMenuItems : undefined}
+          onRenameView={mayEdit ? handlers.onRenameView : undefined}
         />
       </PageShell>
       <ReplaceViewFiltersModal

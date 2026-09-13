@@ -366,6 +366,7 @@ function parsePageTitleColumn(raw: unknown): PageTitleColumn | undefined {
 function parseView(raw: unknown): DataViewType | null {
   if (!raw || typeof raw !== 'object') return null
   const candidate = raw as Record<string, unknown>
+  if (candidate.deletedAt != null) return null
   if (!isViewKind(candidate.view)) return null
 
   const columnWidths = parseColumnWidths(candidate.columnWidths)
@@ -502,7 +503,7 @@ function publicKeyScopeNeedsReconcile<T>(
 function rawViewEntries(data: Record<string, unknown> | null | undefined) {
   return Object.entries(data ?? {}).filter((entry): entry is [string, Record<string, unknown>] => {
     const value = entry[1]
-    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && isViewKind((value as Record<string, unknown>).view))
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>).deletedAt == null && isViewKind((value as Record<string, unknown>).view))
   })
 }
 

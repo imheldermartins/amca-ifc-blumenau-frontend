@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   cellErrorKey,
-  ulid,
   type CellChange,
   type CellEditConflict,
   type ColumnConfigPatch,
@@ -95,6 +94,10 @@ export interface UsePageDatabaseResult {
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
     onViewKindChange: (viewId: string, view: DataViewKind) => void
+    onAddView: (view: DataViewKind, sourceViewId: string) => Promise<string>
+    onRenameView: (viewId: string, name: string) => void
+    onDuplicateView: (viewId: string) => Promise<string>
+    onDeleteView: (viewId: string) => Promise<void>
     onViewFiltersChange: (viewId: string, filters: ViewFiltersV2) => Promise<ViewFiltersV2>
   }
 }
@@ -465,104 +468,145 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     return request
   }, [])
 
-  const prepareViewWrite = useCallback(
-    (viewId: string): {
-      viewId: string
-      materializedNow: boolean
-      settings: DataViewSettings
-    } | null => {
-      if (!pageId) return null
-      if (viewId !== FALLBACK_VIEW_ID) {
-        return settingsRef.current[viewId]
-          ? { viewId, materializedNow: false, settings: settingsRef.current }
-          : null
-      }
+  const rememberView = useCallback((viewId: string, view: DataViewType, replaceFallback = false) => {
+    if (!mountedRef.current || currentPageIdRef.current !== pageId) return
+    const { [FALLBACK_VIEW_ID]: _fallback, ...saved } = settingsRef.current
+    const settings = { ...(replaceFallback ? saved : settingsRef.current), [viewId]: view }
+    settingsRef.current = settings
+    setDatabase((current) => (current ? { ...current, settings } : current))
+  }, [pageId])
 
-      const previous = materializedFallbackRef.current
-      if (previous.pageId === pageId && previous.viewId) {
-        return settingsRef.current[previous.viewId]
-          ? { viewId: previous.viewId, materializedNow: false, settings: settingsRef.current }
-          : null
-      }
+  const materializeFallbackView = useCallback(async (): Promise<string | null> => {
+    if (!pageId) return null
+    const fallback = settingsRef.current[FALLBACK_VIEW_ID]
+    if (!fallback) return null
+    const created = await pageWriteService.createView(
+      pageId,
+      'table',
+      fallback.name || i18n('pages.app.cubs-database.view-padrao'),
+      fallback.title,
+    )
+    materializedFallbackRef.current = { pageId, viewId: created.viewId }
+    rememberView(created.viewId, created.view, true)
+    return created.viewId
+  }, [pageId, rememberView])
 
-      const fallback = settingsRef.current[FALLBACK_VIEW_ID]
-      if (!fallback) return null
-      const resolvedViewId = ulid()
-      const { [FALLBACK_VIEW_ID]: _fallback, ...savedViews } = settingsRef.current
-      const settings = { ...savedViews, [resolvedViewId]: fallback }
-      materializedFallbackRef.current = { pageId, viewId: resolvedViewId }
-      settingsRef.current = settings
-      setDatabase((current) => (current ? { ...current, settings } : current))
-      return { viewId: resolvedViewId, materializedNow: true, settings }
-    },
-    [pageId],
-  )
-
-  /**
-   * Views existentes usam PATCH por caminho JSON. O PUT do snapshot completo
-   * permanece somente para materializar a sentinela fallback uma única vez.
-   */
+  /** Views existentes usam PATCH; o fallback nasce pelo POST atômico. */
   const saveViewPatch = useCallback(
     (viewId: string, patch: Partial<DataViewType>) => {
       if (!pageId) return
-      const prepared = prepareViewWrite(viewId)
-      if (!prepared) return
-      const current = prepared.settings[prepared.viewId]
+      if (viewId === FALLBACK_VIEW_ID) {
+        void enqueueViewWrite(async () => {
+          const targetId = await materializeFallbackView() ?? materializedFallbackRef.current.viewId
+          if (!targetId) throw new Error('View ausente')
+          const response = await pageWriteService.patchView(pageId, targetId, patch)
+          rememberView(targetId, response.view)
+        }).catch(handleWriteError)
+        return
+      }
+      const current = settingsRef.current[viewId]
       if (!current) return
       const settings = {
-        ...prepared.settings,
-        [prepared.viewId]: { ...current, ...patch },
+        ...settingsRef.current,
+        [viewId]: { ...current, ...patch },
       }
       settingsRef.current = settings
       setDatabase((database) => (database ? { ...database, settings } : database))
 
-      void enqueueViewWrite(() =>
-        prepared.materializedNow
-          ? pageWriteService.saveViewSnapshot(
-              pageId,
-              settings,
-              prepared.viewId,
-              {},
-            )
-          : pageWriteService.patchView(pageId, prepared.viewId, patch),
-      ).catch(handleWriteError)
+      void enqueueViewWrite(() => pageWriteService.patchView(pageId, viewId, patch)).catch(handleWriteError)
     },
-    [enqueueViewWrite, handleWriteError, pageId, prepareViewWrite],
+    [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView],
   )
 
   const saveViewFilters = useCallback(
     async (viewId: string, filters: ViewFiltersV2): Promise<ViewFiltersV2> => {
       if (!pageId) throw new Error('Página ausente')
-      const prepared = prepareViewWrite(viewId)
-      if (!prepared) throw new Error('View ausente')
-
       const response = await enqueueViewWrite(async () => {
-        if (prepared.materializedNow) {
-          await pageWriteService.saveViewSnapshot(
-            pageId,
-            prepared.settings,
-            prepared.viewId,
-            {},
-          )
-        }
-        return pageWriteService.saveViewFilters(pageId, prepared.viewId, filters)
+        const targetId = viewId === FALLBACK_VIEW_ID
+          ? await materializeFallbackView() ?? materializedFallbackRef.current.viewId
+          : viewId
+        if (!targetId || !settingsRef.current[targetId]) throw new Error('View ausente')
+        const saved = await pageWriteService.saveViewFilters(pageId, targetId, filters)
+        return { saved, targetId }
       })
 
       if (mountedRef.current && currentPageIdRef.current === pageId) {
-        const current = settingsRef.current[prepared.viewId]
+        const current = settingsRef.current[response.targetId]
         if (current) {
           const settings = {
             ...settingsRef.current,
-            [prepared.viewId]: { ...current, filters: response.filters },
+            [response.targetId]: { ...current, filters: response.saved.filters },
           }
           settingsRef.current = settings
           setDatabase((database) => (database ? { ...database, settings } : database))
         }
       }
-      return response.filters
+      return response.saved.filters
     },
-    [enqueueViewWrite, pageId, prepareViewWrite],
+    [enqueueViewWrite, materializeFallbackView, pageId],
   )
+
+  const addView = useCallback(
+    async (kind: DataViewKind, sourceViewId: string): Promise<string> => {
+      if (!pageId) throw new Error('Página ausente')
+      try {
+        return await enqueueViewWrite(async () => {
+          const sourceTitle = settingsRef.current[sourceViewId]?.title
+          await materializeFallbackView()
+
+          const label = i18n(`pages.app.cubs-database.views.${kind}`)
+          const names = new Set(Object.values(settingsRef.current).map((view) => view.name))
+          let name = label
+          for (let suffix = 2; names.has(name); suffix += 1) name = `${label} ${suffix}`
+          const created = await pageWriteService.createView(pageId, kind, name, sourceTitle)
+          rememberView(created.viewId, created.view)
+          return created.viewId
+        })
+      } catch (error) {
+        handleWriteError(error)
+        throw error
+      }
+    },
+    [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView],
+  )
+
+  const duplicateView = useCallback(async (viewId: string): Promise<string> => {
+    if (!pageId) throw new Error('Página ausente')
+    try {
+      return await enqueueViewWrite(async () => {
+        const sourceId = viewId === FALLBACK_VIEW_ID
+          ? await materializeFallbackView()
+          : viewId
+        if (!sourceId || !settingsRef.current[sourceId]) throw new Error('View ausente')
+        const created = await pageWriteService.duplicateView(pageId, sourceId)
+        rememberView(created.viewId, created.view)
+        return created.viewId
+      })
+    } catch (error) {
+      handleWriteError(error)
+      throw error
+    }
+  }, [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView])
+
+  const deleteView = useCallback(async (viewId: string): Promise<void> => {
+    if (!pageId) throw new Error('Página ausente')
+    try {
+      await enqueueViewWrite(async () => {
+        const targetId = viewId === FALLBACK_VIEW_ID
+          ? await materializeFallbackView()
+          : viewId
+        if (!targetId || !settingsRef.current[targetId]) throw new Error('View ausente')
+        await pageWriteService.deleteView(pageId, targetId)
+        if (!mountedRef.current || currentPageIdRef.current !== pageId) return
+        const { [targetId]: _deleted, ...settings } = settingsRef.current
+        settingsRef.current = settings
+        setDatabase((current) => (current ? { ...current, settings } : current))
+      })
+    } catch (error) {
+      handleWriteError(error)
+      throw error
+    }
+  }, [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId])
 
   /**
    * A CÉLULA é a escrita de maior frequência e a única com rollback FINO — daí
@@ -868,6 +912,12 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [saveViewPatch],
     ),
+    onAddView: addView,
+    onRenameView: useCallback((viewId: string, name: string) => {
+      saveViewPatch(viewId, { name })
+    }, [saveViewPatch]),
+    onDuplicateView: duplicateView,
+    onDeleteView: deleteView,
     onViewFiltersChange: useCallback(
       (viewId: string, filters: ViewFiltersV2) => saveViewFilters(viewId, filters),
       [saveViewFilters],

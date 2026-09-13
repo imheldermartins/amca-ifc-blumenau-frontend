@@ -21,7 +21,9 @@ const dependencies = vi.hoisted(() => ({
   resetColumn: vi.fn(),
   saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
-  saveViewSnapshot: vi.fn(),
+  createView: vi.fn(),
+  duplicateView: vi.fn(),
+  deleteView: vi.fn(),
   patchView: vi.fn(),
   saveViewFilters: vi.fn(),
   reconcileFilterKeys: vi.fn(),
@@ -50,7 +52,9 @@ vi.mock('@/services/PageWriteService', () => ({
     resetColumn: dependencies.resetColumn,
     saveColumnConfig: dependencies.saveColumnConfig,
     saveCell: dependencies.saveCell,
-    saveViewSnapshot: dependencies.saveViewSnapshot,
+    createView: dependencies.createView,
+    duplicateView: dependencies.duplicateView,
+    deleteView: dependencies.deleteView,
     patchView: dependencies.patchView,
     saveViewFilters: dependencies.saveViewFilters,
   },
@@ -128,8 +132,8 @@ beforeEach(() => {
   })
   dependencies.deleteRow.mockResolvedValue(undefined)
   dependencies.deleteColumn.mockResolvedValue(undefined)
-  dependencies.saveViewSnapshot.mockResolvedValue(undefined)
   dependencies.patchView.mockResolvedValue(undefined)
+  dependencies.deleteView.mockResolvedValue(undefined)
   dependencies.saveViewFilters.mockImplementation(
     (_pageId, _viewId, filters) => Promise.resolve({ viewId: _viewId, filters }),
   )
@@ -636,6 +640,90 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
 })
 
 describe('usePageDatabase — snapshot da view', () => {
+  it('duplica e remove a view na coleção local após confirmação HTTP', async () => {
+    const originalId = '01KXVZ0000VIEW00000000001'
+    const copyId = '01KXVZ0000VIEW00000000002'
+    const original = { view: 'board' as const, name: 'Quadros', urlKey: { key: 'quadros', aliases: [] }, filters: emptyFilters(), orderedHeaderCols: [COLUMN_ID] }
+    const copy = { ...original, name: 'Quadros (cópia)', urlKey: { key: 'quadros_copia', aliases: [] } }
+    dependencies.loadPage.mockResolvedValueOnce({ ...database('inicial'), settings: { [originalId]: original } })
+    dependencies.duplicateView.mockResolvedValueOnce({ viewId: copyId, view: copy })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    let createdId = ''
+    await act(async () => { createdId = await result.current.handlers.onDuplicateView(originalId) })
+    expect(createdId).toBe(copyId)
+    expect(dependencies.duplicateView).toHaveBeenCalledWith(PAGE_ID, originalId)
+    expect(result.current.database?.settings).toEqual({ [originalId]: original, [copyId]: copy })
+
+    await act(async () => { await result.current.handlers.onDeleteView(originalId) })
+    expect(dependencies.deleteView).toHaveBeenCalledWith(PAGE_ID, originalId)
+    expect(result.current.database?.settings).toEqual({ [copyId]: copy })
+  })
+
+  it('adiciona uma view sem substituir a view existente', async () => {
+    const oldId = '01KXVZ0000VIEW00000000001'
+    const newId = '01KXVZ0000VIEW00000000002'
+    const oldView = {
+      view: 'table' as const,
+      name: 'Principal',
+      urlKey: { key: 'principal', aliases: [] },
+      filters: emptyFilters(),
+      orderedHeaderCols: [],
+    }
+    const newView = {
+      ...oldView,
+      view: 'calendar' as const,
+      name: 'pages.app.cubs-database.views.calendar',
+      urlKey: { key: 'calendar', aliases: [] },
+    }
+    dependencies.loadPage.mockResolvedValueOnce({ ...database('inicial'), settings: { [oldId]: oldView } })
+    dependencies.createView.mockResolvedValueOnce({ viewId: newId, view: newView })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    let created = ''
+    await act(async () => { created = await result.current.handlers.onAddView('calendar', oldId) })
+
+    expect(created).toBe(newId)
+    expect(dependencies.createView).toHaveBeenCalledWith(
+      PAGE_ID, 'calendar', 'pages.app.cubs-database.views.calendar', undefined,
+    )
+    expect(result.current.database?.settings).toEqual({ [oldId]: oldView, [newId]: newView })
+  })
+
+  it('preserva a tabela fallback ao adicionar a primeira view diferente', async () => {
+    const defaultId = '01KXVZ0000VIEW00000000003'
+    const newId = '01KXVZ0000VIEW00000000004'
+    const fallback = {
+      view: 'table' as const,
+      name: 'Tabela',
+      urlKey: { key: 'tabela', aliases: [] },
+      filters: emptyFilters(),
+      orderedHeaderCols: [],
+    }
+    const calendar = { ...fallback, view: 'calendar' as const, name: 'Calendário' }
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'), settings: { [FALLBACK_VIEW_ID]: fallback },
+    })
+    dependencies.createView
+      .mockResolvedValueOnce({ viewId: defaultId, view: fallback })
+      .mockResolvedValueOnce({ viewId: newId, view: calendar })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    await act(async () => { await result.current.handlers.onAddView('calendar', FALLBACK_VIEW_ID) })
+
+    expect(dependencies.createView).toHaveBeenCalledTimes(2)
+    expect(dependencies.createView.mock.calls[0]?.slice(0, 3)).toEqual([PAGE_ID, 'table', 'Tabela'])
+    expect(dependencies.createView.mock.calls[1]?.slice(0, 3)).toEqual([
+      PAGE_ID, 'calendar', 'pages.app.cubs-database.views.calendar',
+    ])
+    expect(result.current.database?.settings[FALLBACK_VIEW_ID]).toBeUndefined()
+    expect(result.current.database?.settings[defaultId]).toEqual(fallback)
+    expect(result.current.database?.settings[newId]).toEqual(calendar)
+  })
+
   it('salva filtros pelo endpoint atômico e adota o timestamp do servidor', async () => {
     const viewId = '01KXVZ0000VIEW00000000001'
     dependencies.loadPage.mockResolvedValueOnce({
@@ -661,7 +749,6 @@ describe('usePageDatabase — snapshot da view', () => {
     })
 
     expect(dependencies.saveViewFilters).toHaveBeenCalledWith(PAGE_ID, viewId, filters)
-    expect(dependencies.saveViewSnapshot).not.toHaveBeenCalled()
     expect(result.current.database?.settings[viewId].filters).toEqual(confirmed)
   })
 
@@ -811,11 +898,18 @@ describe('usePageDatabase — snapshot da view', () => {
     expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
   })
 
-  it('materializa o fallback e serializa drags rápidos sem perder o primeiro patch', async () => {
-    const firstWrite = deferred<unknown>()
-    dependencies.saveViewSnapshot
-      .mockImplementationOnce(() => firstWrite.promise)
-      .mockResolvedValueOnce(undefined)
+  it('materializa o fallback por POST e serializa drags sem reescrever o snapshot', async () => {
+    const materializedId = '01KXVZ0000VIEW00000000009'
+    let serverView: ParsedDatabase['settings'][string] = {
+      view: 'table', name: 'Tabela', urlKey: { key: 'tabela', aliases: [] },
+      filters: emptyFilters(), orderedHeaderCols: [COLUMN_ID],
+    }
+    const firstWrite = deferred<{ viewId: string; view: typeof serverView }>()
+    dependencies.createView.mockImplementationOnce(() => firstWrite.promise)
+    dependencies.patchView.mockImplementation(async (_pageId, viewId, patch) => {
+      serverView = { ...serverView, ...patch }
+      return { viewId, view: serverView }
+    })
     dependencies.loadPage.mockResolvedValueOnce({
       ...database('inicial'),
       settings: {
@@ -837,30 +931,16 @@ describe('usePageDatabase — snapshot da view', () => {
       result.current.handlers.onColumnOrderChange(FALLBACK_VIEW_ID, ['page_title', COLUMN_ID])
     })
 
-    const settings = result.current.database?.settings ?? {}
-    const [materializedId] = Object.keys(settings)
-    expect(materializedId).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/)
-    expect(materializedId).not.toBe(FALLBACK_VIEW_ID)
-    expect(settings[materializedId]).toMatchObject({
-      orderedRows: ['row-2', ROW_ID],
-      orderedHeaderCols: ['page_title', COLUMN_ID],
-    })
-
-    await waitFor(() => expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1))
-    expect(dependencies.saveViewSnapshot.mock.calls[0][2]).toBe(materializedId)
-    expect(dependencies.saveViewSnapshot.mock.calls[0][3]).toEqual({})
-    expect(dependencies.saveViewSnapshot.mock.calls[0][1][materializedId]).toMatchObject({
-      orderedRows: ['row-2', ROW_ID],
-    })
-
-    // O segundo PUT não ultrapassa o primeiro, e sua base já carrega a ordem
-    // de linhas — portanto não pode apagá-la ao salvar a ordem de colunas.
+    await waitFor(() => expect(dependencies.createView).toHaveBeenCalledTimes(1))
     expect(dependencies.patchView).not.toHaveBeenCalled()
-    firstWrite.resolve(undefined)
-    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(1))
-    expect(dependencies.patchView.mock.calls[0][2]).toEqual({
-      orderedHeaderCols: ['page_title', COLUMN_ID],
+    firstWrite.resolve({ viewId: materializedId, view: serverView })
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(2))
+    expect(dependencies.patchView.mock.calls.map((call) => call[2])).toEqual([
+      { orderedRows: ['row-2', ROW_ID] },
+      { orderedHeaderCols: ['page_title', COLUMN_ID] },
+    ])
+    expect(result.current.database?.settings[materializedId]).toMatchObject({
+      orderedRows: ['row-2', ROW_ID], orderedHeaderCols: ['page_title', COLUMN_ID],
     })
-    expect(dependencies.saveViewSnapshot).toHaveBeenCalledTimes(1)
   })
 })

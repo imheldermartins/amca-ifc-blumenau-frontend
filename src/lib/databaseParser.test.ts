@@ -5,6 +5,7 @@ import {
   needsFilterKeyReconcile,
   parseDatabase,
   parseHeaderCols,
+  parseViewSettings,
 } from './databaseParser'
 
 const VIEW_ID = '01KXVZ0000VIEW00000000001'
@@ -98,6 +99,12 @@ describe('databaseParser — coluna mestra de título', () => {
 })
 
 describe('databaseParser — tipos de view', () => {
+  it('omite views com tombstone mesmo quando as demais continuam visíveis', () => {
+    const deleted = { view: 'table', name: 'Antiga', deletedAt: '2026-09-13T12:00:00.000Z' }
+    const live = { view: 'board', name: 'Quadros', urlKey: { key: 'quadros', aliases: [] } }
+    const data = { [VIEW_ID]: deleted, '01KXVZ0000VIEW00000000002': live }
+    expect(Object.keys(parseViewSettings(data))).toEqual(['01KXVZ0000VIEW00000000002'])
+  })
   it.each(['table', 'grid', 'board', 'calendar', 'timeline', 'graph'] as const)(
     'preserva o modo %s recebido no snapshot',
     (view) => {

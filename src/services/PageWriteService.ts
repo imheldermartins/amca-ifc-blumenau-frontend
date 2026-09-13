@@ -2,7 +2,7 @@ import type {
   CellChange,
   ColumnConfigPatch,
   ColumnOption,
-  DataViewSettings,
+  DataViewKind,
   DataViewType,
   ViewFiltersV2,
 } from 'cubs-database'
@@ -25,6 +25,30 @@ import { apiService } from '@/services/ApiService'
  * reverter o otimismo.
  */
 export class PageWriteService {
+  /** Adiciona uma view por caminho JSON, preservando as demais views. */
+  createView(
+    pageId: string,
+    view: DataViewKind,
+    name: string,
+    title?: DataViewType['title'],
+  ): Promise<{ viewId: string; view: DataViewType }> {
+    return apiService.post(`/pages/${pageId}/views`, {
+      name,
+      ...(view !== 'table' && { type: view }),
+      ...(title && {
+        title: { key: 'title', column_name: title.column_name, ...(title.mask && { mask: title.mask }) },
+      }),
+    })
+  }
+
+  duplicateView(pageId: string, viewId: string): Promise<{ viewId: string; view: DataViewType }> {
+    return apiService.post(`/pages/${pageId}/views/${viewId}/duplicate`, {})
+  }
+
+  deleteView(pageId: string, viewId: string): Promise<void> {
+    return apiService.delete(`/pages/${pageId}/views/${viewId}`)
+  }
+
   /** Cria somente a página-filha e sua aresta com a parent; células nascem ausentes. */
   createRow(parentId: string): Promise<ApiPage> {
     return apiService.post<ApiPage>(`/pages/${parentId}/page`, {})
@@ -124,26 +148,6 @@ export class PageWriteService {
    */
   resetColumn(parentId: string, columnId: string): Promise<unknown> {
     return apiService.post(`/pages/parent/${parentId}/columns/${columnId}/reset`)
-  }
-
-  /**
-   * Materialização inicial do fallback: cria o snapshot completo uma única vez.
-   * Personalizações posteriores usam `patchView`, e filtros/grupos usam
-   * `saveViewFilters`, evitando read-modify-write concorrente de `pages.data`.
-   */
-  saveViewSnapshot(
-    pageId: string,
-    settings: DataViewSettings,
-    viewId: string,
-    patch: Partial<DataViewType>,
-  ): Promise<unknown> {
-    const current = settings[viewId]
-    // View desconhecida (ex.: o fallback de id fixo, que não existe no banco):
-    // gravar criaria uma tab fantasma na base de todo mundo.
-    if (!current) return Promise.resolve(null)
-
-    const data: DataViewSettings = { ...settings, [viewId]: { ...current, ...patch } }
-    return apiService.put(`/pages/${pageId}`, { data })
   }
 
   /**

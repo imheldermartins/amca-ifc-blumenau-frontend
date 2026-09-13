@@ -101,10 +101,14 @@ export interface CubsDatabaseProps {
   /** Modo controlado da view ativa; sem isso o componente controla sozinho. */
   activeViewId?: string
   onViewChange?: (viewId: string) => void
+  /** Cria uma nova view do tipo escolhido no botão ao lado das tabs. */
+  onAddView?: (kind: DataViewKind) => void | Promise<void>
+  addViewLabel?: string
   /** Troca a projeção da view atual sem alterar sua identidade ou seus dados. */
   onViewKindChange?: (viewId: string, view: DataViewKind) => void
   /** Itens do ContextMenu das tabs (botão direito; app host injeta i18n). */
-  viewMenuItems?: (viewId: string) => ContextMenuItem[]
+  viewMenuItems?: (viewId: string, actions: { startRename: () => void }) => ContextMenuItem[]
+  onRenameView?: (viewId: string, name: string) => void | Promise<void>
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
   onOpenRow?: (row: RowData) => void
   /**
@@ -228,8 +232,11 @@ export function CubsDatabase({
   cellErrors,
   activeViewId,
   onViewChange,
+  onAddView,
+  addViewLabel,
   onViewKindChange,
   viewMenuItems,
+  onRenameView,
   onOpenRow,
   onCellChange,
   onCellEditConflict,
@@ -415,7 +422,11 @@ export function CubsDatabase({
         settings={settings}
         activeViewId={currentViewId}
         onViewChange={handleViewChange}
+        onAddView={onAddView}
+        addViewLabel={addViewLabel}
+        viewTypeLabels={resolvedToolbarLabels.viewTypes}
         viewMenuItems={viewMenuItems}
+        onRenameView={onRenameView}
       />
 
       <DatabaseViewToolbar

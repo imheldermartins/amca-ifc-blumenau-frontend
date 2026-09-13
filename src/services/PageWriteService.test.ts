@@ -109,6 +109,37 @@ describe('PageWriteService — views atômicas', () => {
     api.patch.mockResolvedValue(undefined)
   })
 
+  it('envia somente tipo, nome e apresentação da coluna title ao criar view', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    await new PageWriteService().createView(pageId, 'board', 'Quadros', {
+      key: 'title',
+      column_name: 'Docente',
+      publicKey: { key: 'docente', aliases: [] },
+    })
+
+    expect(api.post).toHaveBeenCalledWith(`/pages/${pageId}/views`, {
+      type: 'board',
+      name: 'Quadros',
+      title: { key: 'title', column_name: 'Docente' },
+    })
+  })
+
+  it('omite type para a view padrão table', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    await new PageWriteService().createView(pageId, 'table', 'Tabela')
+    expect(api.post).toHaveBeenCalledWith(`/pages/${pageId}/views`, { name: 'Tabela' })
+  })
+
+  it('usa as rotas semânticas para duplicar e excluir uma view', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    const viewId = '01KXVZ0000VIEW00000000001'
+    const service = new PageWriteService()
+    await service.duplicateView(pageId, viewId)
+    await service.deleteView(pageId, viewId)
+    expect(api.post).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}/duplicate`, {})
+    expect(api.delete).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}`)
+  })
+
   it('não envia filtros, urlKey nem publicKey pelo PATCH de apresentação', async () => {
     const pageId = '01KXVZ0000PAGE00000000001'
     const viewId = '01KXVZ0000VIEW00000000001'
