@@ -12,6 +12,8 @@ const dependencies = vi.hoisted(() => ({
   listCollaborators: vi.fn(),
   listCollaboratorCandidates: vi.fn(),
   addCollaborator: vi.fn(),
+  updateTitle: vi.fn(),
+  permissions: { read: ['view', 'members'], write: ['add_members'] } as { read: string[]; write: string[] },
   options: undefined as UsePageRealtimeOptions | undefined,
   user: {
     id: 'user-current',
@@ -21,7 +23,8 @@ const dependencies = vi.hoisted(() => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn(), useParams: () => ({ lang: 'pt-br' }) }))
-vi.mock('@/hooks/usePageAccess', () => ({ usePageAccess: () => ({data: {permissions: {read: ['view', 'members'], write: ['add_members']}}}) }))
+vi.mock('@/hooks/usePageAccess', () => ({ usePageAccess: () => ({data: {permissions: dependencies.permissions}}) }))
+vi.mock('@/contexts/WorkspaceContext', () => ({ useWorkspace: () => ({ workspaceId: 'workspace-1' }) }))
 
 vi.mock('@/hooks/usePageRealtime', () => ({
   usePageRealtime: (_pageId: string | undefined, options: UsePageRealtimeOptions) => {
@@ -33,6 +36,7 @@ vi.mock('@/hooks/usePageRealtime', () => ({
 vi.mock('@/services/DatabaseService', () => ({
   databaseService: { getPage: dependencies.getPage },
 }))
+vi.mock('@/services/PageWriteService', () => ({ pageWriteService: { updateTitle: dependencies.updateTitle } }))
 
 vi.mock('@/services/SharedPagesService', () => ({
   sharedPagesService: {
@@ -50,13 +54,14 @@ vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 
-function page(title: string | null, id = PAGE_ID): ApiPage {
+function page(title: string | null, id = PAGE_ID, latestUpdatedAt: string | null = null): ApiPage {
   return {
     id,
     title,
     data: null,
     owner_id: '01KXVZ0000USER00000000001',
     updated_at: '2026-08-31 16:00:00',
+    latest_updated_at: latestUpdatedAt,
   }
 }
 
@@ -81,18 +86,36 @@ beforeEach(() => {
   dependencies.listCollaborators.mockResolvedValue([])
   dependencies.listCollaboratorCandidates.mockResolvedValue([])
   dependencies.addCollaborator.mockResolvedValue(undefined)
+  dependencies.updateTitle.mockImplementation(async (_id: string, title: string | null) => page(title))
+  dependencies.permissions = { read: ['view', 'members'], write: ['add_members'] }
 })
 
 afterEach(() => cleanup())
 
 describe('PageShell — page-updated', () => {
-  it('mostra o updated_at da API e acompanha o timestamp do realtime', async () => {
+  it('mostra após reload a última edição calculada das páginas filhas', async () => {
+    dependencies.getPage.mockResolvedValueOnce(page('Título inicial', PAGE_ID, '2026-08-31 17:58:00'))
+    render(<PageShell pageId={PAGE_ID} />)
+    expect((await screen.findByText('pages.app.pagina.updated-at')).closest('time')?.getAttribute('datetime'))
+      .toBe('2026-08-31 17:58:00')
+  })
+
+  it('oculta bases nunca editadas e acompanha database-updated', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-08-31T18:00:00.000Z').getTime())
     render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
 
-    expect(await screen.findByText('pages.app.pagina.updated-at')).toBeTruthy()
+    await screen.findByText('Título inicial')
+    expect(screen.queryByText('pages.app.pagina.updated-at')).toBeNull()
+
+    act(() => {
+      dependencies.options?.onDatabaseUpdated?.({
+        pageId: PAGE_ID,
+        updatedAt: '2026-08-31T17:58:00.000Z',
+        originUserId: 'user-1',
+      })
+    })
     const initialTime = screen.getByText('pages.app.pagina.updated-at').closest('time')
-    expect(initialTime?.getAttribute('datetime')).toBe('2026-08-31 16:00:00')
+    expect(initialTime?.getAttribute('datetime')).toBe('2026-08-31T17:58:00.000Z')
 
     act(() => {
       dependencies.options?.onPageUpdated?.({
@@ -102,9 +125,7 @@ describe('PageShell — page-updated', () => {
         originUserId: 'user-1',
       })
     })
-    expect(screen.getByText('pages.app.pagina.updated-at').closest('time')?.getAttribute('datetime')).toBe(
-      '2026-08-31T17:58:00.000Z',
-    )
+    expect(screen.getByText('pages.app.pagina.updated-at').closest('time')?.getAttribute('datetime')).toBe('2026-08-31T17:58:00.000Z')
   })
 
   it('atualiza o chrome com guarda própria e aceita empate de timestamp', async () => {
@@ -220,7 +241,7 @@ describe('PageShell — carregamento inicial', () => {
     expect(screen.queryByText('conteúdo prematuro')).toBeNull()
   })
 
-  it('troca o título provisório pelo skeleton quando a API confirma title ausente', async () => {
+  it('remove o título provisório quando a API confirma title ausente', async () => {
     const request = deferred<ApiPage>()
     dependencies.getPage.mockReturnValueOnce(request.promise)
 
@@ -228,10 +249,73 @@ describe('PageShell — carregamento inicial', () => {
     expect(screen.getByRole('heading', { name: 'Título provisório' })).toBeTruthy()
 
     await act(async () => request.resolve(page(null)))
-    await waitFor(() =>
-      expect(document.querySelector('[data-page-title-skeleton]')).toBeTruthy(),
-    )
+    await waitFor(() => expect(screen.queryByText('Título provisório')).toBeNull())
+    expect(document.querySelector('[data-page-title-skeleton]')).toBeNull()
     expect(screen.queryByText('Título provisório')).toBeNull()
+  })
+})
+
+describe('PageShell — edição do título', () => {
+  it('salva no blur e converte vazio em null', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    render(<PageShell pageId={PAGE_ID} />)
+    const input = await screen.findByLabelText('pages.app.pagina.title-label')
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledWith(PAGE_ID, null))
+  })
+
+  it('cancela com Escape sem persistir', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    render(<PageShell pageId={PAGE_ID} />)
+    const input = await screen.findByLabelText('pages.app.pagina.title-label')
+    fireEvent.change(input, { target: { value: 'Rascunho' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect((input as HTMLInputElement).value).toBe('Título inicial')
+    expect(dependencies.updateTitle).not.toHaveBeenCalled()
+  })
+
+  it('salva com Enter e restaura o título confirmado se a escrita falhar', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    dependencies.updateTitle.mockRejectedValueOnce(new Error('indisponível'))
+    render(<PageShell pageId={PAGE_ID} />)
+    const input = await screen.findByLabelText('pages.app.pagina.title-label') as HTMLInputElement
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Título novo' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledWith(PAGE_ID, 'Título novo'))
+    await waitFor(() => expect(input.value).toBe('Título inicial'))
+    expect(screen.getByRole('alert').textContent).toBe('pages.app.pagina.title-save-error')
+  })
+
+  it('ignora a resposta de uma gravação que terminou depois da troca de página', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    const request = deferred<ApiPage>()
+    dependencies.updateTitle.mockReturnValueOnce(request.promise)
+    dependencies.getPage.mockImplementation(async (id: string) => page(id === PAGE_ID ? 'Título inicial' : 'Outra página', id))
+    const { rerender } = render(<PageShell pageId={PAGE_ID} />)
+    const oldInput = await screen.findByLabelText('pages.app.pagina.title-label') as HTMLInputElement
+    fireEvent.change(oldInput, { target: { value: 'Título antigo salvo tarde' } })
+    fireEvent.blur(oldInput)
+    await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledTimes(1))
+
+    rerender(<PageShell pageId="01KXVZ0000PARENT0000000002" />)
+    await waitFor(() => expect((screen.getByLabelText('pages.app.pagina.title-label') as HTMLInputElement).value).toBe('Outra página'))
+    await act(async () => request.resolve(page('Título antigo salvo tarde')))
+    expect((screen.getByLabelText('pages.app.pagina.title-label') as HTMLInputElement).value).toBe('Outra página')
+  })
+
+  it('mantém o relógio recebido enquanto um fetch anterior termina', async () => {
+    const request = deferred<ApiPage>()
+    dependencies.getPage.mockReturnValueOnce(request.promise)
+    render(<PageShell pageId={PAGE_ID} />)
+    act(() => dependencies.options?.onDatabaseUpdated?.({
+      pageId: PAGE_ID,
+      updatedAt: '2026-08-31 17:58:00',
+      originUserId: 'user-2',
+    }))
+    await act(async () => request.resolve(page('Título inicial')))
+    expect(screen.getByText('pages.app.pagina.updated-at').closest('time')?.getAttribute('datetime')).toBe('2026-08-31 17:58:00')
   })
 })
 

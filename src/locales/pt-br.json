@@ -137,7 +137,11 @@
         "role-member": "Member",
         "tabs-label": "Áreas de workspaces",
         "tab-workspaces": "Workspaces",
-        "tab-organization": "Organização"
+        "tab-organization": "Organização",
+        "personal-section": "Pessoal",
+        "organization-section": "Workspaces de organizações",
+        "owner-label": "Owner",
+        "owner-unknown": "Criador indisponível"
       },
       "access": {
         "title": "Criar workspace",
@@ -330,6 +334,8 @@
         "indisponivel": "Página indisponível",
         "espectadores": "{{count}} pessoas com esta página aberta",
         "updated-at": "Atualizado {{relative}}",
+        "title-label": "Título da página",
+        "title-save-error": "Não foi possível salvar o título.",
         "views": {
           "navigation": "Visualização do conteúdo da página",
           "files": "Base de dados",

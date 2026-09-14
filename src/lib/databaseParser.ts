@@ -82,6 +82,8 @@ export interface ApiPage {
   owner_id: string
   /** `CURRENT_TIMESTAMP` do rqlite, serializado pela API. */
   updated_at: string
+  /** Calculado em GET /pages/:id; escritas e page_root podem omitir o campo. */
+  latest_updated_at?: string | null
 }
 
 /**

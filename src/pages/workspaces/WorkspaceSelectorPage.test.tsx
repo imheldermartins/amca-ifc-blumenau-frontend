@@ -47,6 +47,17 @@ vi.mock('@iconify/react', () => ({
 
 import { WorkspaceSelectorPage } from './WorkspaceSelectorPage'
 
+function mountSelector() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <WorkspaceSelectorPage />
+    </QueryClientProvider>,
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.chooseExplicitly = true
@@ -65,6 +76,7 @@ beforeEach(() => {
       isPersonal: false,
       icon: 'lucide:boxes',
       createdByUserId: 'user-1',
+      owner: { id: 'user-1', name: 'Helder', email: 'helder@ifc.edu.br' },
       permissions: {read: ['view'], write: ['update']},
       pageRootId: 'page-admin',
     },
@@ -77,6 +89,7 @@ beforeEach(() => {
       isPersonal: false,
       icon: 'lucide:box',
       createdByUserId: 'user-2',
+      owner: { id: 'user-2', name: 'Outra pessoa', email: 'outra@ifc.edu.br' },
       role: 'member',
       pageRootId: 'page-member',
     },
@@ -84,6 +97,22 @@ beforeEach(() => {
 })
 
 describe('WorkspaceSelectorPage', () => {
+  it('separa a área pessoal e mostra nome e email do owner', async () => {
+    mocks.listMine.mockResolvedValueOnce([
+      {
+        id: 'personal', name: 'Minha área', data: {}, organizationId: null, organizationName: null,
+        isPersonal: true, icon: 'lucide:user', createdByUserId: 'user-1', pageRootId: 'personal',
+        owner: { id: 'user-1', name: 'Helder', email: 'helder@ifc.edu.br' },
+      },
+      ...(await mocks.listMine()),
+    ])
+    mountSelector()
+    const personal = await screen.findByRole('heading', { name: 'Pessoal' })
+    const organizations = screen.getByRole('heading', { name: 'Workspaces de organizações' })
+    expect(personal.compareDocumentPosition(organizations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getAllByText(/Helder · helder@ifc.edu.br/).length).toBeGreaterThan(0)
+  })
+
   it('expõe configurações conforme a permissão de edição e mantém Entrar como acesso à workspace', async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

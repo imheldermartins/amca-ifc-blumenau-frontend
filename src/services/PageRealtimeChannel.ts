@@ -6,6 +6,7 @@ import type {
   ColumnPayload,
   ColumnResizingPayload,
   ColumnUpdatedPayload,
+  DatabaseUpdatedPayload,
   PageUpdatedPayload,
   RowPayload,
   RowUpdatedPayload,
@@ -21,6 +22,7 @@ export interface PageRealtimeChannelCallbacks {
   onEvent?: (event: DatabaseRealtimeEvent) => void
   onStructureChanged?: (event: PageStructureEvent) => void
   onPageUpdated?: (payload: PageUpdatedPayload) => void
+  onDatabaseUpdated?: (payload: DatabaseUpdatedPayload) => void
   onColumnResize?: (payload: ColumnResizingPayload) => void
   onPresenceChanged?: (viewers: number) => void
   onJoinedChanged?: (joined: boolean) => void
@@ -69,6 +71,7 @@ export class PageRealtimeChannel {
     this.socket.on('cell-updated', this.handleCellUpdated)
     this.socket.on('row-updated', this.handleRowUpdated)
     this.socket.on('page-updated', this.handlePageUpdated)
+    this.socket.on('database-updated', this.handleDatabaseUpdated)
     this.socket.on('column-updated', this.handleColumnUpdated)
     this.socket.on('column-resizing', this.handleColumnResize)
     this.socket.on('view-updated', this.handleViewUpdated)
@@ -96,6 +99,7 @@ export class PageRealtimeChannel {
     this.socket.off('cell-updated', this.handleCellUpdated)
     this.socket.off('row-updated', this.handleRowUpdated)
     this.socket.off('page-updated', this.handlePageUpdated)
+    this.socket.off('database-updated', this.handleDatabaseUpdated)
     this.socket.off('column-updated', this.handleColumnUpdated)
     this.socket.off('column-resizing', this.handleColumnResize)
     this.socket.off('view-updated', this.handleViewUpdated)
@@ -165,6 +169,10 @@ export class PageRealtimeChannel {
 
   private readonly handlePageUpdated = (payload: PageUpdatedPayload) => {
     if (this.belongsHere(payload)) this.callbacks.onPageUpdated?.(payload)
+  }
+
+  private readonly handleDatabaseUpdated = (payload: DatabaseUpdatedPayload) => {
+    if (this.belongsHere(payload)) this.callbacks.onDatabaseUpdated?.(payload)
   }
 
   private readonly handleColumnUpdated = (payload: ColumnUpdatedPayload) => {

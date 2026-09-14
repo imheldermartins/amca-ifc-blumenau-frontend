@@ -18,6 +18,7 @@ describe('databaseParser — coluna mestra de título', () => {
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
         updated_at: '2026-08-31 16:00:00',
+        latest_updated_at: null,
         data: {
           [VIEW_ID]: {
             view: 'table',
@@ -55,6 +56,7 @@ describe('databaseParser — coluna mestra de título', () => {
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
         updated_at: '2026-08-31 16:00:00',
+        latest_updated_at: null,
         data: {
           [VIEW_ID]: {
             view: 'table',
@@ -82,6 +84,7 @@ describe('databaseParser — coluna mestra de título', () => {
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
         updated_at: '2026-08-31 16:00:00',
+        latest_updated_at: null,
         data: {},
       },
       columns: [],
@@ -114,6 +117,7 @@ describe('databaseParser — tipos de view', () => {
           title: 'Base',
           owner_id: '01KXVZ0000USER00000000001',
           updated_at: '2026-08-31 16:00:00',
+          latest_updated_at: null,
           data: {
             [VIEW_ID]: {
               view,
@@ -177,6 +181,7 @@ describe('databaseParser — reconcile de filter keys', () => {
     title: 'Base',
     owner_id: '01KXVZ0000USER00000000001',
     updated_at: '2026-09-01T17:00:00.000Z',
+    latest_updated_at: null,
     data: {
       [VIEW_ID]: {
         view: 'table',

@@ -25,6 +25,10 @@ import { apiService } from '@/services/ApiService'
  * reverter o otimismo.
  */
 export class PageWriteService {
+  updateTitle(pageId: string, title: string | null): Promise<ApiPage> {
+    return apiService.put<ApiPage>(`/pages/${pageId}`, { title })
+  }
+
   /** Adiciona uma view por caminho JSON, preservando as demais views. */
   createView(
     pageId: string,

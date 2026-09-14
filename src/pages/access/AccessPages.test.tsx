@@ -2,8 +2,9 @@ import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/reac
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const mocks=vi.hoisted(()=>({current:vi.fn(),roles:vi.fn(),catalog:vi.fn(),member:vi.fn(),saveRole:vi.fn(),requests:vi.fn(),decide:vi.fn(),navigate:vi.fn(),querySet:vi.fn()}))
-vi.mock('@tanstack/react-router',()=>({useNavigate:()=>mocks.navigate,useParams:()=>({lang:'pt-br',scope:'page',scopeId:'page',memberId:'owner',requestId:'request'})}))
+vi.mock('@tanstack/react-router',()=>({useNavigate:()=>mocks.navigate,useParams:()=>({lang:'pt-br',scope:'page',scopeId:'page',memberId:'owner',requestId:'request'}),useCanGoBack:()=>false,useRouter:()=>({history:{back:vi.fn()}})}))
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'owner'}})}))
+vi.mock('@/contexts/WorkspaceContext',()=>({useWorkspace:()=>({workspaceId:'workspace'})}))
 vi.mock('@/hooks/useQueryParams',()=>({useQueryParams:()=>({get:()=>undefined,set:mocks.querySet})}))
 vi.mock('@/lib/i18n',()=>({i18n:(key:string)=>key}))
 vi.mock('@/services/AccessService',async original=>({...await original<typeof import('@/services/AccessService')>(),accessService:mocks}))

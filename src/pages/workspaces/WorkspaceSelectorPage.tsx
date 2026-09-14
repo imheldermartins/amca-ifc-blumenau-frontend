@@ -66,6 +66,18 @@ export function WorkspaceSelectorPage() {
   }
 
   const preferredId = user ? workspacePreference.get(user.id) : undefined
+  const workspaceGroups = [
+    {
+      key: 'personal',
+      title: i18n('pages.workspaces.selector.personal-section'),
+      items: workspaces.data?.filter((workspace) => workspace.isPersonal) ?? [],
+    },
+    {
+      key: 'organization',
+      title: i18n('pages.workspaces.selector.organization-section'),
+      items: workspaces.data?.filter((workspace) => !workspace.isPersonal) ?? [],
+    },
+  ].filter((group) => group.items.length > 0)
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-5 py-10 text-foreground">
@@ -119,63 +131,59 @@ export function WorkspaceSelectorPage() {
                   {i18n('pages.workspaces.selector.empty')}
                 </Typography>
               ) : (
-                <ul className="flex flex-col gap-2">
-                  {workspaces.data.map((workspace) => (
-                    <li
-                      key={workspace.id}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-contrast p-3"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-active">
-                          <Icon icon={workspace.icon || 'lucide:boxes'} className="size-5" />
-                        </span>
-                        <div className="min-w-0">
-                          <Typography variant="subtitle" as="p" className="truncate">
-                            {workspace.name ?? i18n('common.workspace.sem-nome')}
-                          </Typography>
-                          <Typography variant="caption" as="p" className="text-dark-100 dark:text-light-900">
-                            {workspace.isOwner ? i18n('access.owner') : workspace.roleName || i18n('access.member')}
-                            {workspace.organizationName ? ` · ${workspace.organizationName}` : ''}
-                          </Typography>
-                          <Switch
-                            checked={preferredId === workspace.id}
-                            onCheckedChange={(checked) => {
-                              if (!user) return
-                              if (checked) workspacePreference.set(user.id, workspace.id)
-                              else workspacePreference.clear(user.id)
-                              refreshPreference((revision) => revision + 1)
-                            }}
-                            label={i18n('pages.workspaces.selector.preferred')}
-                            className="mt-2 text-xs"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {can(workspace, 'write', 'update') && (
-                          <Button
-                            type="button"
-                            variant="text"
-                            color="from-theme"
-                            className="shrink-0"
-                            onClick={() => openWorkspaceSettings(workspace)}
-                          >
-                            <Icon icon="lucide:settings-2" className="size-4" />
-                            {i18n('pages.workspaces.selector.settings')}
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="filled"
-                          color="purple"
-                          className="shrink-0"
-                          onClick={() => openWorkspace(workspace)}
-                        >
-                          {i18n('pages.workspaces.selector.enter')}
-                        </Button>
-                      </div>
-                    </li>
+                <div className="flex flex-col gap-6">
+                  {workspaceGroups.map((group) => (
+                    <section key={group.key} aria-labelledby={`workspace-group-${group.key}`}>
+                      <Typography id={`workspace-group-${group.key}`} variant="h3" as="h2" className="mb-2 px-1">
+                        {group.title}
+                      </Typography>
+                      <ul className="flex flex-col gap-2">
+                        {group.items.map((workspace) => (
+                          <li key={workspace.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-xl bg-contrast p-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-active">
+                                <Icon icon={workspace.icon || 'lucide:boxes'} className="size-5" />
+                              </span>
+                              <div className="min-w-0">
+                                <Typography variant="subtitle" as="p" className="truncate">
+                                  {workspace.name ?? i18n('common.workspace.sem-nome')}
+                                </Typography>
+                                <Typography variant="caption" as="p" className="truncate text-dark-100 dark:text-light-900">
+                                  {workspace.organizationName ? `${workspace.organizationName} · ` : ''}
+                                  {i18n('pages.workspaces.selector.owner-label')}: {workspace.owner.email
+                                    ? `${workspace.owner.name ? `${workspace.owner.name} · ` : ''}${workspace.owner.email}`
+                                    : i18n('pages.workspaces.selector.owner-unknown')}
+                                </Typography>
+                                <Switch
+                                  checked={preferredId === workspace.id}
+                                  onCheckedChange={(checked) => {
+                                    if (!user) return
+                                    if (checked) workspacePreference.set(user.id, workspace.id)
+                                    else workspacePreference.clear(user.id)
+                                    refreshPreference((revision) => revision + 1)
+                                  }}
+                                  label={i18n('pages.workspaces.selector.preferred')}
+                                  className="mt-2 text-xs"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              {can(workspace, 'write', 'update') && (
+                                <Button type="button" variant="text" color="from-theme" className="shrink-0" onClick={() => openWorkspaceSettings(workspace)}>
+                                  <Icon icon="lucide:settings-2" className="size-4" />
+                                  {i18n('pages.workspaces.selector.settings')}
+                                </Button>
+                              )}
+                              <Button type="button" variant="filled" color="purple" className="shrink-0" onClick={() => openWorkspace(workspace)}>
+                                {i18n('pages.workspaces.selector.enter')}
+                              </Button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
 

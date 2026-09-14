@@ -19,7 +19,6 @@ import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_LANGUAGE, i18n } from '@/lib/i18n'
 import { replaceQuery } from '@/lib/queryParams'
 import { THEME } from '@/lib/theme'
-import { workspacePreference } from '@/lib/workspacePreference'
 
 /**
  * Rótulo da workspace na barra superior. Os três estados são distintos de
@@ -56,13 +55,6 @@ export function AppLayout() {
   // mais um id global ou uma workspace padrão embutida no frontend.
   const currentLang = lang ?? DEFAULT_LANGUAGE.slug
   const currentWorkspaceId = workspaceState.workspaceId
-    ?? (auth.user ? workspacePreference.get(auth.user.id) : undefined)
-  const workspaceHref = currentWorkspaceId
-    ? `/${currentLang}/myworkspace/${currentWorkspaceId}`
-    : location.pathname
-  const collaboratingHref = currentWorkspaceId
-    ? `/${currentLang}/colaborando?workspace=${currentWorkspaceId}`
-    : `/${currentLang}/colaborando`
   const userLabel = auth.user?.name ?? auth.user?.email ?? i18n('pages.app.account-menu.user')
 
   function openGlobalSettings(fragment: GlobalSettingsFragment) {
@@ -100,29 +92,51 @@ export function AppLayout() {
     })
   }
 
+  function navigateSidebar(target: 'home' | 'collaborating' | 'chat' | 'schedule') {
+    if (!currentWorkspaceId) return
+    const params = { lang: currentLang, workspaceId: currentWorkspaceId }
+    if (target === 'home') {
+      void navigate({ to: '/$lang/myworkspace/$workspaceId', params, replace: true })
+    } else if (target === 'collaborating') {
+      void navigate({
+        to: '/$lang/colaborando',
+        params: { lang: currentLang },
+        search: { workspace: currentWorkspaceId },
+        replace: true,
+      })
+    } else if (target === 'chat') {
+      void navigate({ to: '/$lang/myworkspace/$workspaceId/mychat', params, replace: true })
+    } else {
+      void navigate({ to: '/$lang/myworkspace/$workspaceId/schedule', params, replace: true })
+    }
+  }
+
+  const workspacePath = currentWorkspaceId
+    ? `/${currentLang}/myworkspace/${currentWorkspaceId}`
+    : null
   const navItems = [
     {
+      target: 'home' as const,
       name: i18n('common.navigation.home'),
-      href: workspaceHref,
-      activePath: workspaceHref,
+      active: location.pathname === workspacePath,
       icon: 'lucide:grip',
     },
     {
+      target: 'collaborating' as const,
       name: i18n('common.navigation.colaborando'),
-      href: collaboratingHref,
-      activePath: `/${currentLang}/colaborando`,
+      active: location.pathname === `/${currentLang}/colaborando`,
       icon: 'lucide:users',
     },
     {
+      target: 'chat' as const,
       name: i18n('common.navigation.chat'),
-      href: `${workspaceHref}/mychat`,
-      activePath: `${workspaceHref}/mychat`,
+      active: workspacePath !== null && location.pathname === `${workspacePath}/mychat`,
       icon: 'cuida:chatbubble-outline',
     },
     {
+      target: 'schedule' as const,
       name: i18n('common.navigation.agenda'),
-      href: `${workspaceHref}/schedule`,
-      activePath: `${workspaceHref}/schedule`,
+      active: workspacePath !== null && location.pathname === `${workspacePath}/schedule`,
       icon: 'cuida:calendar-clear-outline',
     },
   ]
@@ -177,25 +191,24 @@ export function AppLayout() {
               <ul className={cn('flex flex-col gap-1')}>
                 {navItems.map((item, index) => (
                   <li key={index}>
-                    <a
-                      href={item.href}
-                      onClick={(event) => {
-                        event.preventDefault()
-                        void navigate({ href: item.href })
-                      }}
+                    <button
+                      type="button"
+                      disabled={!currentWorkspaceId}
+                      onClick={() => navigateSidebar(item.target)}
                       className={cn(
                         collapsed ? 'w-9' : 'w-full',
                         'h-9 px-2 flex flex-nowrap justify-start items-center rounded text-sm ease-in-out duration-300 transition-[width,color,background-color,box-shadow] overflow-clip',
-                        location.pathname === item.activePath
+                        item.active
                           ? 'bg-p-purple text-light-100'
                           : 'glow-purple-hover hover:bg-active',
+                        !currentWorkspaceId && 'cursor-not-allowed opacity-45',
                       )}
                     >
                       <Icon icon={item.icon} fontSize={20} className={cn('shrink-0')} />
                       <Typography variant="body" as="span" className={cn('whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}>
                         {item.name}
                       </Typography>
-                    </a>
+                    </button>
                   </li>
                 ))}
               </ul>

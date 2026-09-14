@@ -4,6 +4,7 @@ import { Link, Navigate, Outlet, useParams } from '@tanstack/react-router'
 import { cn } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
+import { ContextBackButton } from '@/components/ContextBackButton'
 import { useAuth } from '@/contexts/AuthContext'
 import { i18n } from '@/lib/i18n'
 import { defineWorkspaceAbility } from '@/lib/workspaceAbility'
@@ -49,14 +50,11 @@ export function WorkspaceSettingsLayout() {
     <WorkspaceSettingsProvider workspace={workspace.data}>
       <div className="grid min-h-dvh grid-cols-1 bg-background text-foreground md:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="flex flex-col border-b border-divider bg-contrast p-4 md:border-b-0 md:border-r">
-          <Link
-            to="/$lang/myworkspace/$workspaceId"
-            params={{ lang: language, workspaceId: id }}
-            className="mb-6 flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-active"
-          >
-            <Icon icon="lucide:arrow-left" className="size-4" />
-            {i18n('pages.workspaces.settings.back')}
-          </Link>
+          <ContextBackButton
+            fallback={`/${language}/myworkspace/${id}`}
+            label={i18n('pages.workspaces.settings.back')}
+            className="mb-6 justify-start"
+          />
           <div className="mb-6 flex items-center gap-3 px-2">
             <span className="flex size-10 items-center justify-center rounded-lg bg-active">
               <Icon icon={workspace.data.icon} className="size-5" />

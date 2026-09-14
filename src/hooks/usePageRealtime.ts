@@ -8,6 +8,7 @@ import {
 } from '@/services/PageRealtimeChannel'
 import type {
   ColumnResizingPayload,
+  DatabaseUpdatedPayload,
   PageUpdatedPayload,
 } from '@/services/realtime-contract-v1'
 
@@ -16,6 +17,8 @@ export interface UsePageRealtimeOptions {
   onEvent?: (event: DatabaseRealtimeEvent) => void
   /** Título/chrome da própria página aberta mudou. */
   onPageUpdated?: (payload: PageUpdatedPayload) => void
+  /** Relógio confirmado de uma edição real da base. */
+  onDatabaseUpdated?: (payload: DatabaseUpdatedPayload) => void
   /** Linha nasceu/morreu ou coluna morreu; criação de coluna já é incremental. */
   onStructureChanged?: (event: PageStructureEvent) => void
   /**
@@ -69,6 +72,7 @@ export function usePageRealtime(
     const channel = new PageRealtimeChannel(socket, pageId, {
       onEvent: (event) => currentOptions()?.onEvent?.(event),
       onPageUpdated: (payload) => currentOptions()?.onPageUpdated?.(payload),
+      onDatabaseUpdated: (payload) => currentOptions()?.onDatabaseUpdated?.(payload),
       onStructureChanged: (event) => {
         const current = currentOptions()
         current?.onStructureChanged?.(event)

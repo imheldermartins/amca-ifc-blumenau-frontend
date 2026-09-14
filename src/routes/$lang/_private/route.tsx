@@ -1,7 +1,9 @@
 import { Navigate, Outlet, createFileRoute, useParams, useLocation } from '@tanstack/react-router'
 
 import { useAuth } from '@/contexts/AuthContext'
+import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
 import { readAuthReturnTo } from '@/lib/authReturnTo'
+import { resolveWorkspaceRouteId } from '@/lib/workspaceRouteContext'
 
 /**
  * Área privada (pathless): exige autenticação; sem sessão, volta para o
@@ -20,9 +22,16 @@ export const Route = createFileRoute('/$lang/_private')({
 })
 
 function PrivateLayout() {
-  const { lang } = useParams({ strict: false })
+  const params = useParams({ strict: false })
+  const { lang } = params
   const { user, restoring } = useAuth()
   const location=useLocation()
+  const workspaceId = resolveWorkspaceRouteId({
+    params: params as Record<string, unknown>,
+    search: location.search as Record<string, unknown>,
+    state: location.state,
+    pathname: location.pathname,
+  })
 
   // Ainda conferindo a sessão do cookie: não monta nada e não redireciona —
   // sem isto, um usuário logado piscaria no sign-in antes de o refresh voltar.
@@ -34,5 +43,9 @@ function PrivateLayout() {
     return <Navigate to="/$lang/sign-in" params={{ lang: lang ?? 'pt-br' }} search={{ returnTo }} />
   }
 
-  return <Outlet />
+  return (
+    <WorkspaceProvider key={workspaceId ?? 'without-workspace'} workspaceId={workspaceId}>
+      <Outlet />
+    </WorkspaceProvider>
+  )
 }

@@ -13,6 +13,7 @@ export interface ApiWorkspace extends Partial<ScopeAccess> {
   isPersonal: boolean
   icon: WorkspaceIcon
   createdByUserId: string | null
+  owner: { id: string | null; name: string | null; email: string | null }
   role: WorkspaceRole
   pageRootId: string
 }

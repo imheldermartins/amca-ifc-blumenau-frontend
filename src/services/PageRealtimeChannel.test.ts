@@ -67,11 +67,13 @@ describe('PageRealtimeChannel', () => {
     const socket = new FakeSocket()
     const onEvent = vi.fn()
     const onPageUpdated = vi.fn()
+    const onDatabaseUpdated = vi.fn()
     const onStructureChanged = vi.fn()
     const onColumnResize = vi.fn()
     const channel = new PageRealtimeChannel(socket as unknown as CubsSocket, PAGE_ID, {
       onEvent,
       onPageUpdated,
+      onDatabaseUpdated,
       onStructureChanged,
       onColumnResize,
     })
@@ -106,6 +108,10 @@ describe('PageRealtimeChannel', () => {
     const page = { pageId: PAGE_ID, title: 'Novo título', ...META }
     socket.receive('page-updated', page)
     expect(onPageUpdated).toHaveBeenCalledWith(page)
+    socket.receive('database-updated', { pageId: OTHER_PAGE_ID, ...META })
+    socket.receive('database-updated', { pageId: PAGE_ID, ...META })
+    expect(onDatabaseUpdated).toHaveBeenCalledOnce()
+    expect(onDatabaseUpdated).toHaveBeenCalledWith({ pageId: PAGE_ID, ...META })
 
     const column = {
       pageId: PAGE_ID,
