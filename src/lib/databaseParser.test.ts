@@ -17,6 +17,7 @@ describe('databaseParser — coluna mestra de título', () => {
         id: '01KXVZ0000PAGE00000000001',
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
+        created_at: '2026-08-31 16:00:00',
         updated_at: '2026-08-31 16:00:00',
         latest_updated_at: null,
         data: {
@@ -55,6 +56,7 @@ describe('databaseParser — coluna mestra de título', () => {
         id: '01KXVZ0000PAGE00000000001',
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
+        created_at: '2026-08-31 16:00:00',
         updated_at: '2026-08-31 16:00:00',
         latest_updated_at: null,
         data: {
@@ -83,6 +85,7 @@ describe('databaseParser — coluna mestra de título', () => {
         id: '01KXVZ0000PAGE00000000001',
         title: 'Base',
         owner_id: '01KXVZ0000USER00000000001',
+        created_at: '2026-08-31 16:00:00',
         updated_at: '2026-08-31 16:00:00',
         latest_updated_at: null,
         data: {},
@@ -102,6 +105,18 @@ describe('databaseParser — coluna mestra de título', () => {
 })
 
 describe('databaseParser — tipos de view', () => {
+  it('ordena as tabs pelo order persistido e mantém legado estável no fim', () => {
+    const second = '01KXVZ0000VIEW00000000002'
+    const legacy = '01KXVZ0000VIEW00000000003'
+    const parsed = parseViewSettings({
+      [VIEW_ID]: { view: 'table', name: 'Primeira', order: 0 },
+      [legacy]: { view: 'grid', name: 'Legada' },
+      [second]: { view: 'graph', name: 'Segunda', order: 1 },
+    })
+    expect(Object.keys(parsed)).toEqual([VIEW_ID, second, legacy])
+    expect(parsed[second].order).toBe(1)
+  })
+
   it('omite views com tombstone mesmo quando as demais continuam visíveis', () => {
     const deleted = { view: 'table', name: 'Antiga', deletedAt: '2026-09-13T12:00:00.000Z' }
     const live = { view: 'board', name: 'Quadros', urlKey: { key: 'quadros', aliases: [] } }
@@ -116,6 +131,7 @@ describe('databaseParser — tipos de view', () => {
           id: '01KXVZ0000PAGE00000000001',
           title: 'Base',
           owner_id: '01KXVZ0000USER00000000001',
+          created_at: '2026-08-31 16:00:00',
           updated_at: '2026-08-31 16:00:00',
           latest_updated_at: null,
           data: {
@@ -180,6 +196,7 @@ describe('databaseParser — reconcile de filter keys', () => {
     id: '01KXVZ0000PAGE00000000001',
     title: 'Base',
     owner_id: '01KXVZ0000USER00000000001',
+    created_at: '2026-09-01T17:00:00.000Z',
     updated_at: '2026-09-01T17:00:00.000Z',
     latest_updated_at: null,
     data: {

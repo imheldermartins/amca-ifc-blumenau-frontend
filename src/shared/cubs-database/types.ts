@@ -191,6 +191,8 @@ export interface ViewFiltersV2 {
 /** Uma view salva: como exibir os dados. */
 export interface DataViewType {
   view: DataViewKind
+  /** Posição persistida da tab; ausente em snapshots legados. */
+  order?: number
   /** Nome exibido na tab da topbar. */
   name: string
   /** Key legível da view usada por `?view=`; a identidade persistida segue ULID. */

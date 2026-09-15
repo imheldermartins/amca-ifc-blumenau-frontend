@@ -21,6 +21,7 @@ import { useDialog } from '@/hooks/useDialog'
 import { usePageRealtime, type UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import { i18n } from '@/lib/i18n'
 import { formatRelativeTime, parseApiTimestamp } from '@/lib/formatRelativeTime'
+import type { ApiPage } from '@/lib/databaseParser'
 import { assignUserVisualIdentities } from '@/lib/userVisualIdentity'
 import { normalizePageTitle } from '@/lib/pageNavigation'
 import { databaseService } from '@/services/DatabaseService'
@@ -34,6 +35,17 @@ import type { UserIdentity } from '@/types/user'
 import { Icon } from '@iconify/react'
 
 const DEFAULT_PAGE_SETTINGS_FRAGMENT: PageSettingsFragment = '#general'
+type PageActivityKind = 'created' | 'updated'
+
+function initialPageActivity(page: ApiPage): { at: string; kind: PageActivityKind } {
+  if (page.latest_updated_at) return { at: page.latest_updated_at, kind: 'updated' }
+  const createdAt = parseApiTimestamp(page.created_at)?.getTime()
+  const updatedAt = parseApiTimestamp(page.updated_at)?.getTime()
+  if (createdAt !== undefined && updatedAt !== undefined && createdAt === updatedAt) {
+    return { at: page.created_at, kind: 'created' }
+  }
+  return { at: page.updated_at, kind: 'updated' }
+}
 
 function readPageSettingsFragment(hash: string): PageSettingsFragment | null {
   return hash === '#general' || hash === '#collaborators' ? hash : null
@@ -141,6 +153,7 @@ export function PageShell({
   const [titleSaveFailed, setTitleSaveFailed] = useState(false)
   const [titlePageId, setTitlePageId] = useState(pageId)
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
+  const [activityKind, setActivityKind] = useState<PageActivityKind | null>(null)
   const [pageLoading, setPageLoading] = useState(Boolean(pageId))
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
   const [contentView, setContentView] = useState<PageContentView>('files')
@@ -172,6 +185,21 @@ export function PageShell({
   }
   const notifyPageUpdated = realtimeOptions.onPageUpdated
 
+  const applyUpdatedActivity = useCallback((candidate: string) => {
+    const appliedAt = databaseClockRef.current.updatedAt
+    const appliedTime = appliedAt === null ? null : parseApiTimestamp(appliedAt)?.getTime()
+    const candidateTime = parseApiTimestamp(candidate)?.getTime()
+    if (
+      appliedTime !== null
+      && appliedTime !== undefined
+      && candidateTime !== undefined
+      && appliedTime > candidateTime
+    ) return
+    databaseClockRef.current.updatedAt = candidate
+    setUpdatedAt(candidate)
+    setActivityKind('updated')
+  }, [])
+
   const handlePageUpdated = useCallback(
     (payload: PageUpdatedPayload) => {
       // Na troca de página há um frame entre render e cleanup do channel
@@ -188,18 +216,16 @@ export function PageShell({
       setDraftTitle(normalizePageTitle(payload.title) ?? '')
       setTitleSaveFailed(false)
       setFailed(false)
+      applyUpdatedActivity(payload.updatedAt)
       notifyPageUpdated?.(payload)
     },
-    [notifyPageUpdated, pageId],
+    [applyUpdatedActivity, notifyPageUpdated, pageId],
   )
 
   const handleDatabaseUpdated = useCallback((payload: DatabaseUpdatedPayload) => {
     if (payload.pageId !== pageId) return
-    const appliedAt = databaseClockRef.current.updatedAt
-    if (appliedAt !== null && (parseApiTimestamp(appliedAt)?.getTime() ?? 0) > (parseApiTimestamp(payload.updatedAt)?.getTime() ?? 0)) return
-    databaseClockRef.current.updatedAt = payload.updatedAt
-    setUpdatedAt(payload.updatedAt)
-  }, [pageId])
+    applyUpdatedActivity(payload.updatedAt)
+  }, [applyUpdatedActivity, pageId])
 
   // Os handlers vêm de quem tem o ESTADO da base (o `usePageDatabase` da
   // página) — o shell é quem assina a sala, mas não é quem guarda os dados.
@@ -251,13 +277,17 @@ export function PageShell({
   const titleBelongsToPage = titlePageId === pageId
   const displayedTitle = titleBelongsToPage ? title : normalizePageTitle(initialTitle)
   const displayedUpdatedAt = titleBelongsToPage ? updatedAt : null
+  const displayedActivityKind = titleBelongsToPage ? activityKind : null
   const displayedFailed = titleBelongsToPage ? failed : false
   const showContentSkeleton = !titleBelongsToPage || (contentLoading ?? pageLoading)
-  const updatedAtLabel = useMemo(() => {
-    if (!displayedUpdatedAt) return null
+  const activityLabel = useMemo(() => {
+    if (!displayedUpdatedAt || !displayedActivityKind) return null
     const relative = formatRelativeTime(displayedUpdatedAt, relativeTimeNow)
-    return relative ? i18n('pages.app.pagina.updated-at', { relative }) : null
-  }, [displayedUpdatedAt, relativeTimeNow])
+    const key = displayedActivityKind === 'created'
+      ? 'pages.app.pagina.created-at'
+      : 'pages.app.pagina.updated-at'
+    return relative ? i18n(key, { relative }) : null
+  }, [displayedActivityKind, displayedUpdatedAt, relativeTimeNow])
 
   const saveTitle = useCallback(async () => {
     if (!pageId || titleSaving) return
@@ -336,6 +366,7 @@ export function PageShell({
     setTitleSaving(false)
     setTitleSaveFailed(false)
     setUpdatedAt(null)
+    setActivityKind(null)
     setFailed(false)
     setPageLoading(Boolean(pageId))
     if (!pageId) return
@@ -355,8 +386,10 @@ export function PageShell({
           setDraftTitle(normalizePageTitle(page.title) ?? '')
         }
         if (databaseClockRef.current.updatedAt === databaseClockAtStart) {
-          setUpdatedAt(page.latest_updated_at ?? null)
-          databaseClockRef.current.updatedAt = page.latest_updated_at ?? null
+          const activity = initialPageActivity(page)
+          setUpdatedAt(activity.at)
+          setActivityKind(activity.kind)
+          databaseClockRef.current.updatedAt = activity.at
         }
       })
       .catch(() => {
@@ -430,6 +463,7 @@ export function PageShell({
               value={draftTitle}
               readOnly={titleSaving}
               aria-label={i18n('pages.app.pagina.title-label')}
+              placeholder={i18n('pages.app.pagina.sem-titulo')}
               className="min-h-[1.2em] w-full border-0 bg-transparent p-0 text-inherit shadow-none outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0"
               style={{ font: 'inherit' }}
               onChange={(event) => setDraftTitle(event.target.value)}
@@ -444,19 +478,21 @@ export function PageShell({
               }}
             />
           ) : displayedTitle === null ? (
-            <span className="block min-h-[1.2em]" />
+            <span className="block min-h-[1.2em] opacity-50">
+              {i18n('pages.app.pagina.sem-titulo')}
+            </span>
           ) : (
             displayedTitle
           )}
         </Typography>
         {titleSaveFailed && <Typography variant="caption" as="p" role="alert" className="text-p-red">{i18n('pages.app.pagina.title-save-error')}</Typography>}
         <div className="flex items-center justify-between">
-          {updatedAtLabel ? (
+          {activityLabel ? (
             <time
               dateTime={displayedUpdatedAt ?? undefined}
               className="text-sm text-dark-100 dark:text-light-900"
             >
-              {updatedAtLabel}
+              {activityLabel}
             </time>
           ) : (
             <span aria-hidden="true" />

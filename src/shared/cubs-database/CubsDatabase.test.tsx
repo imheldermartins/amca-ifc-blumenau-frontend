@@ -107,7 +107,7 @@ describe('CubsDatabase — espaçamento das views', () => {
 })
 
 describe('CubsDatabase — tipo da view atual', () => {
-  it('encaminha a seleção com o id ativo e identifica o placeholder do novo modo', async () => {
+  it('encaminha a seleção com o id ativo e renderiza a Grid', async () => {
     const onViewKindChange = vi.fn()
     const settings = {
       [VIEW_ID]: {
@@ -137,13 +137,13 @@ describe('CubsDatabase — tipo da view atual', () => {
         headerCols={[]}
         rows={[]}
         onViewKindChange={onViewKindChange}
-        placeholderLabel="Visualização em construção"
+        emptyLabel="Sem registros"
       />,
     )
 
     expect(screen.queryByRole('table')).toBeNull()
-    expect(screen.getByText('Grade', { selector: 'strong' })).not.toBeNull()
-    expect(screen.getByText('Visualização em construção')).not.toBeNull()
+    expect(screen.getByText('Sem registros')).not.toBeNull()
+    expect(document.querySelector('[data-grid-container]')).toBeNull()
   })
 })
 

@@ -23,6 +23,7 @@
     },
     "navigation": {
       "agenda": "Agenda",
+      "back": "Voltar",
       "chat": "Chat",
       "colaborando": "Colaborando",
       "home": "Area de Trabalho"
@@ -333,7 +334,9 @@
       "pagina": {
         "indisponivel": "Página indisponível",
         "espectadores": "{{count}} pessoas com esta página aberta",
+        "created-at": "Criado {{relative}}",
         "updated-at": "Atualizado {{relative}}",
+        "sem-titulo": "Sem Título",
         "title-label": "Título da página",
         "title-save-error": "Não foi possível salvar o título.",
         "views": {
@@ -362,9 +365,8 @@
         "nova": "Nova",
         "view-tipo": "Tipo de visualização",
         "adicionar-view": "Adicionar view",
-        "predefinicoes": "Predefinições",
-        "fechar-predefinicoes": "Fechar predefinições",
-        "predefinicoes-conteudo": "Hello World",
+        "predefinicoes": "Configurações da view",
+        "fechar-predefinicoes": "Fechar configurações da view",
         "views": {
           "table": "Tabela",
           "grid": "Grade",

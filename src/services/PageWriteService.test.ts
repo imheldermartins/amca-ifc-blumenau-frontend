@@ -79,6 +79,19 @@ describe('PageWriteService.saveCell', () => {
     expect(api.put).not.toHaveBeenCalled()
   })
 
+  it('salva a coluna sintética diretamente em pages.title', async () => {
+    await new PageWriteService().saveCell({
+      rowId,
+      columnId: 'page_title',
+      value: 'Título confirmado',
+      previousValue: 'Título anterior',
+    })
+
+    expect(api.put).toHaveBeenCalledWith(`/pages/${rowId}`, { title: 'Título confirmado' })
+    expect(api.post).not.toHaveBeenCalled()
+    expect(api.delete).not.toHaveBeenCalled()
+  })
+
   it('atualiza uma célula existente cujo valor lido é null', async () => {
     await new PageWriteService().saveCell({ rowId, columnId, value: 'novo', previousValue: null })
 

@@ -63,6 +63,7 @@ vi.mock('@/services/PageWriteService', () => ({
 vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
+const OTHER_PAGE_ID = '01KXVZ0000PARENT0000000002'
 const ROW_ID = '01KXVZ0000ROW000000000001'
 const NEW_ROW_ID = '01KXVZ0000ROW000000000002'
 const COLUMN_ID = '01KXVZ0000COLUMN00000001'
@@ -121,6 +122,7 @@ beforeEach(() => {
     title: null,
     data: {},
     owner_id: '01KXVZ0000USER00000000001',
+    created_at: '2026-09-02 01:00:00',
     updated_at: '2026-09-02 01:00:00',
   })
   dependencies.createColumn.mockResolvedValue({
@@ -149,6 +151,7 @@ describe('usePageDatabase — criação de página-linha', () => {
       title: null
       data: Record<string, unknown>
       owner_id: string
+      created_at: string
       updated_at: string
     }>()
     dependencies.createRow.mockReturnValueOnce(createRequest.promise)
@@ -185,6 +188,7 @@ describe('usePageDatabase — criação de página-linha', () => {
         title: null,
         data: {},
         owner_id: '01KXVZ0000USER00000000001',
+        created_at: '2026-09-02 01:00:00',
         updated_at: '2026-09-02 01:00:00',
       }),
     )
@@ -242,6 +246,55 @@ describe('usePageDatabase — criação de página-linha', () => {
     })
     expect(result.current.loading).toBe(false)
     expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePageDatabase — título da página aberta', () => {
+  it('atualiza o pageTitle do renderer e não deixa evento ou resync antigo vencê-lo', async () => {
+    const staleResync = deferred<ParsedDatabase>()
+    dependencies.loadPage
+      .mockResolvedValueOnce({ ...database('inicial'), pageTitle: 'teste · realtime' })
+      .mockReturnValueOnce(staleResync.promise)
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database?.pageTitle).toBe('teste · realtime'))
+
+    act(() => result.current.realtimeOptions.onResync?.())
+    await waitFor(() => expect(dependencies.loadPage).toHaveBeenCalledTimes(2))
+
+    act(() => {
+      result.current.realtimeOptions.onPageUpdated?.({
+        pageId: PAGE_ID,
+        title: 'teste',
+        updatedAt: '2026-09-15T12:00:00.000Z',
+        originUserId: 'outro-usuario',
+      })
+      result.current.realtimeOptions.onPageUpdated?.({
+        pageId: PAGE_ID,
+        title: 'evento atrasado',
+        updatedAt: '2026-09-15T11:59:59.999Z',
+        originUserId: 'outro-usuario',
+      })
+      result.current.realtimeOptions.onPageUpdated?.({
+        pageId: OTHER_PAGE_ID,
+        title: 'outra página',
+        updatedAt: '2026-09-15T13:00:00.000Z',
+        originUserId: 'outro-usuario',
+      })
+      result.current.realtimeOptions.onPageUpdated?.({
+        pageId: PAGE_ID,
+        title: 'teste no mesmo milissegundo',
+        updatedAt: '2026-09-15T12:00:00.000Z',
+        originUserId: 'outro-usuario',
+      })
+    })
+
+    expect(result.current.database?.pageTitle).toBe('teste no mesmo milissegundo')
+
+    await act(async () => {
+      staleResync.resolve({ ...database('snapshot antigo'), pageTitle: 'teste · realtime' })
+    })
+    expect(result.current.database?.pageTitle).toBe('teste no mesmo milissegundo')
   })
 })
 

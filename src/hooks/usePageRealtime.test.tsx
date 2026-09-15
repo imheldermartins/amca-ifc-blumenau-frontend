@@ -7,6 +7,8 @@ import type {
   ColumnPayload,
   ColumnResizingPayload,
   PageUpdatedPayload,
+  RowPayload,
+  RowUpdatedPayload,
 } from '@/services/realtime-contract-v1'
 import type { CubsSocket } from '@/services/SocketService'
 import { usePageRealtime } from './usePageRealtime'
@@ -123,7 +125,7 @@ describe('usePageRealtime — sala e ressincronização', () => {
     expect(onColumnResize).toHaveBeenCalledWith(current)
   })
 
-  it('encaminha page-updated e mudanças estruturais sem conhecer o tipo da view', () => {
+  it('encaminha títulos e criação de linha sem conhecer o tipo da view', () => {
     const onEvent = vi.fn()
     const onPageUpdated = vi.fn()
     const onStructureChanged = vi.fn()
@@ -139,6 +141,15 @@ describe('usePageRealtime — sala e ressincronização', () => {
       pageId: PAGE_ID,
       title: 'Título remoto',
       ...meta,
+    }
+    const created: RowPayload = {
+      pageId: PAGE_ID,
+      rowId: '01KXVZ0000ROW000000000001',
+      ...meta,
+    }
+    const row: RowUpdatedPayload = {
+      ...created,
+      title: 'Título sintético remoto',
     }
     const column: ColumnCreatedPayload = {
       pageId: PAGE_ID,
@@ -159,14 +170,18 @@ describe('usePageRealtime — sala e ressincronização', () => {
 
     act(() => {
       socket.receive('page-updated', page)
+      socket.receive('row-created', created)
+      socket.receive('row-updated', row)
       socket.receive('column-created', column)
       socket.receive('column-deleted', deleted)
     })
 
     expect(onPageUpdated).toHaveBeenCalledWith(page)
+    expect(onEvent).toHaveBeenCalledWith({ type: 'row-updated', payload: row })
     expect(onEvent).toHaveBeenCalledWith({ type: 'column-created', payload: column })
+    expect(onStructureChanged).toHaveBeenCalledWith({ type: 'row-created', payload: created })
     expect(onStructureChanged).toHaveBeenCalledWith({ type: 'column-deleted', payload: deleted })
-    expect(onStructureChanged).toHaveBeenCalledTimes(1)
+    expect(onStructureChanged).toHaveBeenCalledTimes(2)
   })
 
   it('atualiza callbacks sem refazer join e limpa listeners ao trocar de página', () => {

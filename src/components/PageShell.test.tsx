@@ -54,13 +54,20 @@ vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 
-function page(title: string | null, id = PAGE_ID, latestUpdatedAt: string | null = null): ApiPage {
+function page(
+  title: string | null,
+  id = PAGE_ID,
+  latestUpdatedAt: string | null = null,
+  createdAt = '2026-08-31 16:00:00',
+  updatedAt = createdAt,
+): ApiPage {
   return {
     id,
     title,
     data: null,
     owner_id: '01KXVZ0000USER00000000001',
-    updated_at: '2026-08-31 16:00:00',
+    created_at: createdAt,
+    updated_at: updatedAt,
     latest_updated_at: latestUpdatedAt,
   }
 }
@@ -100,12 +107,14 @@ describe('PageShell — page-updated', () => {
       .toBe('2026-08-31 17:58:00')
   })
 
-  it('oculta bases nunca editadas e acompanha database-updated', async () => {
+  it('mostra a criação até a primeira edição e então acompanha database-updated', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-08-31T18:00:00.000Z').getTime())
     render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
 
     await screen.findByText('Título inicial')
     expect(screen.queryByText('pages.app.pagina.updated-at')).toBeNull()
+    expect(screen.getByText('pages.app.pagina.created-at').closest('time')?.getAttribute('datetime'))
+      .toBe('2026-08-31 16:00:00')
 
     act(() => {
       dependencies.options?.onDatabaseUpdated?.({
@@ -116,6 +125,7 @@ describe('PageShell — page-updated', () => {
     })
     const initialTime = screen.getByText('pages.app.pagina.updated-at').closest('time')
     expect(initialTime?.getAttribute('datetime')).toBe('2026-08-31T17:58:00.000Z')
+    expect(screen.queryByText('pages.app.pagina.created-at')).toBeNull()
 
     act(() => {
       dependencies.options?.onPageUpdated?.({
@@ -169,6 +179,25 @@ describe('PageShell — page-updated', () => {
 
     expect(screen.queryByText('Evento atrasado')).toBeNull()
     expect(screen.getByText('Segundo no mesmo milissegundo')).toBeTruthy()
+  })
+
+  it('troca Criado por Atualizado ao receber a edição do título em realtime', async () => {
+    render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
+    await screen.findByText('pages.app.pagina.created-at')
+
+    act(() => {
+      dependencies.options?.onPageUpdated?.({
+        pageId: PAGE_ID,
+        title: 'Título em realtime',
+        updatedAt: '2026-08-31T17:58:00.000Z',
+        originUserId: 'user-1',
+      })
+    })
+
+    expect(screen.getByText('Título em realtime')).toBeTruthy()
+    expect(screen.queryByText('pages.app.pagina.created-at')).toBeNull()
+    expect(screen.getByText('pages.app.pagina.updated-at').closest('time')?.getAttribute('datetime'))
+      .toBe('2026-08-31T17:58:00.000Z')
   })
 
   it('não deixa um fetch iniciado antes apagar um page-updated mais novo', async () => {
@@ -252,10 +281,21 @@ describe('PageShell — carregamento inicial', () => {
     await waitFor(() => expect(screen.queryByText('Título provisório')).toBeNull())
     expect(document.querySelector('[data-page-title-skeleton]')).toBeNull()
     expect(screen.queryByText('Título provisório')).toBeNull()
+    expect(screen.getByText('pages.app.pagina.sem-titulo')).toBeTruthy()
   })
 })
 
 describe('PageShell — edição do título', () => {
+  it('usa Sem Título como placeholder quando o título editável está vazio', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    dependencies.getPage.mockResolvedValueOnce(page(null))
+    render(<PageShell pageId={PAGE_ID} />)
+
+    const input = await screen.findByLabelText('pages.app.pagina.title-label') as HTMLInputElement
+    expect(input.value).toBe('')
+    expect(input.placeholder).toBe('pages.app.pagina.sem-titulo')
+  })
+
   it('salva no blur e converte vazio em null', async () => {
     dependencies.permissions = { read: ['view'], write: ['update'] }
     render(<PageShell pageId={PAGE_ID} />)

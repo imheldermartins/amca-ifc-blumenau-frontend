@@ -62,6 +62,10 @@ function structureClockKey(event: PageStructureEvent): string {
   return `structure:${event.type}:${targetId}`
 }
 
+function pageTitleClockKey(pageId: string): string {
+  return `page:${pageId}:title`
+}
+
 export interface UsePageDatabaseResult {
   database: ParsedDatabase | null
   loading: boolean
@@ -98,6 +102,7 @@ export interface UsePageDatabaseResult {
     onRenameView: (viewId: string, name: string) => void
     onDuplicateView: (viewId: string) => Promise<string>
     onDeleteView: (viewId: string) => Promise<void>
+    onViewOrderChange: (viewIds: string[]) => void
     onViewFiltersChange: (viewId: string, filters: ViewFiltersV2) => Promise<ViewFiltersV2>
   }
 }
@@ -343,6 +348,38 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       })
     },
     [clearColumnWidthPreviews],
+  )
+
+  const handlePageUpdated = useCallback<
+    NonNullable<UsePageRealtimeOptions['onPageUpdated']>
+  >(
+    (payload) => {
+      if (payload.pageId !== pageId) return
+
+      const key = pageTitleClockKey(payload.pageId)
+      const appliedAt = clockRef.current[key]
+      // O processo único do Socket.IO preserva a ordem de emissão. Aceitar o
+      // empate deixa o segundo commit do mesmo milissegundo vencer, igual aos
+      // eventos de célula e view do redutor.
+      if (appliedAt !== undefined && appliedAt > payload.updatedAt) return
+
+      // Trocar a referência também invalida um load que começou antes deste
+      // fato. Durante a primeira carga, agenda uma nova leitura porque ainda
+      // não existe ParsedDatabase seguro onde aplicar o título diretamente.
+      clockRef.current = { ...clockRef.current, [key]: payload.updatedAt }
+      if (loadedPageIdRef.current !== pageId) {
+        reload()
+        return
+      }
+
+      setDatabase((current) => {
+        if (!current) return current
+        const next = { ...current, pageTitle: payload.title }
+        databaseRef.current = next
+        return next
+      })
+    },
+    [pageId, reload],
   )
 
   const handleRemoteColumnResize = useCallback<
@@ -918,6 +955,19 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     }, [saveViewPatch]),
     onDuplicateView: duplicateView,
     onDeleteView: deleteView,
+    onViewOrderChange: useCallback((viewIds: string[]) => {
+      if (!pageId || viewIds.length !== Object.keys(settingsRef.current).length) return
+      const entries: Array<[string, DataViewType]> = []
+      viewIds.forEach((viewId, order) => {
+        const view = settingsRef.current[viewId]
+        if (view) entries.push([viewId, { ...view, order }])
+      })
+      if (entries.length !== viewIds.length) return
+      const settings = Object.fromEntries(entries)
+      settingsRef.current = settings
+      setDatabase((current) => (current ? { ...current, settings } : current))
+      void enqueueViewWrite(() => pageWriteService.reorderViews(pageId, viewIds)).catch(handleWriteError)
+    }, [enqueueViewWrite, handleWriteError, pageId]),
     onViewFiltersChange: useCallback(
       (viewId: string, filters: ViewFiltersV2) => saveViewFilters(viewId, filters),
       [saveViewFilters],
@@ -932,6 +982,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     columnWidthPreviews,
     realtimeOptions: {
       onEvent: handleRealtimeEvent,
+      onPageUpdated: handlePageUpdated,
       onStructureChanged: handleStructureChanged,
       onColumnResize: handleRemoteColumnResize,
       onResync: reload,

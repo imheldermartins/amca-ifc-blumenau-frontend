@@ -53,6 +53,11 @@ export class PageWriteService {
     return apiService.delete(`/pages/${pageId}/views/${viewId}`)
   }
 
+  /** Persiste a ordem completa em uma única escrita atômica no snapshot. */
+  reorderViews(pageId: string, viewIds: string[]): Promise<{ viewIds: string[] }> {
+    return apiService.put(`/pages/${pageId}/views/order`, { viewIds })
+  }
+
   /** Cria somente a página-filha e sua aresta com a parent; células nascem ausentes. */
   createRow(parentId: string): Promise<ApiPage> {
     return apiService.post<ApiPage>(`/pages/${parentId}/page`, {})

@@ -5,6 +5,11 @@ export { ViewTabsBar } from './components/ViewTabsBar'
 export type { ViewTabsBarProps } from './components/ViewTabsBar'
 export { TableView } from './components/TableView'
 export type { TableViewProps } from './components/TableView'
+export { GridView, GridContainer, GridTile } from './components/GridView'
+export { GraphView, GraphCanvas, GraphNode } from './components/GraphView'
+export { ViewSettingsForm } from './components/ViewSettingsForm'
+export { mappedForm, DEFAULT_VIEW_MOCK_SETTINGS } from './viewSettings'
+export type { ViewMockSettings } from './viewSettings'
 export { DatabaseViewToolbar } from './components/DatabaseViewToolbar'
 export type {
   DatabaseViewToolbarLabels,

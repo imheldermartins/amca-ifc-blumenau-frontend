@@ -80,6 +80,8 @@ export interface ApiPage {
   title: string | null
   data: Record<string, unknown> | null
   owner_id: string
+  /** `CURRENT_TIMESTAMP` do rqlite no momento da criação. */
+  created_at: string
   /** `CURRENT_TIMESTAMP` do rqlite, serializado pela API. */
   updated_at: string
   /** Calculado em GET /pages/:id; escritas e page_root podem omitir o campo. */
@@ -378,6 +380,9 @@ function parseView(raw: unknown): DataViewType | null {
 
   return {
     view: candidate.view,
+    ...(typeof candidate.order === 'number' && Number.isInteger(candidate.order) && candidate.order >= 0
+      ? { order: candidate.order }
+      : {}),
     name: typeof candidate.name === 'string' ? candidate.name : '',
     urlKey:
       parsePublicKeyMetadata(candidate.urlKey) ??
@@ -431,6 +436,10 @@ export function parseViewSettings(
     }
   }
 
+  parsedEntries.sort((left, right) =>
+    (left[1].order ?? Number.MAX_SAFE_INTEGER) - (right[1].order ?? Number.MAX_SAFE_INTEGER),
+  )
+
   const keys = reconcilePublicKeys(
     parsedEntries.map(([viewId, view]) => ({
       value: [viewId, view] as const,
@@ -456,6 +465,7 @@ export function createFallbackViewSettings(
   return {
     [FALLBACK_VIEW_ID]: {
       view: 'table',
+      order: 0,
       name,
       urlKey: reconcilePublicKeys([{ value: null, label: name }], 'view')[0]!.publicKey,
       filters: emptyViewFilters(),
@@ -478,6 +488,7 @@ export function createFallbackViewSettings(
 // --- Composição ---
 
 export interface ParsedDatabase {
+  pageTitle?: string | null
   settings: DataViewSettings
   headerCols: HeaderCol[]
   rows: RowData[]
@@ -640,6 +651,7 @@ export function parseDatabase({
   const settings = parseViewSettings(page.data, titleLabel)
 
   return {
+    pageTitle: page.title,
     headerCols,
     rows: parseRows(dataset),
     settings:

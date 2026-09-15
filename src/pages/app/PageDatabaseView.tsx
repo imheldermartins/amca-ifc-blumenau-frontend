@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
-  DatabaseViewToolbarSyncStatus,
   DataViewKind,
   DataViewSettings,
   HeaderCol,
@@ -16,9 +15,10 @@ import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
-import { formatRelativeTime } from '@/lib/formatRelativeTime'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
+import { parseRows } from '@/lib/databaseParser'
+import { databaseService } from '@/services/DatabaseService'
 
 export interface PageDatabaseViewProps {
   /** Página a exibir; `undefined` = ainda sendo resolvida (workspace). */
@@ -76,7 +76,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
-  const [relativeNow, setRelativeNow] = useState(() => Date.now())
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
   const viewQuery = useDatabaseViewQuery({
@@ -98,47 +97,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
 
   const broken = failed || failedToResolve
   const currentLang = lang ?? 'pt-br'
-
-  useEffect(() => {
-    const timer = setInterval(() => setRelativeNow(Date.now()), 60_000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const filterSyncStatus = useMemo<DatabaseViewToolbarSyncStatus>(() => {
-    const relative = viewQuery.sync.updatedAt
-      ? formatRelativeTime(viewQuery.sync.updatedAt, relativeNow, 'pt-BR')
-      : null
-    if (viewQuery.sync.status === 'saving') {
-      return {
-        state: 'saving',
-        label: i18n('pages.app.cubs-database.filtros.sync.salvando'),
-      }
-    }
-    if (viewQuery.sync.status === 'remote-pending') {
-      return {
-        state: 'pending',
-        label: relative
-          ? i18n('pages.app.cubs-database.filtros.sync.alterados-em', { time: relative })
-          : i18n('pages.app.cubs-database.filtros.sync.alterados'),
-        actionLabel: i18n('pages.app.cubs-database.filtros.sync.atualizar'),
-        onAction: viewQuery.sync.applyRemote,
-      }
-    }
-    if (viewQuery.sync.status === 'error') {
-      return {
-        state: 'error',
-        label: i18n('pages.app.cubs-database.filtros.sync.falha'),
-        actionLabel: i18n('pages.app.cubs-database.filtros.sync.tentar-novamente'),
-        onAction: viewQuery.sync.retry,
-      }
-    }
-    return {
-      state: 'confirmed',
-      label: relative
-        ? i18n('pages.app.cubs-database.filtros.sync.atualizado-em', { time: relative })
-        : i18n('pages.app.cubs-database.filtros.sync.atualizado'),
-    }
-  }, [relativeNow, viewQuery.sync])
 
   // `currentLang` na lista de dependências é PROPOSITAL, e o linter reclama
   // porque não consegue ver a ligação: `i18n()` lê do singleton do i18next,
@@ -241,7 +199,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       },
       presets: i18n('pages.app.cubs-database.predefinicoes'),
       closePresets: i18n('pages.app.cubs-database.fechar-predefinicoes'),
-      presetsHello: i18n('pages.app.cubs-database.predefinicoes-conteudo'),
       groupBy: i18n('pages.app.cubs-database.agrupar.trigger'),
       filters: i18n('pages.app.cubs-database.filtros.trigger'),
       searchColumns: i18n('pages.app.cubs-database.agrupar.buscar'),
@@ -340,6 +297,10 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     [navigate, currentLang, workspaceId],
   )
 
+  const loadGraphChildren = useCallback(async (targetPageId: string): Promise<RowData[]> => {
+    return parseRows(await databaseService.getChildren(targetPageId))
+  }, [])
+
   // Terreno do batchRealtimeUpdate: agir sobre N páginas de uma vez (a
   // seleção já sobe completa como array de ids).
   const handleSelectionChange = useCallback((selectedPagesIds: string[]) => {
@@ -383,6 +344,9 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         {...realtimeOptions}
       >
         <CubsDatabase
+          pageId={pageId}
+          pageTitle={database?.pageTitle ?? initialTitle ?? undefined}
+          onLoadGraphChildren={loadGraphChildren}
           settings={settings}
           headerCols={columns}
           rows={database?.rows ?? EMPTY_ROWS}
@@ -408,7 +372,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
           onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
           labels={labels}
           toolbarLabels={toolbarLabels}
-          filterSyncStatus={filterSyncStatus}
           viewMenuItems={mayEdit ? viewMenuItems : undefined}
           onRenameView={mayEdit ? handlers.onRenameView : undefined}
         />

@@ -11,6 +11,16 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
+// Ícones são detalhe de apresentação nos testes. A implementação real do
+// Iconify agenda carregamentos assíncronos e pode tentar atualizar React depois
+// que o JSDOM da spec já foi desmontado, fazendo uma suíte aprovada sair com
+// erro tardio (`window is not defined`). Specs que inspecionam o ícone usam seu
+// próprio mock com `data-icon`.
+vi.mock('@iconify/react', () => ({
+  Icon: () => null,
+  addCollection: vi.fn(),
+}))
+
 // O Select do Radix centraliza o item ativo ao abrir. JSDOM não calcula
 // layout e não fornece scrollIntoView, mas a ausência não deve derrubar os
 // testes de seleção/teclado do componente.
@@ -31,3 +41,4 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 
 export {}
+import { vi } from 'vitest'

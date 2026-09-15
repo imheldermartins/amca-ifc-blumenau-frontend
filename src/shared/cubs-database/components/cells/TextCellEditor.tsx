@@ -45,6 +45,7 @@ export const TextCellEditor = memo(function TextCellEditor({
       surface="plain"
       size="sm"
       className="w-full"
+      placeholder={column.key === 'title' ? 'Sem Título' : undefined}
       // A máscara da coluna (cpf/cep/...) formata a digitação; o valor commitado
       // já sai mascarado, e o read-only o mostra como está.
       mask={column.mask}

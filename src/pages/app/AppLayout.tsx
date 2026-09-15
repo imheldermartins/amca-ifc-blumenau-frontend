@@ -1,5 +1,9 @@
-import { can } from '@/services/AccessService'
-import { Outlet, useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import {
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { useState } from 'react'
 import { Button, Popover, Switch, cn } from 'cubs-components'
@@ -8,40 +12,21 @@ import {
   GlobalSettingsModal,
   type GlobalSettingsFragment,
 } from '@components/GlobalSettingsModal'
-import { SearchBar } from '@components/SearchBar'
 import { SignOutConfirmationModal } from '@components/SignOutConfirmationModal'
 import { Typography } from '@components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
-import { useWorkspace, type WorkspaceState } from '@/contexts/WorkspaceContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDialog } from '@/hooks/useDialog'
 import { useLocalStorageState } from '@/hooks/useClientStorage'
 import { useTheme } from '@/hooks/useTheme'
 import { DEFAULT_LANGUAGE, i18n } from '@/lib/i18n'
-import { replaceQuery } from '@/lib/queryParams'
-import { THEME } from '@/lib/theme'
-
-/**
- * Rótulo da workspace na barra superior. Os três estados são distintos de
- * propósito: workspace que carregou SEM nome (`name` é anulável no backend) não
- * é a mesma coisa que workspace que não carregou.
- */
-function workspaceLabel({ workspace, loading, failed }: WorkspaceState): string {
-  if (loading) return i18n('common.carregando')
-  if (failed) return i18n('common.workspace.indisponivel')
-  if (!workspace) return i18n('common.workspace.selecionar')
-  return (workspace.organizationName ? workspace.organizationName + ' • ' : '') + (workspace.name ?? i18n('common.workspace.sem-nome'))
-}
+import Topbar from './-components/Topbar'
 
 export function AppLayout() {
-  // `strict: false`: no shell, `workspaceId` existe na entrada da workspace;
-  // páginas compartilhadas e "Colaborando" continuam sem esse parâmetro.
   const { lang } = useParams({ strict: false })
   const location = useLocation()
   const navigate = useNavigate()
-  // Persistida: recolher a sidebar é preferência, e o usuário espera que ela
-  // continue recolhida no próximo acesso. Antes era `useState(false)`, que
-  // esquecia a cada navegação/reload.
-  const [collapsed, setCollapsed] = useLocalStorageState('sidebarCollapsed', false)
+  const [collapsed, _] = useLocalStorageState('sidebarCollapsed', false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false)
   const [settingsFragment, setSettingsFragment] =
     useState<GlobalSettingsFragment>('#profile')
@@ -51,8 +36,6 @@ export function AppLayout() {
   const globalSettingsDialog = useDialog()
   const signOutDialog = useDialog()
 
-  // Sem workspace no caminho, o link volta ao seletor explícito: não existe
-  // mais um id global ou uma workspace padrão embutida no frontend.
   const currentLang = lang ?? DEFAULT_LANGUAGE.slug
   const currentWorkspaceId = workspaceState.workspaceId
   const userLabel = auth.user?.name ?? auth.user?.email ?? i18n('pages.app.account-menu.user')
@@ -71,25 +54,6 @@ export function AppLayout() {
   async function handleSignOut() {
     signOutDialog.closeDialog()
     await auth.signOut()
-  }
-
-  function openWorkspaceArea() {
-    const workspace = workspaceState.workspace
-    if (can(workspace, 'write', 'update')) {
-      void navigate({
-        to: '/$lang/workspaces/$workspaceId/settings/general',
-        params: { lang: currentLang, workspaceId: workspace!.id },
-        search: (previous) => replaceQuery(previous, {}),
-      })
-      return
-    }
-
-    if (!currentWorkspaceId) return
-    void navigate({
-      to: '/$lang/myworkspace/$workspaceId',
-      params: { lang: currentLang, workspaceId: currentWorkspaceId },
-      search: (previous) => replaceQuery(previous, {}),
-    })
   }
 
   function navigateSidebar(target: 'home' | 'collaborating' | 'chat' | 'schedule') {
@@ -113,7 +77,7 @@ export function AppLayout() {
 
   const workspacePath = currentWorkspaceId
     ? `/${currentLang}/myworkspace/${currentWorkspaceId}`
-    : null
+    : null;
   const navItems = [
     {
       target: 'home' as const,
@@ -139,43 +103,11 @@ export function AppLayout() {
       active: workspacePath !== null && location.pathname === `${workspacePath}/schedule`,
       icon: 'cuida:calendar-clear-outline',
     },
-  ]
+  ];
 
   return (
     <div className='flex h-dvh flex-col overflow-hidden bg-background'>
-      <header className='z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center py-1 px-6 bg-background'>
-        <div className='min-w-0 justify-self-start'>
-          <Button
-            variant='text'
-            color='from-theme'
-            className='p-1 hover:bg-transparent'
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={i18n(collapsed ? 'common.expandir-menu' : 'common.recolher-menu')}
-          >
-            <Icon
-              icon={!collapsed ? 'cuida:sidebar-expand-outline' : 'cuida:sidebar-collapse-outline'}
-              fontSize={24}
-              className={THEME.textMuted}
-            />
-          </Button>
-        </div>
-        <SearchBar className='w-full' />
-
-        <div className='min-w-0 max-w-full justify-self-end'>
-          <Button
-            variant='text'
-            color='from-theme'
-            className='min-w-0 max-w-full px-2 py-1 hover:bg-active/50'
-            onClick={openWorkspaceArea}
-            aria-label={i18n('common.workspace.abrir-detalhes')}
-          >
-            <Icon icon={workspaceState.workspace?.icon ?? 'lucide:boxes'} fontSize={20} className={THEME.textMuted} />
-            <Typography variant="subtitle" as='span' className='truncate ml-0.5'>
-              {workspaceLabel(workspaceState)}
-            </Typography>
-          </Button>
-        </div>
-      </header>
+      <Topbar />
 
       <div className='flex flex-1 min-h-0'>
         <section

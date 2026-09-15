@@ -9,6 +9,9 @@ import {
 import type { DatabaseViewToolbarSyncStatus } from './components/DatabaseViewSyncStatus'
 import { ViewTabsBar } from './components/ViewTabsBar'
 import { TableView } from './components/TableView'
+import { GridView } from './components/GridView'
+import { GraphView } from './components/GraphView'
+import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from './viewSettings'
 import type { TableRowLabels } from './components/TableRow'
 import type {
   CellChange,
@@ -56,9 +59,8 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
     timeline: 'Cronograma',
     graph: 'Grafos',
   },
-  presets: 'Predefinições',
-  closePresets: 'Fechar predefinições',
-  presetsHello: 'Hello World',
+  presets: 'Configurações da view',
+  closePresets: 'Fechar configurações da view',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -109,8 +111,15 @@ export interface CubsDatabaseProps {
   /** Itens do ContextMenu das tabs (botão direito; app host injeta i18n). */
   viewMenuItems?: (viewId: string, actions: { startRename: () => void }) => ContextMenuItem[]
   onRenameView?: (viewId: string, name: string) => void | Promise<void>
+  /** Reordena as tabs e envia a lista completa de ids para persistência. */
+  onViewOrderChange?: (viewIds: string[]) => void
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
   onOpenRow?: (row: RowData) => void
+  /** Identidade/título da página aberta, usada como nó central do grafo. */
+  pageId?: string
+  pageTitle?: string
+  /** Carrega filhos de um nó somente após foco ou ativação explícita. */
+  onLoadGraphChildren?: (pageId: string) => Promise<RowData[]>
   /**
    * Uma célula foi editada e confirmada. A PRESENÇA desta prop é o que liga o
    * modo editável (despacho pelo cellMap de `components/cells`); sem ela a
@@ -221,8 +230,8 @@ export interface CubsDatabaseProps {
 /**
  * Visualização da base simulada (PageTree): topbar de views (tabs + context
  * menu no botão direito) e a view ativa — sem chrome em volta, só a view.
- * Por enquanto só 'table' renderiza de verdade; os demais modos mostram um
- * placeholder identificado pelo tipo selecionado.
+ * Table é editável; Grid e Graph são projeções de leitura para explorar as
+ * mesmas páginas. Os demais modos seguem identificados pelo placeholder.
  */
 export function CubsDatabase({
   // Defaults defensivos: consumidor JS (sem TS) pode omitir na prática.
@@ -237,7 +246,11 @@ export function CubsDatabase({
   onViewKindChange,
   viewMenuItems,
   onRenameView,
+  onViewOrderChange,
   onOpenRow,
+  pageId,
+  pageTitle,
+  onLoadGraphChildren,
   onCellChange,
   onCellEditConflict,
   onColumnOptionsChange,
@@ -267,12 +280,15 @@ export function CubsDatabase({
   className,
 }: CubsDatabaseProps) {
   const [internalViewId, setInternalViewId] = useState(() => Object.keys(settings)[0] ?? '')
+  const [mockSettingsByView, setMockSettingsByView] = useState<Record<string, ViewMockSettings>>({})
   // A primeira personalização de uma página sem snapshot troca a sentinela
   // fallback por um ULID real. Se a view interna deixou de existir, acompanha
   // a primeira view salva em vez de cair num painel vazio até outro clique.
   const currentViewId =
     activeViewId ?? (settings[internalViewId] ? internalViewId : Object.keys(settings)[0] ?? '')
   const currentView = settings[currentViewId] ?? FALLBACK_VIEW
+  const mockSettingsKey = `${pageId ?? ''}:${currentViewId}`
+  const mockSettings = mockSettingsByView[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS
 
   // `view-updated` carrega o snapshot completo. HTTP e socket podem entregar
   // a mesma confirmação em momentos diferentes e cada parse cria arrays e
@@ -427,6 +443,7 @@ export function CubsDatabase({
         viewTypeLabels={resolvedToolbarLabels.viewTypes}
         viewMenuItems={viewMenuItems}
         onRenameView={onRenameView}
+        onViewOrderChange={onViewOrderChange}
       />
 
       <DatabaseViewToolbar
@@ -436,6 +453,11 @@ export function CubsDatabase({
         filters={effectiveFilters}
         labels={resolvedToolbarLabels}
         syncStatus={filterSyncStatus}
+        settings={mockSettings}
+        onSettingsChange={(patch) => setMockSettingsByView((previous) => ({
+          ...previous,
+          [mockSettingsKey]: { ...(previous[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS), ...patch },
+        }))}
         onAddRow={onAddRow}
         onViewKindChange={
           onViewKindChange
@@ -497,6 +519,23 @@ export function CubsDatabase({
             onAddRow={onAddRow}
             onAddColumn={onAddColumn}
             labels={labels}
+          />
+        ) : currentView.view === 'grid' ? (
+          <GridView
+            columns={orderedColumns}
+            rows={filteredRows}
+            tileSize={mockSettings.tileSize}
+            emptyLabel={emptyLabel}
+            onOpenRow={onOpenRow}
+          />
+        ) : currentView.view === 'graph' ? (
+          <GraphView
+            key={`${pageId ?? ''}:${currentViewId}`}
+            rootId={pageId ?? currentViewId}
+            rootTitle={pageTitle || currentView.name || 'Página atual'}
+            rows={filteredRows}
+            loadSubItems={mockSettings.loadSubItems}
+            onLoadChildren={onLoadGraphChildren}
           />
         ) : (
           <div

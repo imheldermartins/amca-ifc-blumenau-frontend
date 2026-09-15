@@ -20,6 +20,8 @@ import {
 import { FilterChip } from './FilterChip'
 import { FilterPopover } from './FilterPopover'
 import { PrioritySelect } from './PrioritySelect'
+import { ViewSettingsForm } from './ViewSettingsForm'
+import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from '../viewSettings'
 
 export interface DatabaseViewToolbarLabels {
   newPage: string
@@ -27,7 +29,6 @@ export interface DatabaseViewToolbarLabels {
   viewTypes: Record<DataViewKind, string>
   presets: string
   closePresets: string
-  presetsHello: string
   groupBy: string
   filters: string
   searchColumns: string
@@ -63,6 +64,8 @@ export interface DatabaseViewToolbarProps {
   syncStatus?: DatabaseViewToolbarSyncStatus
   /** Cria uma página-filha vazia na database atual. */
   onAddRow?: () => void
+  settings?: ViewMockSettings
+  onSettingsChange?: (patch: Partial<ViewMockSettings>) => void
 }
 
 function updateDocument(
@@ -87,6 +90,8 @@ export function DatabaseViewToolbar({
   onChange,
   syncStatus,
   onAddRow,
+  settings = DEFAULT_VIEW_MOCK_SETTINGS,
+  onSettingsChange,
 }: DatabaseViewToolbarProps) {
   const [presetsOpen, setPresetsOpen] = useState(false)
   // O tipo público já é v2. A leitura tolerante mantém o pacote seguro para
@@ -120,9 +125,9 @@ export function DatabaseViewToolbar({
       }),
     )
 
-  return [
-    <div key="toolbar" className="flex flex-wrap items-center gap-2 px-4 py-1">
-      <Tooltip content={labels.presets} delayDuration={0}>
+  const renderControls = (includeSettingsButton: boolean) => (
+    <>
+      {includeSettingsButton && <Tooltip content={labels.presets} delayDuration={0}>
         <Button
           type="button"
           variant="text"
@@ -133,7 +138,7 @@ export function DatabaseViewToolbar({
         >
           <Icon aria-hidden="true" icon="lucide:settings-2" fontSize={20} />
         </Button>
-      </Tooltip>
+      </Tooltip>}
       <Select
         aria-label={labels.viewType}
         value={viewKind}
@@ -221,6 +226,12 @@ export function DatabaseViewToolbar({
           {syncStatus ? <DatabaseViewSyncStatus status={syncStatus} /> : null}
         </div>
       ) : null}
+    </>
+  )
+
+  return [
+    <div key="toolbar" className="flex flex-wrap items-center gap-2 px-4 py-1">
+      {renderControls(true)}
     </div>,
 
     <Drawer
@@ -230,10 +241,12 @@ export function DatabaseViewToolbar({
       accessibleTitle={labels.presets}
       closeLabel={labels.closePresets}
     >
-      <div className="grid min-h-full place-items-center">
-        <strong className="rounded-2xl bg-p-purple-500/10 px-8 py-6 text-4xl font-black tracking-tight text-p-purple">
-          {labels.presetsHello}
-        </strong>
+      <div className="grid gap-6">
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">{labels.presets}</h2>
+          <div className="flex flex-wrap items-center gap-2">{renderControls(false)}</div>
+        </div>
+        <ViewSettingsForm type={viewKind} settings={settings} onChange={onSettingsChange ?? (() => {})} />
       </div>
     </Drawer>,
   ]

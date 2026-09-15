@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +23,6 @@ const labels: DatabaseViewToolbarLabels = {
   },
   presets: 'Predefinições',
   closePresets: 'Fechar predefinições',
-  presetsHello: 'Hello World',
   groupBy: 'Agrupar por',
   filters: 'Filtros',
   searchColumns: 'Buscar coluna',
@@ -165,7 +164,9 @@ describe('DatabaseViewToolbar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Predefinições' }))
     const drawer = screen.getByRole('dialog', { name: 'Predefinições' })
     expect(drawer.className).toContain('w-1/2')
-    expect(screen.getByText('Hello World').className).toContain('font-black')
+    expect(within(drawer).getByRole('combobox', { name: 'Tipo de visualização' })).not.toBeNull()
+    expect(within(drawer).getByRole('button', { name: 'Agrupar por' })).not.toBeNull()
+    expect(within(drawer).getByRole('button', { name: 'Filtros' })).not.toBeNull()
 
     fireEvent.click(
       screen.getByRole('button', { name: 'Fechar predefinições' }),
