@@ -264,6 +264,14 @@
 
 @layer base {
 
+  html {
+    cursor: url('/cursor-dark.svg') 2 2, auto;
+  }
+
+  html.dark {
+    cursor: url('/cursor-light.svg') 2 2, auto;
+  }
+
   /* Toda borda sem cor explícita usa o divider. */
   * {
     @apply border-divider;
