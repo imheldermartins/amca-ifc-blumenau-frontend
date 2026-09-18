@@ -83,13 +83,13 @@ export function AppLayout() {
       target: 'home' as const,
       name: i18n('common.navigation.home'),
       active: location.pathname === workspacePath,
-      icon: 'lucide:grip',
+      icon: 'cuida:home-outline',
     },
     {
       target: 'collaborating' as const,
       name: i18n('common.navigation.colaborando'),
       active: location.pathname === `/${currentLang}/colaborando`,
-      icon: 'lucide:users',
+      icon: 'cuida:users-outline',
     },
     {
       target: 'chat' as const,
