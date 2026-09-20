@@ -17,7 +17,7 @@ O sign-in/sign-up falam com o **backend do Cub's** (`cubs-backend`, Express +
 JWT + bcrypt), que por sua vez usa o **rqlite** como banco. A cadeia é:
 
 ```
-frontend (:5173)  ->  cubs-backend (:3000)  ->  rqlite (:8000)
+frontend (:5173)  ->  cubs-backend (:3000)  ->  rqlite (:4001)
 ```
 
 Em dev, as chamadas do frontend vão para `/api/...` e o Vite proxeia para

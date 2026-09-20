@@ -37,7 +37,7 @@ export function WorkspaceAccessPage() {
           {i18n('pages.workspaces.access.back')}
         </Button>
 
-        <header className="text-center">
+        <header>
           <Typography variant="h1">{i18n('pages.workspaces.access.title')}</Typography>
           <Typography variant="body" as="p" className="mt-2 text-dark-100 dark:text-light-900">
             {i18n('pages.workspaces.access.subtitle')}

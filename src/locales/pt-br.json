@@ -17,9 +17,9 @@
     "workspace": {
       "abrir-detalhes": "Abrir detalhes da workspace",
       "detalhes": "Detalhes da workspace",
-      "sem-nome": "Workspace sem nome",
       "indisponivel": "Workspace indisponível",
-      "selecionar": "Selecionar workspace"
+      "selecionar": "Selecionar workspace",
+      "sem-nome": "Espaço de trabalho"
     },
     "navigation": {
       "agenda": "Agenda",
@@ -57,11 +57,12 @@
   "pages": {
     "home": {
       "bem-vindo-ao-cubs": "Bem-vindo ao <green>{{appName}}</green>!",
-      "descricao": "Sua plataforma está sendo construída. Entre ou crie uma conta para começar.",
+      "descricao": "Faça mais. Faça melhor. Faça com o Cub's!",
       "entrar": "Entrar",
-      "entrar-conta": "Entrar na conta",
       "criar-conta": "Criar conta",
-      "criar-areas-de-trabalho": "Crie suas Áreas de trabalho"
+      "entrar-conta": "Entrar na conta",
+      "criar-areas-de-trabalho": "Crie suas Áreas de trabalho",
+      "ou": "ou"
     },
     "sign-in": {
       "entre-seja-bem-vindo": "Entre e seja bem-vindo!",
@@ -126,27 +127,26 @@
     },
     "workspaces": {
       "selector": {
-        "title": "Suas workspaces",
-        "subtitle": "Crie novas workspaces dentro de uma organização ou entre em uma workspace por convite.",
+        "title": "Espaços de trabalho",
+        "subtitle": "Crie novos espaços de trabalho - pessoais ou ligados a uma organização",
         "list-label": "Workspaces disponíveis",
         "empty": "Você ainda não participa de nenhuma workspace.",
         "error": "Não foi possível carregar suas workspaces.",
         "enter": "Entrar",
         "settings": "Configurações",
         "preferred": "Abrir direto após o login",
-        "new": "Criar workspace",
+        "new": "Criar novo espaço de trabalho",
         "role-member": "Member",
         "tabs-label": "Áreas de workspaces",
         "tab-workspaces": "Workspaces",
         "tab-organization": "Organização",
-        "personal-section": "Pessoal",
-        "organization-section": "Workspaces de organizações",
-        "owner-label": "Owner",
+        "personal-section": "Meus espaços de trabalho",
+        "organization-section": "Espaços de trabalho das organizações",
         "owner-unknown": "Criador indisponível"
       },
       "access": {
-        "title": "Criar workspace",
-        "subtitle": "Toda nova workspace precisa pertencer a uma organização.",
+        "title": "Criar espaço de trabalho",
+        "subtitle": "Todo novo espaço de trabalho precisa pertencer a uma organização.",
         "name": "Nome da área de trabalho",
         "name-placeholder": "Ex.: IFC Blumenau",
         "organization": "Organização",
@@ -154,9 +154,9 @@
         "organization-required": "Escolha uma organização para a nova workspace.",
         "organization-missing": "Sua próxima workspace precisa pertencer a uma organização.",
         "organization-create-link": "Criar uma organização agora",
-        "create": "Criar workspace",
+        "create": "Criar espaço de trabalho",
         "creating": "Criando...",
-        "back": "Voltar às workspaces",
+        "back": "Voltar aos espaços de trabalho",
         "error": "Não foi possível concluir. Confira os dados e tente novamente."
       },
       "organization": {
@@ -177,26 +177,26 @@
         "create": "Criar e vincular",
         "creating": "Criando...",
         "created": "Organização criada e workspace vinculada.",
-        "link-title": "Vincular workspace",
+        "link-title": "Vincular espaço de trabalho",
         "link-description": "Associe outra workspace individual a uma organização que você administra.",
-        "workspace-to-link": "Workspace a vincular",
-        "link": "Vincular workspace",
+        "workspace-to-link": "Espaço de trabalho a vincular",
+        "link": "Vincular espaço de trabalho",
         "linking": "Vinculando...",
-        "linked": "Workspace vinculada.",
+        "linked": "Espaço de trabalho vinculada.",
         "no-workspace": "Não há uma workspace individual administrada por você para iniciar a organização.",
         "nothing-to-link": "Crie uma organização e mantenha uma workspace individual disponível para fazer um novo vínculo.",
         "load-error": "Não foi possível carregar organizações e workspaces.",
         "error": "Não foi possível concluir a operação. Confira suas permissões.",
-        "create-workspace": "Criar workspace",
-        "workspaces-title": "Workspaces da organização",
+        "create-workspace": "Criar espaço de trabalho",
+        "workspaces-title": "Espaços de trabalho da organização",
         "workspaces-description": "Áreas vinculadas a esta organização das quais você participa.",
-        "workspaces-list": "Workspaces da organização",
-        "workspaces-empty": "Você ainda não participa de nenhuma workspace desta organização.",
+        "workspaces-list": "Espaços de trabalho da organização",
+        "workspaces-empty": "Você ainda não participa de nenhum espaço de trabalho desta organização.",
         "users-title": "Usuários da organização",
-        "users-description": "Escolha a workspace e informe o e-mail completo para adicionar o usuário à organização e à workspace como member.",
+        "users-description": "Escolha o espaço de trabalho e informe o e-mail completo para adicionar o usuário à organização e ao espaço de trabalho como member.",
         "current-organization": "Organização",
-        "current-workspace": "Workspace atual",
-        "current-workspace-placeholder": "Selecione a workspace",
+        "current-workspace": "Espaço de trabalho atual",
+        "current-workspace-placeholder": "Selecione o espaço de trabalho",
         "search-users": "E-mail do usuário",
         "search-users-help": "O resultado só aparece quando o e-mail completo corresponde a um usuário.",
         "users-list": "Usuários encontrados",
@@ -211,15 +211,14 @@
         "user-add-error": "Não foi possível adicionar o usuário à organização e à workspace."
       },
       "settings": {
-        "title": "Configuração da workspace",
-        "back": "Voltar para a workspace",
-        "exit": "Sair",
-        "navigation": "Configurações da workspace",
+        "title": "Configurar espaço de trabalho",
+        "back": "Voltar para espaços de trabalho",
+        "navigation": "Configurações",
         "general": "Geral",
         "members": "Usuários",
         "general-description": "Atualize a identidade exibida para esta área de trabalho.",
-        "name": "Nome da Workspace",
-        "icon": "Ícone da Workspace",
+        "name": "Nome do Espaço de trabalho",
+        "icon": "Ícone do Espaço de trabalho",
         "save": "Salvar alterações",
         "saving": "Salvando...",
         "saved": "Alterações salvas.",
@@ -232,7 +231,8 @@
         "members-error": "Não foi possível carregar os usuários.",
         "role-error": "Não foi possível alterar a role.",
         "loading": "Carregando workspace...",
-        "load-error": "Não foi possível carregar esta workspace."
+        "load-error": "Não foi possível carregar esta workspace.",
+        "exit": "Selecionar outro espaço de trabalho"
       },
       "icons": {
         "choose": "Escolher ícone",
@@ -245,8 +245,8 @@
       },
       "denied": {
         "title": "Acesso não permitido",
-        "description": "Sua role não permite acessar o painel de configuração desta workspace.",
-        "back": "Voltar às workspaces"
+        "description": "Sua role não permite acessar o painel de configuração deste espaço de trabalho.",
+        "back": "Voltar aos espaços de trabalho"
       }
     },
     "app": {
@@ -510,6 +510,9 @@
           "no": "Não"
         }
       }
+    },
+    "commom": {
+      "back": "Voltar"
     }
   },
   "access": {
@@ -522,7 +525,7 @@
     "template": "Template",
     "permissions": "Permissões",
     "effective-permissions": "Permissões efetivas",
-    "owner": "Owner",
+    "owner": "Proprietário",
     "no-role": "Sem template",
     "owner-help": "O owner administra esta área pela propriedade. Seu acesso não depende de um template e não pode ser reduzido por outros membros.",
     "add-member": "Adicionar membro",
@@ -640,13 +643,12 @@
   "organization": {
     "title": "Organizações",
     "single": "Organização",
-    "subtitle": "Pessoas, permissões e workspaces da sua organização.",
     "create": "Criar organização",
     "creating": "Criando organização…",
     "open": "Abrir organização",
     "empty": "Você ainda não participa de uma organização.",
     "workspace-count": "{{count}} workspaces",
-    "workspaces-back": "Minhas workspaces",
+    "workspaces-back": "Voltar para espaços de trabalho",
     "name": "Nome da organização",
     "create-help": "Sua conta validada será definida como owner. Depois da criação, você poderá adicionar e vincular workspaces.",
     "create-error": "Não foi possível criar a organização. Confira o nome e tente novamente.",

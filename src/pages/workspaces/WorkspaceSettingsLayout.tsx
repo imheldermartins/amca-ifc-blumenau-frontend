@@ -52,7 +52,7 @@ export function WorkspaceSettingsLayout() {
         <aside className="flex flex-col border-b border-divider bg-contrast p-4 md:border-b-0 md:border-r">
           <ContextBackButton
             fallback={`/${language}/myworkspace/${id}`}
-            label={i18n('pages.workspaces.settings.back')}
+            label={i18n('pages.commom.back')}
             className="mb-6 justify-start"
           />
           <div className="mb-6 flex items-center gap-3 px-2">
@@ -82,7 +82,7 @@ export function WorkspaceSettingsLayout() {
             to="/$lang/workspaces"
             params={{ lang: language }}
             search={{ choose: true, tab: 'workspaces' }}
-            className="mt-auto flex items-center gap-2 rounded px-2.5 py-2 text-sm font-medium text-p-red hover:bg-p-red-600/10"
+            className="mt-auto flex items-center gap-2 rounded px-2.5 py-2 text-sm font-medium"
           >
             <Icon icon="lucide:log-out" className="size-4" />
             {i18n('pages.workspaces.settings.exit')}

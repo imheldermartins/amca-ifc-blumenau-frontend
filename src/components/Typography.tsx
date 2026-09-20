@@ -17,7 +17,7 @@ interface VariantConfig {
 const VARIANTS: Record<TypographyVariant, VariantConfig> = {
   h1: { tag: 'h1', classes: 'text-3xl font-bold tracking-tight' },
   h2: { tag: 'h2', classes: 'text-2xl font-bold tracking-tight' },
-  h3: { tag: 'h3', classes: 'text-lg font-bold tracking-tight' },
+  h3: { tag: 'h3', classes: 'text-xl font-bold tracking-tight' },
   subtitle: { tag: 'p', classes: cn('text-sm', THEME.textMuted) },
   body: { tag: 'p', classes: 'text-sm' },
   caption: { tag: 'span', classes: cn('text-xs', THEME.textMuted) },
