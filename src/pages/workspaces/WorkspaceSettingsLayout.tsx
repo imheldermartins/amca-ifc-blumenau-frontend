@@ -1,22 +1,22 @@
 import { Icon } from '@iconify/react'
 import { useQuery } from '@tanstack/react-query'
-import { Link, Navigate, Outlet, useParams } from '@tanstack/react-router'
+import { Link, Navigate, Outlet } from '@tanstack/react-router'
 import { cn } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
 import { ContextBackButton } from '@/components/ContextBackButton'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { i18n } from '@/lib/i18n'
 import { defineWorkspaceAbility } from '@/lib/workspaceAbility'
 import { workspaceQueryKey } from '@/lib/workspaceQueryKeys'
 import { workspaceService } from '@/services/WorkspaceService'
 import { WorkspaceSettingsProvider } from './WorkspaceSettingsContext'
 
-export function WorkspaceSettingsLayout() {
-  const { lang, workspaceId } = useParams({ strict: false })
+export function WorkspaceSettingsLayout({ workspaceId }: { workspaceId: string }) {
+  const { slug: language } = useLanguage()
   const { user } = useAuth()
-  const language = lang ?? 'pt-br'
-  const id = typeof workspaceId === 'string' ? workspaceId : ''
+  const id = workspaceId
   const workspace = useQuery({
     queryKey: workspaceQueryKey(user?.id ?? 'anonymous', id),
     queryFn: () => workspaceService.getWorkspace(id),
@@ -51,7 +51,7 @@ export function WorkspaceSettingsLayout() {
       <div className="grid min-h-dvh grid-cols-1 bg-background text-foreground md:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="flex flex-col border-b border-divider bg-contrast p-4 md:border-b-0 md:border-r">
           <ContextBackButton
-            fallback={`/${language}/myworkspace/${id}`}
+            fallback={`/${language}/page/${workspace.data.pageRootId}`}
             label={i18n('pages.commom.back')}
             className="mb-6 justify-start"
           />

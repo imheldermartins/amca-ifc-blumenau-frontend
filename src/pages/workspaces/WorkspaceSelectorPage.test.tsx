@@ -107,8 +107,8 @@ describe('WorkspaceSelectorPage', () => {
       ...(await mocks.listMine()),
     ])
     mountSelector()
-    const personal = await screen.findByRole('heading', { name: 'Pessoal' })
-    const organizations = screen.getByRole('heading', { name: 'Workspaces de organizações' })
+    const personal = await screen.findByRole('heading', { name: 'Meus espaços de trabalho' })
+    const organizations = screen.getByRole('heading', { name: 'Espaços de trabalho das organizações' })
     expect(personal.compareDocumentPosition(organizations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getAllByText(/Helder · helder@ifc.edu.br/).length).toBeGreaterThan(0)
   })
@@ -160,7 +160,6 @@ describe('WorkspaceSelectorPage', () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     })
-    mocks.tab = 'organization'
     window.localStorage.setItem('cubs.preferredWorkspace', JSON.stringify({
       userId: 'user-1',
       workspaceId: 'workspace-admin',
@@ -171,7 +170,12 @@ describe('WorkspaceSelectorPage', () => {
       </QueryClientProvider>,
     )
 
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({href: '/pt-br/organizations', replace: true}))
+    const organizations = await screen.findByRole('button', { name: 'Ir para organizações' })
+    fireEvent.click(organizations)
+    expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/$lang/organizations',
+      params: { lang: 'pt-br' },
+    })
 
     mocks.chooseExplicitly = false
     mocks.tab = 'workspaces'

@@ -1,12 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Button, Select, TextField } from 'cubs-components'
 import { Typography } from '@/components/Typography'
 import { ContextBackButton } from '@/components/ContextBackButton'
+import { useAccessRoute, useOptionalAccessRoute } from '@/contexts/AccessRouteContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useQueryParams } from '@/hooks/useQueryParams'
 import { i18n } from '@/lib/i18n'
 import { validators, combineRules } from '@/lib/validators'
@@ -15,10 +16,10 @@ import { workspaceService } from '@/services/WorkspaceService'
 import { PermissionFields, permissionDefaults, permissionsFromFields } from './PermissionFields'
 const empty:Permissions={read:[],write:[]}
 const roleLabel=(role:AccessRole)=>role.isDefault?i18n('access.default-role'):role.name
-const withWorkspace=(href:string,workspaceId:string|null)=>workspaceId ? href+(href.includes('?')?'&':'?')+'workspace='+encodeURIComponent(workspaceId) : href
 export function useAccessScope() {
-  const params=useParams({strict:false})
-  return {scope:params.scope as AccessScope,id:params.scopeId ?? '',lang:params.lang ?? 'pt-br',memberId:params.memberId,requestId:params.requestId}
+  const {scope,id}=useAccessRoute()
+  const {slug:lang}=useLanguage()
+  return {scope,id,lang}
 }
 export function useScopeData(scope:AccessScope,id:string) {
   const {user}=useAuth()
@@ -29,10 +30,9 @@ export function useScopeData(scope:AccessScope,id:string) {
   return {key,access,catalog,roles}
 }
 export function AccessFrame({scope,id,title,children}:{scope:AccessScope;id:string;title:string;children:ReactNode}) {
-  const {lang}=useParams({strict:false});const navigate=useNavigate()
-  const workspace=useWorkspace()
+  const {slug:lang}=useLanguage();const navigate=useNavigate()
   const {access}=useScopeData(scope,id)
-  const home=scope==='organization' ? '/'+lang+'/organizations/'+id : scope==='workspace' ? '/'+lang+'/workspaces/'+id+'/settings/members' : withWorkspace('/'+lang+'/page/'+id,workspace.workspaceId)
+  const home=scope==='organization' ? '/'+lang+'/organizations/'+id : scope==='workspace' ? '/'+lang+'/workspaces/'+id+'/settings/members' : '/'+lang+'/page/'+id
   const sections=[['', 'members',can(access.data,'read','members') || can(access.data,'write','add_members') || can(access.data,'write','promote_members')],
     ['/roles','roles',can(access.data,'read','roles') || can(access.data,'write',rolePermission[scope])],['/requests','requests',true]] as const
   return <main className="min-h-dvh bg-background px-5 py-8 text-foreground"><section className="mx-auto max-w-3xl">
@@ -40,15 +40,18 @@ export function AccessFrame({scope,id,title,children}:{scope:AccessScope;id:stri
     <Typography variant="caption" as="p" className="mt-6 text-foreground/60">{i18n('access.scope.'+scope)}</Typography>
     <Typography variant="h1">{title}</Typography>
     <nav aria-label={i18n('access.navigation')} className="my-6 flex gap-2 border-b border-divider pb-3">
-      {sections.filter(([, , visible])=>visible).map(([path,label])=><Button key={path} variant="text" color="from-theme" onClick={()=>navigate({href:withWorkspace('/'+lang+'/access/'+scope+'/'+id+path,scope==='page'?workspace.workspaceId:null)})}>{i18n('access.'+label)}</Button>)}
+      {sections.filter(([, , visible])=>visible).map(([path,label])=><Button key={path} variant="text" color="from-theme" onClick={()=>navigate({href:'/'+lang+'/access/'+scope+'/'+id+path})}>{i18n('access.'+label)}</Button>)}
     </nav>{children}</section></main>
 }
 export function Feedback({error=false,message}:{error?:boolean;message?:string}) {
   return <Typography variant="body" as="p" role={error?'alert':'status'} className={error?'my-4 text-p-red':'my-4 text-foreground/65'}>{message ?? i18n(error?'access.error':'common.carregando')}</Typography>
 }
 export function AccessMembersPage({scope:providedScope,id:providedId,embedded=false}:{scope?:AccessScope;id?:string;embedded?:boolean}={}) {
-  const current=useAccessScope();const scope=providedScope??current.scope,id=providedId??current.id
-  const {key,access,roles}=useScopeData(scope,id);const navigate=useNavigate();const workspace=useWorkspace()
+  const route=useOptionalAccessRoute();const {slug:lang}=useLanguage()
+  const scope=providedScope??route?.scope,id=providedId??route?.id
+  if (!scope || !id) throw new Error('AccessMembersPage requer escopo e id.')
+  const current={scope,id,lang}
+  const {key,access,roles}=useScopeData(scope,id);const navigate=useNavigate()
   const members=useQuery({queryKey:[...key,'members'],queryFn:()=>accessService.members(scope,id)})
   const content=<>
     {embedded && <nav aria-label={i18n('access.navigation')} className="mb-5 flex gap-3">
@@ -59,7 +62,7 @@ export function AccessMembersPage({scope:providedScope,id:providedId,embedded=fa
       {members.data.map(member=><li key={member.id} className="flex items-center justify-between gap-4 py-4">
         <div className="min-w-0"><Typography variant="subtitle" as="p" className="truncate">{member.name||member.email}</Typography>
           <Typography variant="caption" as="p" className="text-foreground/60">{member.email} · {member.id===access.data?.ownerId?i18n('access.owner'):member.roleName||i18n('access.no-role')}</Typography></div>
-        <Button variant="text" color="purple" onClick={()=>navigate({href:withWorkspace('/'+current.lang+'/access/'+scope+'/'+id+'/member/'+member.id,scope==='page'?workspace.workspaceId:null)})}>{i18n('access.permissions')}</Button>
+        <Button variant="text" color="purple" onClick={()=>navigate({href:'/'+current.lang+'/access/'+scope+'/'+id+'/member/'+member.id})}>{i18n('access.permissions')}</Button>
       </li>)}
       {!members.data.length&&<Feedback message={i18n('access.empty-members')}/>}
     </ul>}
@@ -103,9 +106,8 @@ function InviteManager({scope,id,access,roles,queryKey}:{scope:AccessScope;id:st
     {!!invites.data?.length&&<div className="mt-7"><Typography variant="subtitle" as="h4">{i18n('access.active-invites')}</Typography><ul className="mt-2 divide-y divide-divider">{invites.data.map(invite=><li key={invite.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium">{invite.recipientEmail??i18n('access.generic-link')} · {invite.roleName}</p><p className="text-xs text-foreground/60">{invite.acceptanceCount}/{invite.acceptanceLimit??'∞'} · {i18n('access.status.'+invite.status)}</p></div>{invite.status==='pending'&&<Button variant="text" color="red" disabled={expire.isPending} onClick={()=>expire.mutate(invite.id)}>{i18n('access.expire-link')}</Button>}</li>)}</ul></div>}
   </section>
 }
-export function MemberPermissionsPage() {
-  const {scope,id,memberId,lang}=useAccessScope();const {key,access,roles,catalog}=useScopeData(scope,id);const queryClient=useQueryClient();const navigate=useNavigate()
-  const workspace=useWorkspace()
+export function MemberPermissionsPage({ memberId }: { memberId: string }) {
+  const {scope,id,lang}=useAccessScope();const {key,access,roles,catalog}=useScopeData(scope,id);const queryClient=useQueryClient();const navigate=useNavigate()
   const member=useQuery({queryKey:[...key,'member',memberId],queryFn:()=>accessService.member(scope,id,memberId!)})
   const form=useForm({defaultValues:{roleId:''}})
   useEffect(()=>{if(member.data)form.reset({roleId:member.data.roleId??''})},[member.data,form])
@@ -124,7 +126,7 @@ export function MemberPermissionsPage() {
       {catalog.data && (editLinkedRole && access.data
         ? <RoleEditor key={linkedRole.id} scope={scope} id={id} role={linkedRole} access={access.data} catalog={catalog.data[scope]} queryKey={key}/>
         : <ReadPermissions key={JSON.stringify(member.data.access?.permissions)} scope={scope} catalog={catalog.data[scope]} permissions={member.data.access?.permissions??empty}/>)}
-      {!member.data.access?.isOwner&&member.data.roleId&&can(access.data,'write',rolePermission[scope])&&<Button variant="text" color="purple" onClick={()=>navigate({href:withWorkspace('/'+lang+'/access/'+scope+'/'+id+'/roles?role='+member.data.roleId,scope==='page'?workspace.workspaceId:null)})}>{i18n('access.edit-template')}</Button>}
+      {!member.data.access?.isOwner&&member.data.roleId&&can(access.data,'write',rolePermission[scope])&&<Button variant="text" color="purple" onClick={()=>navigate({href:'/'+lang+'/access/'+scope+'/'+id+'/roles?role='+member.data.roleId})}>{i18n('access.edit-template')}</Button>}
       {assign.isError&&<Feedback error/>}{assign.isSuccess&&<Feedback message={i18n('access.saved')}/>}
     </>}
   </AccessFrame>
@@ -166,8 +168,8 @@ function RoleEditor({scope,id,role,access,catalog,queryKey}:{scope:AccessScope;i
     {role?.isDefault&&<Feedback message={i18n('access.default-role-help')}/>} {(save.isError||remove.isError)&&<Feedback error/>}{save.isSuccess&&<Feedback message={i18n('access.saved')}/>}
   </form></FormProvider>
 }
-export function RequestsPage() {
-  const {scope,id,requestId}=useAccessScope();const {key,access,roles}=useScopeData(scope,id);const queryClient=useQueryClient()
+export function RequestsPage({ requestId }: { requestId?: string } = {}) {
+  const {scope,id}=useAccessScope();const {key,access,roles}=useScopeData(scope,id);const queryClient=useQueryClient()
   const requests=useQuery({queryKey:[...key,'requests'],queryFn:()=>accessService.requests(scope,id)})
   const form=useForm({defaultValues:{roleId:''}})
   const availableRoles=(roles.data??[]).filter(role=>canDelegate(access.data,role.roles))

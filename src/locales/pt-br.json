@@ -143,6 +143,7 @@
         "tab-organization": "Organização",
         "personal-section": "Meus espaços de trabalho",
         "organization-section": "Espaços de trabalho das organizações",
+        "organizations-link": "Ir para organizações",
         "owner-unknown": "Criador indisponível"
       },
       "access": {
@@ -376,7 +377,7 @@
           "timeline": "Cronograma",
           "graph": "Grafos"
         },
-        "vazio": "Nenhum registro.",
+        "vazio": "Esta página ainda não possui subpáginas.",
         "em-breve": "Esta view ainda está em construção.",
         "abrir": "Abrir",
         "acoes-pagina": "Ações da página",

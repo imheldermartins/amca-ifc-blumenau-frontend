@@ -1,4 +1,5 @@
 import { i18n } from '@/lib/i18n'
+import type { PageBreadcrumb } from '@/lib/pageWorkspace'
 import {
   parseDatabase,
   parseHeaderCols,
@@ -20,16 +21,15 @@ import { apiService } from '@/services/ApiService'
  * o PONTO DE ENTRADA (a página por onde se começa a navegar); dali para baixo é
  * página → página, e o que muda é só o id.
  *
- * Por isso a unidade aqui é `loadPage(pageId)`: abrir a base da workspace é um
- * caso particular dela (`loadWorkspace`), não o contrário. Descer para uma
- * filha, quando houver navegação, é a MESMA chamada com outro id.
+ * Por isso a unidade aqui é `loadPage(pageId)`. Descer para uma filha é a
+ * MESMA chamada com outro id.
  *
  * O contrato de dados e a tradução para o modelo da lib `cubs-database` ficam
  * em `@/lib/databaseParser`; aqui só mora o I/O.
  *
- * Nada aqui assume uma workspace única: quem sabe QUAL workspace está em foco é
- * o `WorkspaceContext` (`@/contexts/WorkspaceContext`), que fornece o id — este
- * service só recebe ids por parâmetro.
+ * Nada aqui assume uma workspace única: o shell sabe qual workspace está em
+ * foco, mas este service só recebe o `pageId` canônico por parâmetro. O
+ * `WorkspaceContext` nunca substitui a página consultada.
  */
 export class DatabaseService {
   /** A página em si — `data` guarda as views salvas. */
@@ -43,6 +43,11 @@ export class DatabaseService {
    */
   getEntryPage(workspaceId: string): Promise<ApiPage> {
     return apiService.get<ApiPage>(`/workspaces/${workspaceId}/page_root`)
+  }
+
+  /** Cadeia de ancestrais usada para recuperar o contexto de um deep-link. */
+  getBreadcrumb(pageId: string): Promise<PageBreadcrumb[]> {
+    return apiService.get<PageBreadcrumb[]>(`/pages/${pageId}/breadcrumb`)
   }
 
   /**
@@ -100,15 +105,6 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * Entra pela workspace: resolve a página de entrada e abre como base. O id
-   * dela é o único dado que a workspace precisa fornecer — daí em diante o
-   * fluxo é o mesmo de qualquer outra página.
-   */
-  async loadWorkspace(workspaceId: string): Promise<ParsedDatabase> {
-    const entry = await this.getEntryPage(workspaceId)
-    return this.loadPage(entry.id)
-  }
 }
 
 export const databaseService = new DatabaseService()

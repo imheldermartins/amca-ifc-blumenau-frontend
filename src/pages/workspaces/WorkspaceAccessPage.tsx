@@ -1,13 +1,15 @@
 import { can } from '@/services/AccessService'
 import { Icon } from '@iconify/react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { FormProvider, useForm } from 'react-hook-form'
 import { Button, Select, TextField } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useQueryParams } from '@/hooks/useQueryParams'
+import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 import { i18n } from '@/lib/i18n'
 import { validators } from '@/lib/validators'
 import { workspaceService } from '@/services/WorkspaceService'
@@ -18,7 +20,7 @@ interface CreateValues {
 }
 
 export function WorkspaceAccessPage() {
-  const { lang } = useParams({ strict: false })
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
   const query = useQueryParams<'organization'>()
   const requestedOrganizationId = query.get('organization')
@@ -31,7 +33,7 @@ export function WorkspaceAccessPage() {
           variant="text"
           color="from-theme"
           className="mb-5 -ml-2"
-          onClick={() => navigate({ to: '/$lang/workspaces', params: { lang: lang ?? 'pt-br' }, search: { choose: true, tab: 'workspaces' } })}
+          onClick={() => navigate({ to: '/$lang/workspaces', params: { lang }, search: { choose: true, tab: 'workspaces' } })}
         >
           <Icon icon="lucide:arrow-left" className="size-4" />
           {i18n('pages.workspaces.access.back')}
@@ -46,11 +48,11 @@ export function WorkspaceAccessPage() {
 
         <div className="mt-6">
           <CreateWorkspaceForm
-            lang={lang ?? 'pt-br'}
+            lang={lang}
             initialOrganizationId={requestedOrganizationId}
             onCreateOrganization={() => navigate({
               to: '/$lang/organizations/new',
-              params: { lang: lang ?? 'pt-br' },
+              params: { lang },
             })}
           />
         </div>
@@ -87,10 +89,13 @@ function CreateWorkspaceForm({
       name: values.name,
       organizationId: values.organizationId,
     }),
-    onSuccess: (workspace) => navigate({
-      to: '/$lang/workspaces/$workspaceId/settings/general',
-      params: { lang, workspaceId: workspace.id },
-    }),
+    onSuccess: (workspace) => {
+      if (user) currentWorkspaceSession.set(user.id, workspace.id)
+      return navigate({
+        to: '/$lang/workspaces/$workspaceId/settings/general',
+        params: { lang, workspaceId: workspace.id },
+      })
+    },
   })
 
   return (

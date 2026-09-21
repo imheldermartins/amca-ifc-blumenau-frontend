@@ -219,6 +219,12 @@ essa experiência, mas a API repete a autorização e responde 403
 A preferência “abrir direto” usa `clientStorage` (`cubs.preferredWorkspace`)
 com `{ userId, workspaceId }`. Ela não atravessa contas e só é usada enquanto
 a workspace continuar na listagem autorizada; `?choose=true` força a seleção.
+A workspace atual usa `sessionStorage` (`cubs.currentWorkspace`), também
+associado ao usuário. Assim cada aba mantém seu próprio contexto sem poluir a
+URL. Toda abertura de `/page/$pageId` compara o breadcrumb da página com os
+`pageRootId` das memberships; isso também corrige a workspace quando a mesma
+aba muda de uma árvore para outra. URLs legadas com `?workspace=` são
+canonicalizadas sem o parâmetro.
 Este módulo é HTTP-only e não participa das salas/eventos de realtime.
 
 ## Rotas
@@ -236,15 +242,20 @@ idioma padrão.
 | `/$lang/workspaces/$workspaceId/settings/general` | privada e autorizada | nome e IconPicker |
 | `/$lang/workspaces/$workspaceId/settings/members` | privada e autorizada | usuários e roles |
 | `/$lang/access-denied` | privada | acesso não permitido |
-| `/$lang/myworkspace/$workspaceId` | privada + `AppLayout` | root da membership |
+| `/$lang/workspace/$workspaceId` | privada | resolve a root e redireciona para `/page/$pageId` |
 | `/$lang/page/$pageId` | privada + `AppLayout` | página pelo id |
 | `/$lang/colaborando` | privada + `AppLayout` | páginas compartilhadas |
+| `/$lang/my-chat` | privada + `AppLayout` | chat da workspace atual |
+| `/$lang/schedule` | privada + `AppLayout` | agenda da workspace atual |
 
 Guards:
 
-- `_public` (sign-in/sign-up): usuário autenticado segue para
-  `/$lang/workspaces`.
-- `_private`: sem sessão, redireciona para `/$lang/sign-in`.
+- `_public/_guest` (sign-in/sign-up): usuário autenticado segue para a URL de
+  retorno válida ou para `/$lang/workspaces`.
+- `_authenticated`: o `beforeLoad` aguarda a restauração única da sessão e,
+  sem usuário, redireciona para `/$lang/sign-in` antes de carregar os filhos.
+- `/workspace/$workspaceId` é somente a entrada; a página inicial e todas as
+  descendentes usam a rota canônica `/page/$pageId`.
 - o painel de workspace acrescenta o gate de role e a API repete a checagem.
 
 ### Anatomia (file-based routing, convenção de diretórios)
@@ -259,18 +270,25 @@ src/routes/
 └── $lang/              → "/$lang"       ($ = segmento dinâmico)
     ├── route.tsx       →   layout do segmento: valida idioma, ativa i18n
     ├── index.tsx       → "/$lang/"      (HomePage)
-    ├── _public/        →   grupo SEM url (_ = pathless layout): guard de deslogado
+    ├── _public/        →   layout visual público, sem alterar a URL
     │   ├── route.tsx
-    │   ├── sign-in.tsx          → "/$lang/sign-in"
-    │   └── sign-up.tsx          → "/$lang/sign-up"
-    └── _private/       →   grupo SEM url: guard de autenticado
+    │   ├── invite/$token.tsx
+    │   ├── verify-email/$token.tsx
+    │   └── _guest/     →   guard pathless de usuário deslogado
+    │       ├── route.tsx
+    │       ├── sign-in.tsx      → "/$lang/sign-in"
+    │       └── sign-up.tsx      → "/$lang/sign-up"
+    └── _authenticated/ →   grupo SEM url: guard de autenticado
         ├── route.tsx
         ├── access-denied.tsx
-        ├── _app/       →   grupo SEM url: AppLayout + WorkspaceProvider
+        ├── workspace/$workspaceId.tsx → resolve root e redireciona
+        ├── _app/       →   grupo SEM url: AppLayout
         │   ├── route.tsx
-        │   ├── myworkspace/$workspaceId.tsx
+        │   ├── -components/     → componentes exclusivos do layout
         │   ├── page/$pageId.tsx
-        │   └── colaborando.tsx
+        │   ├── colaborando.tsx
+        │   ├── my-chat.tsx
+        │   └── schedule.tsx
         └── workspaces/
             ├── index.tsx
             ├── new.tsx
@@ -284,26 +302,29 @@ Regras de nome:
 
 - `route.tsx` — o layout/guard do diretório e o `<Outlet />` dos filhos;
 - `index.tsx` — a rota exata do segmento;
-- `$param/` — segmento dinâmico (vira `useParams()`);
+- `$param/` — segmento dinâmico; somente o arquivo de rota lê `Route.useParams()`
+  e entrega o valor tipado à tela;
 - `_nome/` — agrupa filhos sob um layout **sem** aparecer na URL;
 - prefixo `-` (arquivo ou pasta) — ignorado pelo router (helpers, componentes);
 - `src/routeTree.gen.ts` — **gerado** pelo plugin (dev server ou build);
   nunca editar na mão.
 
-As visualizações ficam em `src/pages/<pagina>/NomePage.tsx`; os arquivos de
-rota são só a ligação (guard + `component`).
+Toda tela navegável possui um arquivo em `src/routes`. Componentes usados só por
+uma rota ou layout ficam em `-components` ao lado dela; o prefixo faz o TanStack
+ignorá-los na árvore. Componentes e telas compartilhados por rotas distintas
+continuam em `src/components` ou `src/pages`.
 
 ### Como criar uma rota
 
 Página pública `/pt-br/sobre`:
 
-1. View: `src/pages/sobre/SobrePage.tsx` (textos via `i18n()` +
-   chaves novas no `pt-br.json`).
-2. Rota: `src/routes/$lang/sobre.tsx`:
+1. View local: `src/routes/$lang/sobre/-components/SobrePage.tsx` (textos via
+   `i18n()` + chaves novas no `pt-br.json`).
+2. Rota: `src/routes/$lang/sobre/route.tsx`:
 
    ```tsx
    import { createFileRoute } from '@tanstack/react-router'
-   import { SobrePage } from '@/pages/sobre/SobrePage'
+   import { SobrePage } from './-components/SobrePage'
 
    export const Route = createFileRoute('/$lang/sobre')({
      component: SobrePage,
@@ -315,9 +336,9 @@ Página pública `/pt-br/sobre`:
    `<Link to="/$lang/sobre" params={{ lang }}>`.
 
 Página privada com chrome: mesmo processo, mas o arquivo vai dentro de
-`src/routes/$lang/_private/_app/`; ela herda o guard de auth, `AppLayout` e
+`src/routes/$lang/_authenticated/_app/`; ela herda o guard de auth, `AppLayout` e
 `WorkspaceProvider`. Uma tela privada full-screen (como seleção/configuração de
-workspace) vai diretamente sob `_private`, fora de `_app`.
+workspace) vai diretamente sob `_authenticated`, fora de `_app`.
 
 Sub-área nova com guard próprio (ex.: `/admin`): crie `src/routes/$lang/admin/route.tsx`
 com o `beforeLoad` do guard + component com `<Outlet />`, e os filhos como
@@ -325,6 +346,9 @@ arquivos dentro de `admin/`.
 
 ## i18n
 
+- `/$lang/route.tsx` valida o slug uma vez e fornece o idioma canônico por
+  `LanguageProvider`; componentes usam `useLanguage()` e não relêem `lang` dos
+  parâmetros de rota.
 - Todo conteúdo estático de tela passa por `i18n('chave')` — **nada de string
   solta em componente**.
 - Chaves hierárquicas: página / seção / componente. Ex.:

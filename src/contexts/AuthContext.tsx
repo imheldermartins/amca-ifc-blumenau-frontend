@@ -17,6 +17,7 @@ import {
   type SignUpInput,
   type SignUpResult,
 } from '@/services/AuthService'
+import { clientSessionStorage } from '@/lib/clientStorage'
 import { sessionStore } from '@/services/sessionStore'
 import { socketService } from '@/services/SocketService'
 
@@ -35,6 +36,11 @@ export interface AuthState {
   isAuthenticated: boolean
   /** O primeiro `restore()` (checagem da sessão no boot) ainda não respondeu. */
   restoring: boolean
+  /**
+   * Aguarda a restauração inicial uma única vez e devolve a sessão atual.
+   * Os guards do TanStack usam esta função sem repetir o refresh a cada rota.
+   */
+  ensureSession: () => Promise<AuthUser | null>
   signIn: (input: SignInInput) => Promise<AuthUser>
   signUp: (input: SignUpInput) => Promise<SignUpResult>
   completeVerification: (token: string, input: { name?: string; password: string }) => Promise<ActivationResult>
@@ -49,25 +55,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // layout não decide nada (nem monta rota privada, nem redireciona) — evita o
   // flash de "deslogado" antes de a sessão do cookie ser confirmada.
   const [restoring, setRestoring] = useState(true)
+  const userRef = useRef<AuthUser | null>(null)
+  const restoringRef = useRef(true)
+  const restorePromiseRef = useRef<Promise<AuthUser | null> | null>(null)
+  const mountedRef = useRef(true)
   const channelRef = useRef<BroadcastChannel | null>(null)
 
-  // Confere a sessão UMA vez, no boot. É o "useEffect que confere se foi
-  // logado" — não um refresh proativo em cada rota. Sem sessão, `user` fica
-  // null e o layout manda para o sign-in; a tela de login NÃO redispara isto.
-  useEffect(() => {
-    let active = true
-    authService
+  const setAuthenticatedUser = useCallback((nextUser: AuthUser | null) => {
+    userRef.current = nextUser
+    if (mountedRef.current) setUser(nextUser)
+  }, [])
+
+  // O provider e os guards compartilham a mesma promise. Assim, o primeiro
+  // beforeLoad pode aguardar o cookie HttpOnly sem montar a rota filha e sem
+  // transformar cada navegação em um novo refresh.
+  const ensureSession = useCallback((): Promise<AuthUser | null> => {
+    if (!restoringRef.current) return Promise.resolve(userRef.current)
+
+    restorePromiseRef.current ??= authService
       .restore()
+      .catch(() => null)
       .then((restored) => {
-        if (active) setUser(restored)
+        setAuthenticatedUser(restored)
+        return restored
       })
       .finally(() => {
-        if (active) setRestoring(false)
+        restoringRef.current = false
+        if (mountedRef.current) setRestoring(false)
       })
+
+    return restorePromiseRef.current
+  }, [setAuthenticatedUser])
+
+  useEffect(() => {
+    mountedRef.current = true
+    void ensureSession()
     return () => {
-      active = false
+      mountedRef.current = false
     }
-  }, [])
+  }, [ensureSession])
 
   // Um canal por provider: publica no logout e escuta o logout das outras abas.
   useEffect(() => {
@@ -80,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Outra aba deslogou. O cookie de refresh já sumiu (é compartilhado),
         // mas ESTA aba ainda tem o access em memória e o socket vivo — limpa
         // os dois e recarrega, o que joga o guard de rota no sign-in.
+        clientSessionStorage.clear()
         sessionStore.clear()
         socketService.disconnect()
         window.location.reload()
@@ -96,9 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = useCallback(async (input: SignInInput) => {
     const authenticated = await authService.signIn(input)
-    setUser(authenticated)
+    setAuthenticatedUser(authenticated)
     return authenticated
-  }, [])
+  }, [setAuthenticatedUser])
 
   const signUp = useCallback(async (input: SignUpInput) => {
     return authService.signUp(input)
@@ -106,32 +133,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completeVerification = useCallback(async (token: string, input: { name?: string; password: string }) => {
     const result = await authService.completeVerification(token, input)
-    setUser(result.user)
+    setAuthenticatedUser(result.user)
     return result
-  }, [])
+  }, [setAuthenticatedUser])
 
   const signOut = useCallback(async () => {
     // Limpa a UI ANTES da ida ao servidor: deslogar não pode ficar refém da
     // rede. O `signOut` do service nunca lança, e revoga do lado de lá.
-    setUser(null)
+    clientSessionStorage.clear()
+    setAuthenticatedUser(null)
     // Derruba o socket JÁ (não espera a navegação desmontar os consumidores) e
     // avisa as outras abas para caírem juntas.
     socketService.disconnect()
     channelRef.current?.postMessage('logout' satisfies SessionMessage)
     await authService.signOut()
-  }, [])
+  }, [setAuthenticatedUser])
 
   const value = useMemo<AuthState>(
     () => ({
       user,
       isAuthenticated: user !== null,
       restoring,
+      ensureSession,
       signIn,
       signUp,
       completeVerification,
       signOut,
     }),
-    [user, restoring, signIn, signUp, completeVerification, signOut],
+    [user, restoring, ensureSession, signIn, signUp, completeVerification, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -289,7 +289,7 @@ describe('DatabaseViewToolbar', () => {
     expect(onAction).toHaveBeenCalledOnce()
   })
 
-  it('coloca o CTA circular Nova à esquerda do status e encaminha a criação', async () => {
+  it('coloca o CTA circular Criar à esquerda do status e encaminha a criação', async () => {
     const onAddRow = vi.fn()
     render(
       <DatabaseViewToolbar
@@ -303,14 +303,14 @@ describe('DatabaseViewToolbar', () => {
       />,
     )
 
-    const button = screen.getByRole('button', { name: 'Nova' })
+    const button = screen.getByRole('button', { name: 'Criar' })
     const status = screen.getByRole('status')
-    expect(button.className).toContain('size-7')
+    expect(button.className).toContain('size-10')
     expect(button.className).toContain('rounded-full')
     expect(button.nextElementSibling).toBe(status)
 
     fireEvent.focus(button)
-    expect((await screen.findByRole('tooltip')).textContent).toContain('Nova')
+    expect((await screen.findByRole('tooltip')).textContent).toContain('Criar')
     fireEvent.click(button)
     expect(onAddRow).toHaveBeenCalledOnce()
   })

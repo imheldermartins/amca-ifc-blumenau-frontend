@@ -4,9 +4,9 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const mocks=vi.hoisted(()=>({current:vi.fn(),roles:vi.fn(),catalog:vi.fn(),member:vi.fn(),saveRole:vi.fn(),requests:vi.fn(),decide:vi.fn(),navigate:vi.fn(),querySet:vi.fn()}))
 vi.mock('@tanstack/react-router',()=>({useNavigate:()=>mocks.navigate,useParams:()=>({lang:'pt-br',scope:'page',scopeId:'page',memberId:'owner',requestId:'request'}),useCanGoBack:()=>false,useRouter:()=>({history:{back:vi.fn()}})}))
 vi.mock('@/contexts/AuthContext',()=>({useAuth:()=>({user:{id:'owner'}})}))
-vi.mock('@/contexts/WorkspaceContext',()=>({useWorkspace:()=>({workspaceId:'workspace'})}))
+vi.mock('@/contexts/AccessRouteContext',()=>({useAccessRoute:()=>({scope:'page',id:'page'}),useOptionalAccessRoute:()=>({scope:'page',id:'page'})}))
 vi.mock('@/hooks/useQueryParams',()=>({useQueryParams:()=>({get:()=>undefined,set:mocks.querySet})}))
-vi.mock('@/lib/i18n',()=>({i18n:(key:string)=>key}))
+vi.mock('@/lib/i18n',()=>({DEFAULT_LANGUAGE:{slug:'pt-br'},i18n:(key:string)=>key}))
 vi.mock('@/services/AccessService',async original=>({...await original<typeof import('@/services/AccessService')>(),accessService:mocks}))
 import {MemberPermissionsPage, RolesPage, RequestsPage} from './AccessPages'
 const catalog={read:['view','subpages','members','roles'],write:['update','create','edit_subpages','delete','add_members','promote_members','create_page_roles']}
@@ -42,14 +42,14 @@ describe('telas de permissões',()=>{
   expect(child.disabled).toBe(false)
  })
  it('mostra a soberania do owner e não oferece troca de role',async()=>{
-  mount(<MemberPermissionsPage/>)
+  mount(<MemberPermissionsPage memberId="owner"/>)
   expect(await screen.findByText('access.owner-help')).toBeTruthy()
   expect(screen.queryByRole('button',{name:'access.save'})).toBeNull()
   expect(screen.queryByRole('combobox')).toBeNull()
   expect((screen.getByRole('switch',{name:'access.permission.page.read.view'}) as HTMLInputElement).disabled).toBe(true)
  })
  it('abrir o link de solicitação não aceita: a decisão precisa de um clique',async()=>{
-  mount(<RequestsPage/>)
+  mount(<RequestsPage requestId="request"/>)
   expect(await screen.findByText('Pessoa solicitante')).toBeTruthy()
   expect(mocks.decide).not.toHaveBeenCalled()
   expect((screen.getByRole('button',{name:'access.accept'}) as HTMLButtonElement).disabled).toBe(true)

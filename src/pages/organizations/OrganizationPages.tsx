@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { FormProvider, useForm } from 'react-hook-form'
 import { Icon } from '@iconify/react'
 import { Button, TextField, Select, Tooltip } from 'cubs-components'
 import { Typography } from '@/components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { i18n } from '@/lib/i18n'
 import { validators } from '@/lib/validators'
 import { workspaceService, type ApiOrganization } from '@/services/WorkspaceService'
@@ -13,7 +14,7 @@ import { accessService, can } from '@/services/AccessService'
 import { Feedback } from '@/pages/access/AccessPages'
 
 export function OrganizationsPage() {
-  const { lang } = useParams({ strict: false });
+  const { slug: lang } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
   const organizations = useQuery({
@@ -78,7 +79,7 @@ export function OrganizationsPage() {
 }
 
 export function NewOrganizationPage() {
-  const { lang } = useParams({ strict: false }); const { user } = useAuth(); const navigate = useNavigate(); const queryClient = useQueryClient()
+  const { slug: lang } = useLanguage(); const { user } = useAuth(); const navigate = useNavigate(); const queryClient = useQueryClient()
   const form = useForm({ defaultValues: { name: '' } })
   const create = useMutation({
     mutationFn: (value: { name: string }) => workspaceService.createOrganization(value),
@@ -99,8 +100,8 @@ export function NewOrganizationPage() {
     </form></FormProvider>
   </section></main>
 }
-export function OrganizationPage() {
-  const { organizationId, lang } = useParams({ strict: false }); const id = organizationId ?? ''; const { user } = useAuth(); const navigate = useNavigate()
+export function OrganizationPage({ organizationId }: { organizationId: string }) {
+  const { slug: lang } = useLanguage(); const id = organizationId; const { user } = useAuth(); const navigate = useNavigate()
   const organization = useQuery({ queryKey: ['organization', user?.id, id], queryFn: () => apiService.get<ApiOrganization>('/organizations/' + id) })
   const workspaces = useQuery({ queryKey: ['organization-workspaces', user?.id, id], queryFn: () => apiService.get<{ id: string; name: string; icon: string; canEnter: boolean; isMember: boolean }[]>('/organizations/' + id + '/workspaces'), enabled: can(organization.data, 'read', 'workspaces') })
   const request = useMutation({ mutationFn: (workspaceId: string) => accessService.request('workspace', workspaceId) })
@@ -113,14 +114,14 @@ export function OrganizationPage() {
           {(can(organization.data, 'read', 'members') || can(organization.data, 'write', 'add_members')) && <Button variant="text" color="from-theme" onClick={() => navigate({ href: '/' + lang + '/access/organization/' + id })}>{i18n('access.members')}</Button>}
           {(can(organization.data, 'read', 'roles') || can(organization.data, 'write', 'create_org_roles')) && <Button variant="text" color="from-theme" onClick={() => navigate({ href: '/' + lang + '/access/organization/' + id + '/roles' })}>{i18n('access.roles')}</Button>}
           {can(organization.data, 'write', 'add_members') && <Button variant="text" color="from-theme" onClick={() => navigate({ href: '/' + lang + '/access/organization/' + id + '/requests' })}>{i18n('access.requests')}</Button>}
-          {can(organization.data, 'write', 'create') && <Button variant="filled" color="purple" onClick={() => navigate({ to: '/$lang/workspaces/new', params: { lang: lang ?? 'pt-br' }, search: { organization: id } })}>{i18n('organization.new-workspace')}</Button>}
+          {can(organization.data, 'write', 'create') && <Button variant="filled" color="purple" onClick={() => navigate({ to: '/$lang/workspaces/new', params: { lang }, search: { organization: id } })}>{i18n('organization.new-workspace')}</Button>}
         </div>
       </header>
       {can(organization.data, 'read', 'workspaces') && <section className="mt-8"><Typography variant="h2">{i18n('organization.workspaces')}</Typography>
         {workspaces.isPending ? <Feedback /> : workspaces.isError ? <Feedback error /> : <ul className="mt-4 grid gap-4 sm:grid-cols-2">
           {workspaces.data.map(workspace => <li key={workspace.id} className="flex items-center justify-between gap-3 rounded-xl border border-divider p-5">
             <div className="flex min-w-0 items-center gap-3"><Icon icon={workspace.icon} className="size-6 shrink-0" /><Typography variant="subtitle" as="p" className="truncate">{workspace.name}</Typography></div>
-            <Button variant="text" color="purple" disabled={request.isPending || (!workspace.canEnter && request.isSuccess && request.variables === workspace.id)} onClick={() => workspace.canEnter ? navigate({ href: '/' + lang + '/myworkspace/' + workspace.id }) : request.mutate(workspace.id)}>{i18n(workspace.canEnter ? 'organization.enter' : request.isSuccess && request.variables === workspace.id ? 'organization.requested' : 'organization.request')}</Button>
+            <Button variant="text" color="purple" disabled={request.isPending || (!workspace.canEnter && request.isSuccess && request.variables === workspace.id)} onClick={() => workspace.canEnter ? navigate({ to: '/$lang/workspace/$workspaceId', params: { lang, workspaceId: workspace.id } }) : request.mutate(workspace.id)}>{i18n(workspace.canEnter ? 'organization.enter' : request.isSuccess && request.variables === workspace.id ? 'organization.requested' : 'organization.request')}</Button>
           </li>)}{!workspaces.data.length && <Feedback message={i18n('organization.empty-workspaces')} />}
         </ul>}
       </section>}

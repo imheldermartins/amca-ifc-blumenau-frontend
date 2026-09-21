@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 
 import { Typography } from '@components/Typography'
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
-import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, normalizePageTitle } from '@/lib/pageNavigation'
 import { sharedPagesService, type ApiSharedPage } from '@/services/SharedPagesService'
@@ -17,8 +17,7 @@ import { sharedPagesService, type ApiSharedPage } from '@/services/SharedPagesSe
  * de realtime.
  */
 export function CollaboratingPage() {
-  const { lang } = useParams({ strict: false })
-  const { workspaceId } = useWorkspace()
+  const { slug: lang } = useLanguage()
   const [pages, setPages] = useState<ApiSharedPage[]>([])
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -73,12 +72,8 @@ export function CollaboratingPage() {
             <li key={page.id}>
               <Link
                 to="/$lang/page/$pageId"
-                params={{ lang: lang ?? 'pt-br', pageId: page.id }}
-                state={createPageNavigationState(page.id, page.title, workspaceId)}
-                search={(previous) => ({
-                  ...previous,
-                  ...(workspaceId ? { workspace: workspaceId } : {}),
-                })}
+                params={{ lang, pageId: page.id }}
+                state={createPageNavigationState(page.id, page.title)}
                 className={cn(
                   'flex h-48 flex-col gap-1.5 rounded-2xl border border-divider-contrast bg-glass p-3.5',
                   'shadow-lg shadow-dark-900/5 backdrop-blur-md transition-[background-color,box-shadow,transform] hover:-translate-y-0.5 hover:bg-active hover:shadow-xl',

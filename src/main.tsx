@@ -1,7 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { RouterProvider, createRouter } from '@tanstack/react-router'
 
 // Fonte padrão do app (auto-hospedada, variável 100–900). O nome da família
 // é 'Noto Sans Variable' — referenciado em --font-sans no index.css.
@@ -10,32 +9,18 @@ import '@fontsource-variable/noto-sans/index.css'
 import '@/lib/i18n'
 import './index.css'
 
+import { AppRouter } from '@/AppRouter'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { FeedbackProvider } from '@/contexts/FeedbackContext'
-import { parseQuerySearch, stringifyQuerySearch } from '@/lib/queryParams'
-import { routeTree } from './routeTree.gen'
 
 const queryClient = new QueryClient()
-
-const router = createRouter({
-  routeTree,
-  defaultPreload: 'intent',
-  parseSearch: parseQuerySearch,
-  stringifySearch: stringifyQuerySearch,
-})
-
-declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router
-  }
-}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <FeedbackProvider>
         <AuthProvider>
-          <RouterProvider router={router} />
+          <AppRouter />
         </AuthProvider>
       </FeedbackProvider>
     </QueryClientProvider>

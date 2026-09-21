@@ -1,28 +1,18 @@
-import { useQueryParams } from '@/hooks/useQueryParams'
-import { readAuthReturnTo } from '@/lib/authReturnTo'
 import { useLayoutEffect } from 'react'
-import { Navigate, Outlet, createFileRoute, useParams, useNavigate, useLocation } from '@tanstack/react-router'
-
-import { useAuth } from '@/contexts/AuthContext'
+import { Outlet, createFileRoute } from '@tanstack/react-router'
 
 /**
- * Layout público (pathless): agrupa login e os dois cadastros. Usuário já autenticado
- * não tem o que fazer aqui — vai ao seletor, que respeita sua preferência.
- *
- * Reativo, como o guard privado: lê o estado do `AuthProvider` (que confere a
- * sessão uma vez no boot) em vez de disparar refresh. A tela de login NÃO faz
- * fetch de sessão a cada visita — era isso que estourava o rate limit.
+ * Layout visual das telas públicas. A restauração é aguardada antes dos filhos
+ * para que convite e verificação também recebam o usuário correto sem flash.
  */
 export const Route = createFileRoute('/$lang/_public')({
+  beforeLoad: async ({ context }) => {
+    await context.auth.ensureSession()
+  },
   component: PublicLayout,
 })
 
 function PublicLayout() {
-  const { lang } = useParams({ strict: false })
-  const { user, restoring } = useAuth()
-  const location = useLocation()
-  const returnTo=readAuthReturnTo(useQueryParams<'returnTo'>().get('returnTo'))
-
   // As telas públicas têm temas fixos (light no cadastro, purple no login),
   // sem alternância. A preferência continua intacta: ao sair daqui, o tema
   // anterior da área autenticada é restaurado.
@@ -36,21 +26,5 @@ function PublicLayout() {
     }
   }, [])
 
-  // Enquanto confere a sessão, não decide: mostrar o login e depois pular para
-  // a workspace (se houver sessão) seria um flash.
-  const isEmailAction = /\/(?:verify-email|invite)\//.test(location.pathname)
-  if (!restoring && user && !isEmailAction) {
-    if(returnTo)return <ReturnTo href={returnTo}/>
-    return (
-      <Navigate
-        to="/$lang/workspaces"
-        params={{ lang: lang ?? 'pt-br' }}
-        search={{ choose: false, tab: 'workspaces' }}
-      />
-    )
-  }
-
-  return restoring ? null : <Outlet />
+  return <Outlet />
 }
-
-function ReturnTo({href}:{href:string}) { const navigate=useNavigate();useLayoutEffect(()=>{void navigate({href,replace:true})},[href,navigate]);return null }

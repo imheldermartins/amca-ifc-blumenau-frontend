@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { clientLocalStorage } from '@/lib/clientStorage'
+import { clientLocalStorage, clientSessionStorage } from '@/lib/clientStorage'
 
 /**
  * O `clientLocalStorage` guarda PREFERÊNCIA de usuário — e os testes cuidam
@@ -65,5 +65,18 @@ describe('clientLocalStorage', () => {
 
     // A preferência não persiste, mas a chamada não pode propagar o erro.
     expect(() => clientLocalStorage.set('theme', 'dark')).not.toThrow()
+  })
+
+  it('limpa todo o namespace de sessão sem apagar chaves externas', () => {
+    sessionStorage.clear()
+    clientSessionStorage.set('currentWorkspace', { workspaceId: 'workspace-a' })
+    clientSessionStorage.set('futureTransientState', true)
+    sessionStorage.setItem('outro-app', 'preservar')
+
+    clientSessionStorage.clear()
+
+    expect(sessionStorage.getItem('cubs.currentWorkspace')).toBeNull()
+    expect(sessionStorage.getItem('cubs.futureTransientState')).toBeNull()
+    expect(sessionStorage.getItem('outro-app')).toBe('preservar')
   })
 })

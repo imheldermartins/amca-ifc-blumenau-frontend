@@ -11,6 +11,7 @@ import { useDatabaseViewQuery } from './useDatabaseViewQuery'
 const queryState = vi.hoisted(() => ({
   values: {} as Record<string, unknown>,
   replaceNamespace: vi.fn(),
+  reset: vi.fn(),
 }))
 
 vi.mock('@/hooks/useQueryParams', () => ({
@@ -25,7 +26,7 @@ vi.mock('@/hooks/useQueryParams', () => ({
     set: vi.fn(),
     remove: vi.fn(),
     toggle: vi.fn(),
-    reset: vi.fn(),
+    reset: queryState.reset,
     clear: vi.fn(),
     replaceNamespace: queryState.replaceNamespace,
   }),
@@ -157,6 +158,7 @@ function Probe({
 beforeEach(() => {
   queryState.values = {}
   queryState.replaceNamespace.mockReset()
+  queryState.reset.mockReset()
 })
 
 afterEach(() => {
@@ -455,6 +457,10 @@ describe('useDatabaseViewQuery', () => {
     expect(onPersist).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'View A' }))
+    expect(queryState.reset).toHaveBeenCalledWith(
+      { view: 'tabela', fv: '2', group: 'area' },
+      { replace: true },
+    )
     queryState.values = { view: 'tabela', fv: 2, group: 'area' }
     rerender(<Probe onPersist={onPersist} />)
     await act(async () => {

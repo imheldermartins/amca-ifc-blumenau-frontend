@@ -1,6 +1,7 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 
+import { LanguageProvider } from '@/contexts/LanguageContext'
 import { DEFAULT_LANGUAGE, changeLanguage, findLanguageBySlug } from '@/lib/i18n'
 
 /**
@@ -14,13 +15,19 @@ export const Route = createFileRoute('/$lang')({
       throw redirect({ to: '/$lang', params: { lang: DEFAULT_LANGUAGE.slug } })
     }
     changeLanguage(language)
+    return { language }
   },
   component: LangLayout,
 })
 
 function LangLayout() {
+  const { language } = Route.useRouteContext()
   // Assina o i18next: quando o idioma muda, esta subárvore re-renderiza
   // e as chamadas de i18n() resolvem no idioma novo.
   useTranslation()
-  return <Outlet />
+  return (
+    <LanguageProvider language={language}>
+      <Outlet />
+    </LanguageProvider>
+  )
 }

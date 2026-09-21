@@ -255,7 +255,7 @@ describe('CubsDatabase — filtros e agrupamentos', () => {
     expect(onAction).toHaveBeenCalledOnce()
   })
 
-  it('reutiliza a mesma criação no CTA Nova e no controle guiado', () => {
+  it('reutiliza a mesma criação no CTA Criar e no controle guiado', () => {
     const onAddRow = vi.fn()
     render(
       <CubsDatabase
@@ -274,7 +274,7 @@ describe('CubsDatabase — filtros e agrupamentos', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Nova' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Criar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar linha' }))
 
     expect(onAddRow).toHaveBeenCalledTimes(2)

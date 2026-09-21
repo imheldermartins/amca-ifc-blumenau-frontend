@@ -1,13 +1,14 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { Button } from 'cubs-components'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { authService } from '@/services/AuthService'
 import { i18n } from '@/lib/i18n'
 
-export function InvitePage() {
-  const { lang, token } = useParams({ from: '/$lang/_public/invite/$token' })
+export function InvitePage({ token }: { token: string }) {
+  const { slug: lang } = useLanguage()
   const { user } = useAuth()
   const navigate = useNavigate()
   const preview = useQuery({ queryKey: ['access-invite', token], queryFn: () => authService.previewInvite(token), retry: false })
@@ -17,7 +18,7 @@ export function InvitePage() {
       const data = preview.data
       if (!data?.scopeType || !data.scopeId) return
       const destination = data.scopeType === 'organization' ? `/${lang}/organizations/${data.scopeId}`
-        : data.scopeType === 'workspace' ? `/${lang}/myworkspace/${data.scopeId}` : `/${lang}/page/${data.scopeId}`
+        : data.scopeType === 'workspace' ? `/${lang}/workspace/${data.scopeId}` : `/${lang}/page/${data.scopeId}`
       void navigate({ href: destination, replace: true })
     },
   })

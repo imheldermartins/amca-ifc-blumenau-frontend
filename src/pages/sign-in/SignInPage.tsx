@@ -2,10 +2,11 @@ import { useQueryParams } from '@/hooks/useQueryParams'
 import { readAuthReturnTo } from '@/lib/authReturnTo'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { Button, TextField } from 'cubs-components'
 import { useAuth } from '@contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { i18n } from '@/lib/i18n'
 import { combineRules, validators } from '@/lib/validators'
 import { InvalidCredentialsError } from '@/services/AuthService'
@@ -16,7 +17,7 @@ interface SignInFormValues {
 }
 
 export function SignInPage() {
-  const { lang } = useParams({ from: '/$lang/_public/sign-in' })
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
   const auth = useAuth()
   const returnTo=readAuthReturnTo(useQueryParams<'returnTo'>().get('returnTo'))

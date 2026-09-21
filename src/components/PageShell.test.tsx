@@ -22,9 +22,8 @@ const dependencies = vi.hoisted(() => ({
   } as AuthUser | null,
 }))
 
-vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn(), useParams: () => ({ lang: 'pt-br' }) }))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
 vi.mock('@/hooks/usePageAccess', () => ({ usePageAccess: () => ({data: {permissions: dependencies.permissions}}) }))
-vi.mock('@/contexts/WorkspaceContext', () => ({ useWorkspace: () => ({ workspaceId: 'workspace-1' }) }))
 
 vi.mock('@/hooks/usePageRealtime', () => ({
   usePageRealtime: (_pageId: string | undefined, options: UsePageRealtimeOptions) => {
@@ -50,7 +49,7 @@ vi.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: dependencies.user }),
 }))
 
-vi.mock('@/lib/i18n', () => ({ i18n: (key: string) => key }))
+vi.mock('@/lib/i18n', () => ({ DEFAULT_LANGUAGE: { slug: 'pt-br' }, i18n: (key: string) => key }))
 
 const PAGE_ID = '01KXVZ0000PARENT0000000001'
 

@@ -6,8 +6,6 @@ import { TITLE_COLUMN_ID } from '@/lib/databaseParser'
 export interface PageShellNavigationState {
   pageId: string
   title: string | null
-  /** Workspace de origem, para o chrome continuar apontando à área atual. */
-  workspaceId?: string
 }
 
 declare module '@tanstack/history' {
@@ -33,13 +31,11 @@ export function readRowPageTitle(row: RowData): string | null {
 export function createPageNavigationState(
   pageId: string,
   title: unknown,
-  workspaceId?: string | null,
 ): HistoryState {
   return {
     pageShell: {
       pageId,
       title: normalizePageTitle(title),
-      ...(workspaceId ? { workspaceId } : {}),
     },
   }
 }
@@ -50,13 +46,4 @@ export function readPageNavigationTitle(
   pageId: string,
 ): string | null | undefined {
   return state.pageShell?.pageId === pageId ? state.pageShell.title : undefined
-}
-
-/** A origem só vale para a mesma página transportada no state. */
-export function readPageNavigationWorkspaceId(
-  state: HistoryState,
-  pageId: string | undefined,
-): string | undefined {
-  if (!pageId || state.pageShell?.pageId !== pageId) return undefined
-  return state.pageShell.workspaceId
 }

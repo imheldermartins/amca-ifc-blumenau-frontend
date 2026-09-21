@@ -144,6 +144,37 @@ beforeEach(() => {
 
 afterEach(() => cleanup())
 
+describe('usePageDatabase — identidade da rota', () => {
+  it('carrega a base usando exatamente o pageId recebido pela rota', async () => {
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+    expect(dependencies.loadPage).toHaveBeenCalledWith(PAGE_ID)
+  })
+
+  it('mantém uma página-folha válida como database vazia, não como falha', async () => {
+    dependencies.loadPage.mockResolvedValueOnce({ ...database('folha'), rows: [] })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.failed).toBe(false)
+    expect(result.current.database?.rows).toEqual([])
+  })
+
+  it('marca falha HTTP separadamente de uma resposta vazia', async () => {
+    dependencies.loadPage.mockRejectedValueOnce(new Error('falha HTTP'))
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.failed).toBe(true)
+    expect(result.current.database).toBeNull()
+  })
+})
+
 describe('usePageDatabase — criação de página-linha', () => {
   it('deduplica o eco row-created sem refetch e deixa a primeira edição como célula ausente', async () => {
     const createRequest = deferred<{

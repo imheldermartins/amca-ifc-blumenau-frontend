@@ -1,4 +1,4 @@
-import {cleanup,fireEvent,render,screen,waitFor} from '@testing-library/react'
+import {cleanup,fireEvent,render,screen,waitFor,within} from '@testing-library/react'
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query'
 import {beforeEach,afterEach,describe,it,expect,vi} from 'vitest'
 const mocks=vi.hoisted(()=>({navigate:vi.fn(),listOrganizations:vi.fn(),createOrganization:vi.fn(),get:vi.fn(),request:vi.fn()}))
@@ -8,7 +8,7 @@ vi.mock('@/services/WorkspaceService',()=>({workspaceService:mocks}))
 vi.mock('@/services/ApiService',()=>({apiService:{get:mocks.get}}))
 vi.mock('@/services/AccessService',async original=>({...await original<typeof import('@/services/AccessService')>(),accessService:{request:mocks.request}}))
 vi.mock('@iconify/react',()=>({Icon:({icon}:{icon:string})=><span data-testid="icon" data-icon={icon}/>}))
-vi.mock('@/lib/i18n',()=>({i18n:(key:string)=>key}))
+vi.mock('@/lib/i18n',()=>({DEFAULT_LANGUAGE:{slug:'pt-br'},i18n:(key:string)=>key}))
 import {OrganizationsPage,OrganizationPage,NewOrganizationPage} from './OrganizationPages'
 function mount(element:React.ReactNode){return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}>{element}</QueryClientProvider>)}
 beforeEach(()=>{
@@ -23,13 +23,13 @@ afterEach(cleanup)
 describe('organizações',()=>{
  it('possui rota própria e não usa ícone na organização',async()=>{
   mount(<OrganizationsPage/>)
-  expect(await screen.findByText('Instituto Cub')).toBeTruthy()
-  expect(screen.queryByTestId('icon')).toBeNull()
+  const organizationName = await screen.findByText('Instituto Cub')
+  expect(within(organizationName.closest('li')!).queryByTestId('icon')).toBeNull()
   fireEvent.click(screen.getByRole('button',{name:'organization.open'}))
   expect(mocks.navigate).toHaveBeenCalledWith({href:'/pt-br/organizations/org'})
  })
  it('leitura do catálogo permite solicitar, sem conceder entrada ou gestão',async()=>{
-  mount(<OrganizationPage/>)
+  mount(<OrganizationPage organizationId="org"/>)
   expect(await screen.findByText('Pesquisa')).toBeTruthy()
   expect(screen.getByTestId('icon').getAttribute('data-icon')).toBe('lucide:box')
   expect(screen.queryByRole('button',{name:'organization.enter'})).toBeNull()

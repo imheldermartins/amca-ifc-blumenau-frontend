@@ -1,4 +1,4 @@
-import { useLocation, useParams } from '@tanstack/react-router'
+import { useLocation } from '@tanstack/react-router'
 
 import { readPageNavigationTitle } from '@/lib/pageNavigation'
 import { PageDatabaseView } from '@/pages/app/PageDatabaseView'
@@ -8,11 +8,10 @@ import { PageDatabaseView } from '@/pages/app/PageDatabaseView'
  * da URL, sem workspace no meio: quem autoriza é o backend (dono OU membro,
  * herdado pela árvore de `page_edges`).
  */
-export function PageRoutePage() {
-  const { pageId } = useParams({ from: '/$lang/_private/_app/page/$pageId' })
+export function PageRoutePage({ pageId }: { pageId: string }) {
   const initialTitle = useLocation({
     select: (location) => readPageNavigationTitle(location.state, pageId),
   })
 
-  return <PageDatabaseView pageId={pageId} initialTitle={initialTitle} />
+  return <PageDatabaseView key={pageId} pageId={pageId} initialTitle={initialTitle} />
 }

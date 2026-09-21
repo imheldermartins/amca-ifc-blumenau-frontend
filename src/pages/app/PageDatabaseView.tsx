@@ -1,7 +1,7 @@
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
   DataViewKind,
@@ -11,8 +11,9 @@ import type {
 } from 'cubs-database'
 
 import { PageShell } from '@components/PageShell'
+import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
-import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { i18n } from '@/lib/i18n'
@@ -43,9 +44,8 @@ const EMPTY_ROWS: RowData[] = []
 
 /**
  * Uma página do Cub's com a base dentro. É a view compartilhada pelos DOIS
- * caminhos de entrada — `/myworkspace/:id` (que resolve a página de entrada) e
- * `/page/:id` (o card de "Colaborando") —, e é justamente por serem a mesma
- * view, sobre o mesmo `pageId`, que os dois caem na mesma sala de realtime.
+ * caminhos de entrada convergem em `/page/:id`, inclusive a página inicial
+ * resolvida por `/workspace/:id`.
  *
  * O estado e a escrita moram no `usePageDatabase`; aqui só a composição.
  *
@@ -56,12 +56,13 @@ const EMPTY_ROWS: RowData[] = []
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
 export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
+  const [contentView, setContentView] = useState<PageContentView>('files')
+  const databasePageId = contentView === 'files' ? pageId : undefined
   const permissions = usePageAccess(pageId)
   const mayEdit = can(permissions.data, 'write', 'update')
   const mayEditRows = mayEdit && can(permissions.data, 'write', 'edit_subpages')
-  const { lang } = useParams({ strict: false })
+  const { slug: currentLang } = useLanguage()
   const navigate = useNavigate()
-  const { workspaceId } = useWorkspace()
   const {
     database,
     loading,
@@ -70,19 +71,19 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     columnWidthPreviews,
     realtimeOptions,
     handlers,
-  } = usePageDatabase(pageId)
+  } = usePageDatabase(databasePageId)
   const addView = handlers.onAddView
   const duplicateView = handlers.onDuplicateView
   const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
-  const settings = database?.settings ?? EMPTY_SETTINGS
-  const columns = database?.headerCols ?? EMPTY_COLUMNS
+  const settings = contentView === 'files' ? database?.settings ?? EMPTY_SETTINGS : EMPTY_SETTINGS
+  const columns = contentView === 'files' ? database?.headerCols ?? EMPTY_COLUMNS : EMPTY_COLUMNS
   const viewQuery = useDatabaseViewQuery({
     settings,
     columns,
     preferredViewId,
-    scopeKey: pageId,
+    scopeKey: databasePageId,
     onPersistFilters: mayEdit ? handlers.onViewFiltersChange : async () => undefined,
   })
   const changeView = viewQuery.changeView
@@ -96,8 +97,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   }, [changeView, pageId, pendingCreatedView, settings])
 
   const broken = failed || failedToResolve
-  const currentLang = lang ?? 'pt-br'
-
   // `currentLang` na lista de dependências é PROPOSITAL, e o linter reclama
   // porque não consegue ver a ligação: `i18n()` lê do singleton do i18next,
   // não de uma variável do escopo. Trocar de idioma muda o slug da rota, e é
@@ -240,6 +239,13 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     [changeView],
   )
 
+  const handleContentViewChange = useCallback((next: PageContentView) => {
+    setContentView(next)
+    // Cada renderer começa com uma URL limpa. A tab `files` repõe somente
+    // sua query canônica (`view`, `fv`, filtros) depois que a base carregar.
+    void navigate({ to: '.', search: {}, replace: true })
+  }, [navigate])
+
   const handleAddView = useCallback(
     async (kind: DataViewKind) => {
       if (!pageId) return
@@ -288,13 +294,10 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       navigate({
         to: '/$lang/page/$pageId',
         params: { lang: currentLang, pageId: row.id },
-        state: createPageNavigationState(row.id, readRowPageTitle(row), workspaceId),
-        search: (previous) => ({
-          ...previous,
-          ...(workspaceId ? { workspace: workspaceId } : {}),
-        }),
+        search: {},
+        state: createPageNavigationState(row.id, readRowPageTitle(row)),
       }),
-    [navigate, currentLang, workspaceId],
+    [navigate, currentLang],
   )
 
   const loadGraphChildren = useCallback(async (targetPageId: string): Promise<RowData[]> => {
@@ -340,7 +343,9 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       <PageShell
         pageId={pageId}
         initialTitle={initialTitle}
-        contentLoading={loading && !broken}
+        contentLoading={contentView === 'files' && loading && !broken}
+        contentView={contentView}
+        onContentViewChange={handleContentViewChange}
         {...realtimeOptions}
       >
         <CubsDatabase

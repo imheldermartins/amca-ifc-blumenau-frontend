@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation } from '@tanstack/react-query'
-import { Link, useParams } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { Button, TextField } from 'cubs-components'
 import { useAuth } from '@contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useQueryParams } from '@/hooks/useQueryParams'
 import { readAuthReturnTo } from '@/lib/authReturnTo'
 import { i18n } from '@/lib/i18n'
@@ -14,7 +15,7 @@ import { authService, EmailInUseError } from '@/services/AuthService'
 interface SignUpFormValues { name: string; email: string }
 
 export function SignUpPage() {
-  const { lang } = useParams({ from: '/$lang/_public/sign-up' })
+  const { slug: lang } = useLanguage()
   const auth = useAuth()
   const query = useQueryParams<'returnTo' | 'invite'>()
   const returnTo = readAuthReturnTo(query.get('returnTo'))

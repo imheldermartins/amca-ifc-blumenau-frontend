@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { Button, TextField } from 'cubs-components'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useQueryParams } from '@/hooks/useQueryParams'
 import { authService } from '@/services/AuthService'
 import { readAuthReturnTo } from '@/lib/authReturnTo'
@@ -13,8 +14,8 @@ import { i18n } from '@/lib/i18n'
 
 interface PasswordForm { name: string; password: string; confirmPassword: string }
 
-export function VerifyEmailPage() {
-  const { lang, token } = useParams({ from: '/$lang/_public/verify-email/$token' })
+export function VerifyEmailPage({ token }: { token: string }) {
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
   const auth = useAuth()
   const returnTo = readAuthReturnTo(useQueryParams<'returnTo'>().get('returnTo'))
@@ -30,9 +31,9 @@ export function VerifyEmailPage() {
       const invite = preview.data?.invite
       const destination = result.inviteAccepted && invite
         ? invite.scopeType === 'organization' ? `/${lang}/organizations/${invite.scopeId}`
-          : invite.scopeType === 'workspace' ? `/${lang}/myworkspace/${invite.scopeId}`
+          : invite.scopeType === 'workspace' ? `/${lang}/workspace/${invite.scopeId}`
             : `/${lang}/page/${invite.scopeId}`
-        : returnTo ?? `/${lang}/myworkspace/${result.workspace.id}`
+        : returnTo ?? `/${lang}/workspace/${result.workspace.id}`
       void navigate({ href: destination, replace: true })
     },
   })

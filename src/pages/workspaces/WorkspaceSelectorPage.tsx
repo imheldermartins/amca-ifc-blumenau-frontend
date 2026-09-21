@@ -1,25 +1,27 @@
 import { Icon } from '@iconify/react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Tooltip } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useQueryParams } from '@/hooks/useQueryParams'
+import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 import { i18n } from '@/lib/i18n'
 import { replaceQuery } from '@/lib/queryParams'
 import { workspacePreference } from '@/lib/workspacePreference'
 import { workspaceService, type ApiWorkspace } from '@/services/WorkspaceService'
-// import { OrganizationManagement } from './OrganizationManagement'
-import { WorkspacesCards } from './-components/WorkspacesCards'
+import { WorkspacesCards } from '@/routes/$lang/_authenticated/workspaces/-components/WorkspacesCards'
 
 export function WorkspaceSelectorPage() {
-  const { lang } = useParams({ strict: false })
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
-  const queryParams = useQueryParams<'choose' | 'tab'>()
+  const queryParams = useQueryParams<'choose'>()
   const { user } = useAuth()
   const [, refreshPreference] = useState(0)
+  const leavingPageRef = useRef(false)
   const chooseExplicitly = queryParams.getBoolean('choose') === true
 
   const workspaces = useQuery({
@@ -30,34 +32,35 @@ export function WorkspaceSelectorPage() {
 
   useEffect(() => {
     if (
-      // leavingPageRef.current
-      !user
+      leavingPageRef.current
+      || !user
       || !workspaces.data
       || chooseExplicitly
     ) return
     const preferred = workspacePreference.resolve(user.id, workspaces.data)
     if (!preferred) return
     void navigate({
-      to: '/$lang/myworkspace/$workspaceId',
-      params: { lang: lang ?? 'pt-br', workspaceId: preferred.id },
+      to: '/$lang/workspace/$workspaceId',
+      params: { lang, workspaceId: preferred.id },
       replace: true,
     })
   }, [chooseExplicitly, lang, navigate, user, workspaces.data])
 
   function openWorkspace(workspace: ApiWorkspace) {
-    // leavingPageRef.current = true
+    leavingPageRef.current = true
     void navigate({
-      to: '/$lang/myworkspace/$workspaceId',
-      params: { lang: lang ?? 'pt-br', workspaceId: workspace.id },
+      to: '/$lang/workspace/$workspaceId',
+      params: { lang, workspaceId: workspace.id },
       search: (previous) => replaceQuery(previous, {}),
     })
   }
 
   function openWorkspaceSettings(workspace: ApiWorkspace) {
-    // leavingPageRef.current = true
+    leavingPageRef.current = true
+    if (user) currentWorkspaceSession.set(user.id, workspace.id)
     void navigate({
       to: '/$lang/workspaces/$workspaceId/settings/general',
-      params: { lang: lang ?? 'pt-br', workspaceId: workspace.id },
+      params: { lang, workspaceId: workspace.id },
       search: (previous) => replaceQuery(previous, {}),
     })
   }
@@ -90,9 +93,10 @@ export function WorkspaceSelectorPage() {
             <Button 
               variant='text'
               onClick={() => {
-                navigate({ to: '/$lang/organizations', params: { lang: lang ?? 'pt-br' } })
+                leavingPageRef.current = true
+                void navigate({ to: '/$lang/organizations', params: { lang } })
               }}>
-              Ir para organizações
+              {i18n('pages.workspaces.selector.organizations-link')}
             </Button>
             <Tooltip content={i18n('pages.workspaces.selector.new')}>
             <Button
@@ -100,10 +104,10 @@ export function WorkspaceSelectorPage() {
               variant="filled"
               className='p-4 rounded-full'
               onClick={() => {
-                // leavingPageRef.current = true
+                leavingPageRef.current = true
                 void navigate({
                   to: '/$lang/workspaces/new',
-                  params: { lang: lang ?? 'pt-br' },
+                  params: { lang },
                   search: {},
                 })
               }}
@@ -114,37 +118,10 @@ export function WorkspaceSelectorPage() {
           </div>
         </header>
 
-        {/* <div
-          role="tablist"
-          aria-label={i18n('pages.workspaces.selector.tabs-label')}
-          className="mx-auto grid max-w-md grid-cols-2 rounded-full bg-active p-1"
+        <div
+          aria-label={i18n('pages.workspaces.selector.list-label')}
+          className="pb-6"
         >
-          {(['workspaces', 'organization'] as const).map((currentTab) => (
-            <Button
-              key={currentTab}
-              type="button"
-              role="tab"
-              aria-selected={tab === currentTab}
-              variant="text"
-              color="from-theme"
-              className={cn("py-2 rounded-full underline-offset-4 hover:underline", tab === currentTab && 'bg-background shadow-sm hover:bg-background')}
-              onClick={() => currentTab === 'organization' ? (leavingPageRef.current = true, navigate({ href: '/' + lang + '/organizations' })) : queryParams.set({ tab: currentTab, choose: true }, { replace: true })}
-            >
-              {i18n(`pages.workspaces.selector.tab-${currentTab}`)}
-            </Button>
-          ))}
-        </div> */}
-
-        {/* {tab === 'organization' ? (
-          <OrganizationManagement onLeave={() => { leavingPageRef.current = true }} />
-        ) : ( 
-         ...
-        )} */}
-        <>
-            <div
-              aria-label={i18n('pages.workspaces.selector.list-label')}
-              className="pb-6"
-            >
               {workspaces.isPending ? (
                 <Typography variant="body" as="p" className="p-8 text-center">
                   {i18n('common.carregando')}
@@ -191,8 +168,7 @@ export function WorkspaceSelectorPage() {
                   ))}
                 </div>
               )}
-            </div>
-          </>
+        </div>
       </section>
     </main>
   )

@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
+import { useAuth } from '@/contexts/AuthContext'
+import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 import { workspaceService, type ApiWorkspace } from '@/services/WorkspaceService'
 
 export interface WorkspaceState {
-  /** Id da workspace em foco, derivado da rota atual. */
+  /** Id da workspace em foco nesta aba. */
   workspaceId: string | null
   /** Dados da workspace; `null` enquanto carrega ou se a leitura falhou. */
   workspace: ApiWorkspace | null
@@ -16,25 +18,31 @@ const WorkspaceContext = createContext<WorkspaceState | null>(null)
 /**
  * Workspace atual do shell do app.
  *
- * O `workspaceId` vem de FORA (hoje, do parâmetro de rota) — o provider não
- * escolhe workspace, só carrega a que lhe deram. O fetch acontece no mount (ou
- * seja: ao carregar o layout) e o resultado fica em memória. O layout é
- * remontado quando o id da rota muda, isolando o estado entre workspaces.
+ * A rota `/workspace/:id` escolhe a workspace e a grava na sessão desta aba.
+ * As demais rotas só consomem essa identidade; no primeiro acesso da aba, a
+ * preferência persistida do usuário funciona como fallback.
  *
- * Só a IDENTIDADE da workspace mora aqui. O conteúdo — a base,
- * as colunas, as linhas — continua sendo carregado por quem desenha a página,
- * via `DatabaseService`, a partir do `workspaceId` que este contexto fornece.
+ * Só a IDENTIDADE da workspace mora aqui. O conteúdo — a base, as colunas e
+ * as linhas — continua sendo carregado por quem desenha a página, via
+ * `DatabaseService`, a partir do `pageId` canônico da URL. O contexto serve ao
+ * shell (topbar/sidebar), nunca substitui a identidade da página consultada.
  */
-export function WorkspaceProvider({
-  workspaceId,
-  children,
-}: {
-  workspaceId: string | null
-  children: ReactNode
-}) {
+export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  const [workspaceId, setWorkspaceId] = useState<string | null>(() =>
+    user ? currentWorkspaceSession.resolve(user.id) ?? null : null,
+  )
   const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null)
   const [loading, setLoading] = useState(Boolean(workspaceId))
   const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const sync = () => {
+      setWorkspaceId(user ? currentWorkspaceSession.resolve(user.id) ?? null : null)
+    }
+    sync()
+    return currentWorkspaceSession.subscribe(sync)
+  }, [user])
 
   // O flag `active` descarta a resposta de um unmount no meio do caminho — sem
   // ele, o setState cai num componente que já saiu da árvore.
@@ -52,6 +60,7 @@ export function WorkspaceProvider({
 
     setLoading(true)
     setFailed(false)
+    setWorkspace(null)
 
     workspaceService
       .getWorkspace(workspaceId)

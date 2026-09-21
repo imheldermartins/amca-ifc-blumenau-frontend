@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -16,7 +16,7 @@ import {
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { Typography } from '@components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
-import { useWorkspace } from '@/contexts/WorkspaceContext'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { useDialog } from '@/hooks/useDialog'
 import { usePageRealtime, type UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import { i18n } from '@/lib/i18n'
@@ -112,6 +112,9 @@ export interface PageShellProps extends UsePageRealtimeOptions {
   initialTitle?: string | null
   /** Impede montar o renderer de conteúdo antes de seu snapshot estar pronto. */
   contentLoading?: boolean
+  /** Tab de conteúdo controlada pelo host quando ele precisa desmontar dados. */
+  contentView?: PageContentView
+  onContentViewChange?: (view: PageContentView) => void
   /** Conteúdo da visualização de base, exibido quando `files` está ativo. */
   children?: ReactNode
 }
@@ -120,9 +123,8 @@ export interface PageShellProps extends UsePageRealtimeOptions {
  * Moldura padrão de uma página do Cub's: cabeçalho persistente e seletor do
  * conteúdo abaixo dele. `files` renderiza `children`; documento e workflow já
  * têm seus pontos de montagem sem acoplar esses renderers ao chrome da página.
- * Toda página aberta no app passa por aqui — pela workspace
- * (`/myworkspace/:id`, que resolve a página de entrada) ou direto pelo id
- * (`/page/:id`, o caminho dos cards de "Colaborando").
+ * Toda página aberta no app passa por `/page/:id`. A entrada
+ * `/workspace/:id` apenas resolve a página inicial antes de redirecionar.
  *
  * É também o ÚNICO lugar que entra na sala de realtime (`usePageRealtime`), e
  * isso é de propósito: entrar na sala vira consequência de ABRIR A PÁGINA, não
@@ -134,13 +136,14 @@ export function PageShell({
   pageId,
   initialTitle,
   contentLoading,
+  contentView: controlledContentView,
+  onContentViewChange,
   children,
   ...realtimeOptions
 }: PageShellProps) {
   const auth = useAuth()
-  const workspace = useWorkspace()
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
-  const {lang} = useParams({strict:false})
   const permission = usePageAccess(pageId)
   const {
     isOpen: pageSettingsOpen,
@@ -156,7 +159,12 @@ export function PageShell({
   const [activityKind, setActivityKind] = useState<PageActivityKind | null>(null)
   const [pageLoading, setPageLoading] = useState(Boolean(pageId))
   const [relativeTimeNow, setRelativeTimeNow] = useState(() => Date.now())
-  const [contentView, setContentView] = useState<PageContentView>('files')
+  const [internalContentView, setInternalContentView] = useState<PageContentView>('files')
+  const contentView = controlledContentView ?? internalContentView
+  const changeContentView = useCallback((next: PageContentView) => {
+    if (controlledContentView === undefined) setInternalContentView(next)
+    onContentViewChange?.(next)
+  }, [controlledContentView, onContentViewChange])
   const [failed, setFailed] = useState(false)
   const [collaborators, setCollaborators] = useState<ApiPageCollaborator[]>([])
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false)
@@ -500,7 +508,7 @@ export function PageShell({
           <div className="flex items-center gap-3">
             <PageContentViewSwitcher
               value={contentView}
-              onValueChange={setContentView}
+              onValueChange={changeContentView}
               labels={contentViewLabels}
             />
             <Collaborators
@@ -541,9 +549,13 @@ export function PageShell({
         loading={collaboratorsLoading}
         failed={collaboratorsFailed}
         onOpenPermissions={() => {
+          if (!pageId) return
           handlePageSettingsOpenChange(false)
-          const href='/'+lang+'/access/page/'+pageId+(workspace.workspaceId?'?workspace='+encodeURIComponent(workspace.workspaceId):'')
-          void navigate({href})
+          void navigate({
+            to: '/$lang/access/$scope/$scopeId',
+            params: { lang, scope: 'page', scopeId: pageId },
+            search: {},
+          })
         }}
       />
     </div>

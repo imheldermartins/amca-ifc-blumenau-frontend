@@ -34,52 +34,84 @@ const namespaced = (key: string): string => `${NAMESPACE}${key}`
  * `window.localStorage` (não apenas usá-lo) já lança quando o storage está
  * bloqueado.
  */
-function storage(): Storage | null {
+function localStorage(): Storage | null {
   try {
+    if (typeof window === 'undefined') return null
     return window.localStorage
   } catch {
     return null
   }
 }
 
-export const clientLocalStorage = {
-  get<T>(key: string): T | undefined {
-    const store = storage()
-    if (!store) return undefined
-
-    const raw = store.getItem(namespaced(key))
-    if (raw === null) return undefined
-
-    try {
-      return JSON.parse(raw) as T
-    } catch {
-      // Valor corrompido (ou gravado fora do formato JSON): descarta e limpa,
-      // para a próxima leitura não repetir o erro.
-      store.removeItem(namespaced(key))
-      return undefined
-    }
-  },
-
-  set(key: string, value: unknown): void {
-    const store = storage()
-    if (!store) return
-
-    // `undefined`/`null` significam "sem preferência" — apaga em vez de gravar
-    // a string "null", para a leitura seguinte devolver undefined limpo.
-    if (value === undefined || value === null) {
-      store.removeItem(namespaced(key))
-      return
-    }
-
-    try {
-      store.setItem(namespaced(key), JSON.stringify(value))
-    } catch {
-      // Quota estourada ou storage bloqueado: a preferência não persiste, mas
-      // a tela não pode cair por causa disso.
-    }
-  },
-
-  remove(key: string): void {
-    storage()?.removeItem(namespaced(key))
-  },
+function sessionStorage(): Storage | null {
+  try {
+    if (typeof window === 'undefined') return null
+    return window.sessionStorage
+  } catch {
+    return null
+  }
 }
+
+function createClientStorage(resolveStorage: () => Storage | null) {
+  return {
+    get<T>(key: string): T | undefined {
+      const store = resolveStorage()
+      if (!store) return undefined
+
+      const raw = store.getItem(namespaced(key))
+      if (raw === null) return undefined
+
+      try {
+        return JSON.parse(raw) as T
+      } catch {
+        store.removeItem(namespaced(key))
+        return undefined
+      }
+    },
+
+    set(key: string, value: unknown): void {
+      const store = resolveStorage()
+      if (!store) return
+
+      if (value === undefined || value === null) {
+        store.removeItem(namespaced(key))
+        return
+      }
+
+      try {
+        store.setItem(namespaced(key), JSON.stringify(value))
+      } catch {
+        // Quota estourada ou storage bloqueado: a preferência não persiste.
+      }
+    },
+
+    remove(key: string): void {
+      resolveStorage()?.removeItem(namespaced(key))
+    },
+
+    /**
+     * Limpa somente o namespace do Cub's. Assim um logout encerra todo estado
+     * efêmero da aplicação sem apagar dados de outro consumidor da origem.
+     */
+    clear(): void {
+      const store = resolveStorage()
+      if (!store) return
+
+      try {
+        const keys: string[] = []
+        for (let index = 0; index < store.length; index += 1) {
+          const key = store.key(index)
+          if (key?.startsWith(NAMESPACE)) keys.push(key)
+        }
+        for (const key of keys) store.removeItem(key)
+      } catch {
+        // Storage bloqueado: o logout local continua mesmo sem persistência.
+      }
+    },
+  }
+}
+
+export const clientLocalStorage = createClientStorage(localStorage)
+
+/** Estado efêmero e isolado por aba, nunca usado para credenciais. */
+export const clientSessionStorage = createClientStorage(sessionStorage)

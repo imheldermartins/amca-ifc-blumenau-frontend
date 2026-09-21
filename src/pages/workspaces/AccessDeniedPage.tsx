@@ -1,12 +1,13 @@
 import { Icon } from '@iconify/react'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { Button } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { i18n } from '@/lib/i18n'
 
 export function AccessDeniedPage() {
-  const { lang } = useParams({ strict: false })
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
 
   return (
@@ -24,7 +25,7 @@ export function AccessDeniedPage() {
           variant="filled"
           color="purple"
           className="mt-6"
-        onClick={() => navigate({ to: '/$lang/workspaces', params: { lang: lang ?? 'pt-br' }, search: { choose: true, tab: 'workspaces' } })}
+        onClick={() => navigate({ to: '/$lang/workspaces', params: { lang }, search: { choose: true, tab: 'workspaces' } })}
         >
           {i18n('pages.workspaces.denied.back')}
         </Button>

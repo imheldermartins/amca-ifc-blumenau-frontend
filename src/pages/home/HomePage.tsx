@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Trans } from 'react-i18next'
 import { Button } from 'cubs-components'
 
@@ -7,7 +8,7 @@ import { Typography } from '@components/Typography'
 import { i18n } from '@/lib/i18n'
 
 export function HomePage() {
-  const { lang } = useParams({ from: '/$lang/' })
+  const { slug: lang } = useLanguage()
   const navigate = useNavigate()
   const { user } = useAuth()
 

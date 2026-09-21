@@ -204,6 +204,13 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     settingsRef.current = {}
     materializedFallbackRef.current = { pageId }
     viewWriteQueueRef.current = Promise.resolve()
+    if (!pageId) {
+      databaseRef.current = null
+      setDatabase(null)
+      setLoading(false)
+      setFailed(false)
+      setCellErrors(new Set())
+    }
     return cancelColumnWidthPreviewTimers
   }, [pageId, cancelColumnWidthPreviewTimers, clearColumnWidthPreviews])
 

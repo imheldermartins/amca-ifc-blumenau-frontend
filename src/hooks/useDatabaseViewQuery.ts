@@ -19,7 +19,12 @@ import {
 } from 'cubs-database'
 
 import { useQueryParams } from '@/hooks/useQueryParams'
-import { replaceQueryNamespace, type QueryPatch, type QueryRecord } from '@/lib/queryParams'
+import {
+  replaceQuery,
+  replaceQueryNamespace,
+  type QueryPatch,
+  type QueryRecord,
+} from '@/lib/queryParams'
 import {
   ViewFiltersWriteCoordinator,
   type ViewFiltersWriteFailure,
@@ -350,6 +355,27 @@ export function useDatabaseViewQuery({
     [columns, currentQueryFingerprint, query, queryAll, settings],
   )
 
+  /**
+   * Uma tab nova começa com o próprio documento canônico. Nenhuma query da
+   * tab anterior (filtros, busca ou parâmetros legados) atravessa a troca, e
+   * o histórico atual é substituído para o Voltar não ressuscitar o conflito.
+   */
+  const replaceViewUrl = useCallback(
+    (viewId: string, filters: ViewFiltersV2) => {
+      if (!settings[viewId]) return
+      const patch = encodeViewFiltersUrl(viewId, filters, settings, columns) as QueryPatch<string>
+      const next = replaceQuery({}, patch)
+      const nextFingerprint = queryFingerprint(next)
+      if (nextFingerprint === currentQueryFingerprint) {
+        expectedQueryRef.current = null
+        return
+      }
+      expectedQueryRef.current = nextFingerprint
+      query.reset(patch, { replace: true })
+    },
+    [columns, currentQueryFingerprint, query, settings],
+  )
+
   const applyConfirmedWrite = useCallback(
     (writeKey: string, result: ViewFiltersWriteResult) => {
       const confirmed = cloneFilters(result.confirmed ?? result.submitted)
@@ -651,9 +677,9 @@ export function useDatabaseViewQuery({
         updatedAt: filters.updatedAt,
       })
       setResolvedConflictScope(resolutionScope(nextKey, filters))
-      writeUrl(viewId, filters, false)
+      replaceViewUrl(viewId, filters)
     },
-    [key, scopeKey, settings, writeUrl],
+    [key, replaceViewUrl, scopeKey, settings],
   )
 
   const applyRemote = useCallback(() => {

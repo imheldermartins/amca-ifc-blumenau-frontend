@@ -132,7 +132,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
       onMouseEnter={onShiftHover ? () => onShiftHover(rowIndex) : undefined}
       className={cn(
         'group/row flex w-max min-w-full items-stretch transition-colors hover:bg-active/60',
-        zebra ? 'bg-contrast' : 'bg-background',
+        !zebra ? 'bg-contrast' : 'bg-background',
         // Área coberta pela seleção com Shift (âncora → linha sob o mouse).
         inShiftRange && 'bg-p-purple-500/10 dark:bg-p-purple-500/15',
         isDragging && 'relative z-10 opacity-25',
