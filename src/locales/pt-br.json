@@ -27,7 +27,8 @@
       "chat": "Chat",
       "colaborando": "Colaborando",
       "home": "Area de Trabalho"
-    }
+    },
+    "settings": "Configurações"
   },
   "validation": {
     "campo-obrigatorio": "Campo obrigatório.",

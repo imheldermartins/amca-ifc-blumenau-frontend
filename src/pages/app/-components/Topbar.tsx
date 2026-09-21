@@ -1,7 +1,6 @@
 import { SearchBar } from "@/components/SearchBar";
 import { Typography } from "@/components/Typography";
 import { useWorkspace, type WorkspaceState } from "@/contexts/WorkspaceContext";
-import { useLocalStorageState } from "@/hooks/useClientStorage";
 import { DEFAULT_LANGUAGE, i18n } from "@/lib/i18n";
 import { replaceQuery } from "@/lib/queryParams";
 import { THEME } from "@/lib/theme";
@@ -10,11 +9,10 @@ import { Button } from "@/shared/cubs-components";
 import { Icon } from "@iconify/react";
 import { useCanGoBack, useNavigate, useParams } from "@tanstack/react-router";
 
-export default () => {
+export default ({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed: () => void }) => {
     const { lang } = useParams({ strict: false })
     const navigate = useNavigate()
     const canGoBack = useCanGoBack()
-    const [collapsed, setCollapsed] = useLocalStorageState('sidebarCollapsed', false)
     const workspaceState = useWorkspace()
 
     const currentLang = lang ?? DEFAULT_LANGUAGE.slug
@@ -45,7 +43,7 @@ export default () => {
                     variant='text'
                     color='from-theme'
                     className='p-1 hover:bg-transparent'
-                    onClick={() => setCollapsed((value) => !value)}
+                    onClick={setCollapsed}
                     aria-label={i18n(collapsed ? 'common.expandir-menu' : 'common.recolher-menu')}
                 >
                     <Icon

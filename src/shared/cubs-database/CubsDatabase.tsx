@@ -49,7 +49,7 @@ const FALLBACK_VIEW: DataViewType = {
 }
 
 const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
-  newPage: 'Nova',
+  newPage: 'Criar',
   viewType: 'Tipo de visualização',
   viewTypes: {
     table: 'Tabela',

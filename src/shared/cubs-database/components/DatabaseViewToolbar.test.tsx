@@ -11,7 +11,7 @@ import {
 } from './DatabaseViewToolbar'
 
 const labels: DatabaseViewToolbarLabels = {
-  newPage: 'Nova',
+  newPage: 'Criar',
   viewType: 'Tipo de visualização',
   viewTypes: {
     table: 'Tabela',

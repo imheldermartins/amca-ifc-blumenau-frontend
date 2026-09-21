@@ -216,10 +216,10 @@ export function DatabaseViewToolbar({
                 color="purple"
                 aria-label={labels.newPage}
                 data-create-row
-                className="size-7 shrink-0 rounded-full p-0"
+                className="size-10 shrink-0 rounded-full p-0"
                 onClick={onAddRow}
               >
-                <Icon aria-hidden="true" icon="lucide:plus" fontSize={16} />
+                <Icon aria-hidden="true" icon="lucide:plus" className="size-5" />
               </Button>
             </Tooltip>
           ) : null}
