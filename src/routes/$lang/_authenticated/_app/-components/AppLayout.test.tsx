@@ -64,6 +64,9 @@ describe('AppLayout sidebar', () => {
     ])
     expect(mocks.navigate.mock.calls.every(([options]) => options.replace === true)).toBe(true)
     expect(mocks.navigate.mock.calls.every(([options]) => options.params.lang === 'pt-br')).toBe(true)
+    expect(mocks.navigate.mock.calls.every(([options]) =>
+      Object.keys(options.search).length === 0,
+    )).toBe(true)
   })
 
   it('desabilita a navegação quando a rota não identifica uma workspace', () => {
