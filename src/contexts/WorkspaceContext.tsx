@@ -1,7 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
+import { workspaceQueryKey } from '@/lib/workspaceQueryKeys'
 import { workspaceService, type ApiWorkspace } from '@/services/WorkspaceService'
 
 export interface WorkspaceState {
@@ -32,9 +34,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [workspaceId, setWorkspaceId] = useState<string | null>(() =>
     user ? currentWorkspaceSession.resolve(user.id) ?? null : null,
   )
-  const [workspace, setWorkspace] = useState<ApiWorkspace | null>(null)
-  const [loading, setLoading] = useState(Boolean(workspaceId))
-  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     const sync = () => {
@@ -44,46 +43,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return currentWorkspaceSession.subscribe(sync)
   }, [user])
 
-  // O flag `active` descarta a resposta de um unmount no meio do caminho — sem
-  // ele, o setState cai num componente que já saiu da árvore.
-  useEffect(() => {
-    let active = true
-
-    if (!workspaceId) {
-      setWorkspace(null)
-      setFailed(false)
-      setLoading(false)
-      return () => {
-        active = false
-      }
-    }
-
-    setLoading(true)
-    setFailed(false)
-    setWorkspace(null)
-
-    workspaceService
-      .getWorkspace(workspaceId)
-      .then((loaded) => {
-        if (active) setWorkspace(loaded)
-      })
-      // O ApiService já logou o AppError; aqui só marca a falha para a UI
-      // cair no rótulo de fallback em vez de ficar em "Carregando..." eterno.
-      .catch(() => {
-        if (active) setFailed(true)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [workspaceId])
+  // Settings e o shell compartilham a mesma fonte de verdade. Assim, o
+  // setQueryData feito depois de salvar nome/ícone atualiza imediatamente o
+  // contexto global, mesmo quando o id da workspace não mudou.
+  const workspaceQuery = useQuery({
+    queryKey: workspaceQueryKey(user?.id ?? 'anonymous', workspaceId ?? 'none'),
+    queryFn: () => {
+      if (!workspaceId) throw new Error('Workspace atual não definida')
+      return workspaceService.getWorkspace(workspaceId)
+    },
+    enabled: Boolean(user && workspaceId),
+  })
 
   const value = useMemo<WorkspaceState>(
-    () => ({ workspaceId, workspace, loading, failed }),
-    [workspaceId, workspace, loading, failed],
+    () => ({
+      workspaceId,
+      workspace: workspaceQuery.data ?? null,
+      loading: Boolean(workspaceId) && workspaceQuery.isPending,
+      failed: Boolean(workspaceId) && workspaceQuery.isError,
+    }),
+    [workspaceId, workspaceQuery.data, workspaceQuery.isError, workspaceQuery.isPending],
   )
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

@@ -29,7 +29,7 @@ export interface RefreshResponse {
  * Cliente HTTP da API do Cub's (backend Express).
  *
  * A origem vem de `src/lib/connection.ts` (env `VITE_CUBS_API_URL`, ou o
- * proxy `/api` do Vite em dev). O access token (JWT) é anexado em toda
+   * proxy `/api/v1` do Vite em dev). O access token (JWT) é anexado em toda
  * requisição a partir da MEMÓRIA (`sessionStore`); num 401, tenta renovar uma
  * única vez via `POST /auth/refresh` e refaz a requisição original. O refresh
  * é "single-flight": vários 401 simultâneos aguardam a MESMA chamada de

@@ -8,9 +8,8 @@ import { defineConfig } from 'vitest/config'
  * nenhum dos dois tem o que fazer num test runner, e o do router escreveria
  * arquivo no meio da suíte.
  *
- * Os aliases são espelhados na mão pelo mesmo motivo que o `nginx.conf`
- * espelha o `API_BASE_PATH`: config não importa config sem arrastar os plugins
- * junto. Mudou lá, mude aqui.
+ * Os aliases são espelhados na mão para esta config não importar a config do
+ * app e arrastar plugins que não participam dos testes.
  *
  * Escopo da suíte (decisão do plano): cobre o que decide SEGURANÇA e o que é
  * lógica pura e verificável — política de sessão, merge de realtime,

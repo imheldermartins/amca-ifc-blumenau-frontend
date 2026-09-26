@@ -4,8 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-import { API_BASE_PATH } from './src/constants/api.ts'
-
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -39,12 +37,9 @@ export default defineConfig({
     // nunca `true`, que aceitaria qualquer host.
     allowedHosts: ['.trycloudflare.com'],
     proxy: {
-      // Em dev o frontend chama API_BASE_PATH/... e o Vite repassa para o
-      // backend Express (cubs-backend) SEM reescrever o path: o prefixo é real
-      // dos dois lados — o backend monta os routers sob /api
-      // (cubs-backend/src/core/http/http-server.ts). Para apontar direto para
-      // outra instância, defina VITE_CUBS_API_URL (ver .env.example).
-      [API_BASE_PATH]: {
+      // Sem VITE_CUBS_API_URL, a base HTTP é /api/v1 e o Vite preserva esse
+      // caminho ao encaminhá-lo para o backend Express.
+      '/api/v1': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

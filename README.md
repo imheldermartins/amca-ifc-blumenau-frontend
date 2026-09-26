@@ -20,7 +20,7 @@ JWT + bcrypt), que por sua vez usa o **rqlite** como banco. A cadeia é:
 frontend (:5173)  ->  cubs-backend (:3000)  ->  rqlite (:4001)
 ```
 
-Em dev, as chamadas do frontend vão para `/api/...` e o Vite proxeia para
+Em dev, as chamadas do frontend vão para `/api/v1/...` e o Vite proxeia para
 `http://localhost:3000`. Para o fluxo de auth funcionar, o backend precisa
 estar no ar (no repo `cubs-backend`): suba o rqlite (`docker compose up -d`
 em `docker/`), rode as migrations (`npm run migrate`) e o servidor
@@ -29,16 +29,20 @@ backend, copie `.env.example` para `.env` e defina `VITE_CUBS_API_URL`.
 
 ### Rotas de auth consumidas (backend)
 
-- `POST /auth/register` `{ name?, email, password }` → `201 { user, tokens }`
-- `POST /auth/login` `{ email, password }` → `200 { accessToken, refreshToken }`
-- `POST /auth/refresh` `{ refreshToken }` → `200 { accessToken, refreshToken }`
-- `GET /users` (Bearer) → `[user]` — o próprio usuário, escopado ao token
+- `POST /api/v1/auth/register` `{ name, email, inviteToken?, returnTo? }` →
+  `202 { verificationRequired, email, notificationPending }`
+- `POST /api/v1/auth/verification/:token/complete` `{ password, name? }` →
+  `201 { user, workspace, accessToken, inviteAccepted }`
+- `POST /api/v1/auth/login` `{ email, password }` → `200 { user, accessToken }`
+  e cookie de refresh `HttpOnly`
+- `POST /api/v1/auth/refresh` → renova o cookie e devolve um access token
+- `GET /api/v1/auth/me` (Bearer) → usuário autenticado
 
-O par de tokens é guardado em `localStorage` ([tokenStore](src/services/tokenStore.ts));
-o [ApiService](src/services/ApiService.ts) anexa o access token em toda chamada
-e, num 401, tenta renovar via `/auth/refresh` uma vez antes de refazer a
-requisição. O refresh é *single-flight*: N requisições com 401 simultâneos
-aguardam a mesma chamada de refresh (o token não é rotacionado N vezes).
+O access token fica somente em memória ([sessionStore](src/services/sessionStore.ts));
+o refresh fica no cookie `HttpOnly`. O [ApiService](src/services/ApiService.ts)
+anexa o access token em toda chamada e, num 401, tenta renovar a sessão uma vez
+antes de refazer a requisição. O refresh é *single-flight*: N requisições com
+401 simultâneos aguardam a mesma chamada.
 
 ## Formulários (react-hook-form)
 
@@ -78,8 +82,9 @@ para WebSocket no path `/socket.io` (por isso a URL do socket usa
 A resolução é centralizada em [connection.ts](src/lib/connection.ts):
 
 1. `VITE_CUBS_SOCKET_URL` — só se o socket um dia morar em outro servidor;
-2. `VITE_CUBS_API_URL` — origem do backend; o socket **herda** daqui;
-3. sem env nenhuma — proxy do Vite em dev (`/api` e `/socket.io` → `:3000`).
+2. `VITE_CUBS_API_URL` — base HTTP completa, incluindo `/api/v1`; o socket
+   herda somente a origem dessa URL;
+3. sem env nenhuma — proxy do Vite em dev (`/api/v1` e `/socket.io` → `:3000`).
 
 ## Socket.io
 

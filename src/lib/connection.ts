@@ -14,31 +14,43 @@
  * Resolução (em ordem):
  *   1. `VITE_CUBS_SOCKET_URL` — só defina se um dia o socket morar em OUTRO
  *      servidor que não o da API (hoje não é o caso).
- *   2. `VITE_CUBS_API_URL` — origem do backend (SÓ a origem, sem `/api`: o
- *      prefixo é colado aqui). O socket herda daqui.
+ *   2. `VITE_CUBS_API_URL` — base URL HTTP completa, incluindo a versão da API
+ *      (ex.: `http://localhost:3000/api/v1`). O socket herda somente a origem.
  *   3. Sem env nenhuma (dev): tudo passa pelo proxy do Vite — a API em
- *      `API_BASE_PATH` e o socket na própria origem (`/socket.io`), ambos
+ *      `/api/v1` e o socket na própria origem (`/socket.io`), ambos
  *      repassados para o backend (ver `vite.config.ts`).
  *
  * O socket.io NÃO leva o prefixo: ele vive em `/socket.io` na raiz do backend,
  * fora dos routers de API.
  */
-import { API_BASE_PATH } from '@/constants/api'
+function normalizeBaseUrl(value: string | undefined): string | undefined {
+  const normalized = value?.trim().replace(/\/+$/, '')
+  return normalized || undefined
+}
 
-const apiUrl = import.meta.env.VITE_CUBS_API_URL
-const socketUrl = import.meta.env.VITE_CUBS_SOCKET_URL
+function readOrigin(baseUrl: string): string | undefined {
+  if (baseUrl.startsWith('/')) return undefined
+
+  try {
+    return new URL(baseUrl).origin
+  } catch {
+    return undefined
+  }
+}
+
+const configuredApiBaseUrl = normalizeBaseUrl(import.meta.env.VITE_CUBS_API_URL)
+const configuredSocketUrl = normalizeBaseUrl(import.meta.env.VITE_CUBS_SOCKET_URL)
+const apiBaseUrl = configuredApiBaseUrl ?? '/api/v1'
 
 export const connection = {
   /**
-   * Base URL do axios: SEMPRE termina em API_BASE_PATH, porque o prefixo é do
-   * backend (ele monta os routers sob /api) e não do mediador — com env vira
-   * origem absoluta + prefixo, sem env é só o prefixo (mesma origem, proxiado).
-   * Nos dois casos o service pede o path da rota: `/pages/:id`.
+   * Base URL final do axios. Quando a env existe, ela já contém todo o caminho
+   * público da API; sem env, `/api/v1` usa o proxy de mesma origem.
    */
-  apiBaseUrl: apiUrl ? `${apiUrl.replace(/\/+$/, '')}${API_BASE_PATH}` : API_BASE_PATH,
+  apiBaseUrl,
   /**
    * URL do socket.io. `undefined` = conectar na própria origem da página
    * (o proxy do Vite repassa /socket.io para o backend em dev).
    */
-  socketUrl: socketUrl ?? apiUrl,
+  socketUrl: configuredSocketUrl ?? (configuredApiBaseUrl ? readOrigin(configuredApiBaseUrl) : undefined),
 } as const

@@ -11,6 +11,7 @@ import { useQueryParams } from '@/hooks/useQueryParams'
 import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 import { i18n } from '@/lib/i18n'
 import { replaceQuery } from '@/lib/queryParams'
+import { workspacesQueryKey } from '@/lib/workspaceQueryKeys'
 import { workspacePreference } from '@/lib/workspacePreference'
 import { workspaceService, type ApiWorkspace } from '@/services/WorkspaceService'
 import { WorkspacesCards } from '@/routes/$lang/_authenticated/workspaces/-components/WorkspacesCards'
@@ -25,7 +26,7 @@ export function WorkspaceSelectorPage() {
   const chooseExplicitly = queryParams.getBoolean('choose') === true
 
   const workspaces = useQuery({
-    queryKey: ['workspaces', user?.id ?? 'anonymous'],
+    queryKey: workspacesQueryKey(user?.id ?? 'anonymous'),
     queryFn: () => workspaceService.listMine(),
     enabled: Boolean(user),
   })

@@ -1,6 +1,6 @@
 # Frontend Cub's — build Vite servido por nginx na porta 80.
 #
-# O nginx também faz proxy de /api e /socket.io para o backend (ver
+# O nginx também faz proxy de /api/v1 e /socket.io para o backend (ver
 # nginx/nginx.conf) — por isso o build NÃO define VITE_CUBS_API_URL:
 # o app chama a própria origem e o nginx encaminha (.env.production).
 # O .dockerignore exclui o .env local para ele não vazar no bundle.

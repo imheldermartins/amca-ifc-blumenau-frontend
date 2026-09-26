@@ -8,8 +8,8 @@ import { Typography } from '@/components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
 import { i18n } from '@/lib/i18n'
 import { validators } from '@/lib/validators'
-import { workspaceQueryKey } from '@/lib/workspaceQueryKeys'
-import { workspaceService, type WorkspaceIcon } from '@/services/WorkspaceService'
+import { workspaceQueryKey, workspacesQueryKey } from '@/lib/workspaceQueryKeys'
+import { workspaceService, type ApiWorkspace, type WorkspaceIcon } from '@/services/WorkspaceService'
 import { useWorkspaceSettings } from './useWorkspaceSettings'
 
 interface SettingsValues {
@@ -39,7 +39,12 @@ export function WorkspaceGeneralSettingsPage() {
   const mutation = useMutation({
     mutationFn: (values: SettingsValues) => workspaceService.update(workspace.id, values),
     onSuccess: (updated) => {
-      if (user) queryClient.setQueryData(workspaceQueryKey(user.id, workspace.id), updated)
+      if (user) {
+        queryClient.setQueryData(workspaceQueryKey(user.id, workspace.id), updated)
+        queryClient.setQueryData<ApiWorkspace[]>(workspacesQueryKey(user.id), (current) =>
+          current?.map((item) => item.id === updated.id ? updated : item),
+        )
+      }
       form.reset({ name: updated.name ?? '', icon: updated.icon })
     },
   })

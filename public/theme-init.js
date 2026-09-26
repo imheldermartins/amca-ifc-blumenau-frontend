@@ -12,8 +12,7 @@
  *
  * A chave é espelhada NA MÃO de `src/lib/clientStorage.ts` (namespace `cubs.`)
  * porque este arquivo roda antes de qualquer módulo — não dá para importar o
- * util. Mudou o namespace ou a chave lá, mude aqui. Mesmo pacto que o
- * `nginx.conf` tem com `API_BASE_PATH`.
+ * util. Mudou o namespace ou a chave lá, mude aqui.
  */
 ;(function () {
   try {
