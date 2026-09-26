@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -116,7 +116,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   menuLabel,
   resizeLabel,
   dragHandleLayer,
-  scrollLeft,
   onResize,
   onResizeEnd,
   onContextMenu,
@@ -137,8 +136,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   resizeLabel: string
   /** Camada fora do scrollport: evita que o overflow recorte o handle. */
   dragHandleLayer: HTMLDivElement | null
-  /** Mantém o handle alinhado à coluna durante o scroll horizontal. */
-  scrollLeft: number
   /** Largura durante o arrasto (otimista, a cada movimento). */
   onResize: (columnId: string, width: number) => void
   /** Soltou: hora de persistir. */
@@ -161,7 +158,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
     isDragging,
   } = useSortable({ id: column.id, disabled: !sortable })
   const cellRef = useRef<HTMLDivElement | null>(null)
-  const [handleLeft, setHandleLeft] = useState<number | null>(null)
   const [cellHovered, setCellHovered] = useState(false)
 
   const setCellNodeRef = useCallback(
@@ -171,12 +167,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
     },
     [setNodeRef],
   )
-
-  useLayoutEffect(() => {
-    const cell = cellRef.current
-    if (!cell || !dragHandleLayer) return
-    setHandleLeft(cell.offsetLeft + cell.offsetWidth / 2 - scrollLeft)
-  }, [dragHandleLayer, orderIndex, scrollLeft, width])
 
   // O resize NÃO é dnd-kit: não há reordenação nem drop target, é só arrastar
   // uma borda. Pointer capture direto é mais simples e não briga com o sensor
@@ -204,29 +194,39 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   }
 
   const dragHandle =
-    sortable && dragHandleLayer && handleLeft !== null
+    sortable && dragHandleLayer
       ? createPortal(
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            aria-label={onHandleClick ? menuLabel : dragLabel}
-            {...attributes}
-            {...listeners}
-            aria-haspopup={onHandleClick ? 'menu' : undefined}
-            onClick={
-              onHandleClick
-                ? (event) => onHandleClick(column.id, event, cellRef.current)
-                : undefined
-            }
-            style={{ left: handleLeft + (transform?.x ?? 0) }}
-            className={cn(
-              'pointer-events-auto absolute top-0 -translate-x-1/2 -translate-y-3 cursor-grab rounded px-2 py-1 leading-none',
-              'opacity-0 transition-opacity bg-contrast border-t border-active hover:bg-active hover:opacity-100 focus-visible:opacity-100',
-              cellHovered && 'opacity-100',
-            )}
+          <div
+            data-column-drag-handle-slot={column.id}
+            className="relative h-px shrink-0"
+            style={{
+              width: resolveColumnWidth(width),
+              order: orderIndex,
+              transform: CSS.Transform.toString(transform),
+              transition,
+            }}
           >
-            <Icon icon="lucide:grip-horizontal" fontSize={12} />
-          </button>,
+            <button
+              type="button"
+              ref={setActivatorNodeRef}
+              aria-label={onHandleClick ? menuLabel : dragLabel}
+              {...attributes}
+              {...listeners}
+              aria-haspopup={onHandleClick ? 'menu' : undefined}
+              onClick={
+                onHandleClick
+                  ? (event) => onHandleClick(column.id, event, cellRef.current)
+                  : undefined
+              }
+              className={cn(
+                'pointer-events-auto absolute left-1/2 top-0 -translate-x-1/2 -translate-y-3 cursor-grab rounded px-2 py-1 leading-none',
+                'opacity-0 transition-opacity bg-contrast border-t border-active hover:bg-active hover:opacity-100 focus-visible:opacity-100',
+                cellHovered && 'opacity-100',
+              )}
+            >
+              <Icon icon="lucide:grip-horizontal" fontSize={12} />
+            </button>
+          </div>,
           dragHandleLayer,
         )
       : null
@@ -700,10 +700,19 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       {/* `clip-path` limita apenas a pintura. O overflow clip no eixo X também
           tira as alças fora da viewport do cálculo de scroll dos ancestrais;
           o Y continua visível para elas flutuarem acima do header. */}
-      <div
-        ref={setDragHandleLayer}
-        className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px overflow-x-clip overflow-y-visible [clip-path:inset(-1rem_0)]"
-      />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-px overflow-x-clip overflow-y-visible [clip-path:inset(-1rem_0)]">
+        {/* Cada slot tem exatamente a largura visual da própria coluna. Assim o
+            handle permanece no centro por CSS (50% + translate negativo), sem
+            depender de uma medição imperativa que possa ficar velha no mount
+            ou quando uma largura chega por realtime. */}
+        <div
+          ref={setDragHandleLayer}
+          className="flex h-px w-max min-w-full"
+          style={{ transform: `translateX(-${tableScrollLeft}px)` }}
+        >
+          <div className={cn('h-px shrink-0', CONTROL_CELL_WIDTH)} />
+        </div>
+      </div>
       <GuidedAddControls
         onAddRow={onAddRow}
         onAddColumn={onAddColumn}
@@ -762,7 +771,6 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                       menuLabel={labels?.columnActions ?? labels?.dragColumn ?? 'Ações da coluna'}
                       resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
                       dragHandleLayer={dragHandleLayer}
-                      scrollLeft={tableScrollLeft}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
                       onContextMenu={handleHeaderContextMenu}

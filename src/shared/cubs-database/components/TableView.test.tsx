@@ -25,10 +25,14 @@ describe('TableView — menu da coluna', () => {
 
     const dragHandle = screen.getByRole('button', { name: 'Arrastar coluna' })
     const tableContent = screen.getByRole('table').firstElementChild as HTMLElement
-    const dragHandleLayer = dragHandle.parentElement as HTMLElement
+    const dragHandleSlot = dragHandle.parentElement as HTMLElement
+    const dragHandleTrack = dragHandleSlot.parentElement as HTMLElement
+    const dragHandleLayer = dragHandleTrack.parentElement as HTMLElement
 
     expect(dragHandle.className).toContain('px-2')
     expect(dragHandle.className).toContain('py-1')
+    expect(dragHandle.className).toContain('left-1/2')
+    expect(dragHandle.className).toContain('-translate-x-1/2')
     expect(dragHandleLayer.className).toContain('overflow-x-clip')
     expect(dragHandleLayer.className).toContain('overflow-y-visible')
     expect(tableContent.className).not.toContain('pt-3')
@@ -38,11 +42,12 @@ describe('TableView — menu da coluna', () => {
     expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
   })
 
-  it('mantém o handle sobreposto alinhado durante o scroll horizontal', () => {
-    render(
+  it('ancora o handle no centro estático da coluna durante resize externo e scroll', () => {
+    const { rerender } = render(
       <TableView
         columns={[column]}
         rows={[]}
+        columnWidths={{ [column.id]: 240 }}
         onColumnOrderChange={() => undefined}
         labels={{ dragColumn: 'Arrastar coluna' }}
       />,
@@ -50,10 +55,25 @@ describe('TableView — menu da coluna', () => {
 
     const table = screen.getByRole('table')
     const dragHandle = screen.getByRole('button', { name: 'Arrastar coluna' })
+    const dragHandleSlot = dragHandle.parentElement as HTMLElement
+    const dragHandleTrack = dragHandleSlot.parentElement as HTMLElement
 
-    expect(dragHandle.style.left).toBe('0px')
+    expect(dragHandleSlot.style.width).toBe('240px')
+    expect(dragHandleTrack.style.transform).toBe('translateX(-0px)')
+
+    rerender(
+      <TableView
+        columns={[column]}
+        rows={[]}
+        columnWidths={{ [column.id]: 360 }}
+        onColumnOrderChange={() => undefined}
+        labels={{ dragColumn: 'Arrastar coluna' }}
+      />,
+    )
+
+    expect(dragHandleSlot.style.width).toBe('360px')
     fireEvent.scroll(table, { target: { scrollLeft: 40 } })
-    expect(dragHandle.style.left).toBe('-40px')
+    expect(dragHandleTrack.style.transform).toBe('translateX(-40px)')
   })
 
   it('preserva o menu no primeiro pointerdown externo para o blur confirmar o rename', () => {
