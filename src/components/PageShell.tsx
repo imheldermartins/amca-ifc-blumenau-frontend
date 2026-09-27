@@ -117,6 +117,8 @@ export interface PageShellProps extends UsePageRealtimeOptions {
   onContentViewChange?: (view: PageContentView) => void
   /** Conteúdo da visualização de base, exibido quando `files` está ativo. */
   children?: ReactNode
+  /** Conteúdo do editor de blocos, exibido quando `document` está ativo. */
+  documentContent?: ReactNode
 }
 
 /**
@@ -139,6 +141,7 @@ export function PageShell({
   contentView: controlledContentView,
   onContentViewChange,
   children,
+  documentContent,
   ...realtimeOptions
 }: PageShellProps) {
   const auth = useAuth()
@@ -532,6 +535,14 @@ export function PageShell({
           aria-labelledby="page-content-tab-files"
         >
           {children}
+        </div>
+      ) : contentView === 'document' && documentContent ? (
+        <div
+          id="page-content-document"
+          role="tabpanel"
+          aria-labelledby="page-content-tab-document"
+        >
+          {documentContent}
         </div>
       ) : (
         <PageContentPlaceholder view={contentView} />

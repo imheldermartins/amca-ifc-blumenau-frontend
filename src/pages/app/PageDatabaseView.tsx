@@ -13,6 +13,7 @@ import type {
 import { PageShell } from '@components/PageShell'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
+import { PageBlockEditor } from './PageBlockEditor'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
@@ -346,6 +347,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         contentLoading={contentView === 'files' && loading && !broken}
         contentView={contentView}
         onContentViewChange={handleContentViewChange}
+        documentContent={<PageBlockEditor key={pageId ?? 'pending-page'} />}
         {...realtimeOptions}
       >
         <CubsDatabase

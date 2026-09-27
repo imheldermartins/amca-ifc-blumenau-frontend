@@ -360,7 +360,14 @@ describe('PageShell — edição do título', () => {
 
 describe('PageShell — visualizações de conteúdo', () => {
   it('mantém a base ativa e troca somente o conteúdo abaixo do shell', async () => {
-    render(<PageShell pageId={PAGE_ID}>base atual</PageShell>)
+    render(
+      <PageShell
+        pageId={PAGE_ID}
+        documentContent={<div>editor de blocos atual</div>}
+      >
+        base atual
+      </PageShell>,
+    )
     await screen.findByText('Título inicial')
 
     expect(screen.getByText('base atual')).toBeTruthy()
@@ -368,7 +375,8 @@ describe('PageShell — visualizações de conteúdo', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.document.label' }))
     expect(screen.queryByText('base atual')).toBeNull()
-    expect(screen.getByText('pages.app.pagina.views.document.title')).toBeTruthy()
+    expect(screen.getByText('editor de blocos atual')).toBeTruthy()
+    expect(screen.getByRole('tabpanel').id).toBe('page-content-document')
 
     fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.workflow.label' }))
     expect(screen.getByText('pages.app.pagina.views.workflow.title')).toBeTruthy()

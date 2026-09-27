@@ -1,0 +1,533 @@
+.cubs-editor {
+  position: relative;
+}
+
+.cubs-editor .ProseMirror {
+  min-height: 30rem;
+  padding: 0 1.75rem 8rem;
+  outline: none;
+}
+
+.cubs-editor-row {
+  position: relative;
+  min-width: 0;
+  padding-block: 0.18rem;
+}
+
+.cubs-editor-row-content > [data-node-view-content-react] {
+  display: flex;
+  column-gap: 2rem;
+  min-width: 0;
+}
+
+.cubs-editor-row-content .node-blockColumn {
+  flex: var(--editor-column-grow, 100) 1 0;
+  min-width: 0;
+}
+
+.cubs-editor-column-content .node-editableBlock {
+  min-width: 0;
+}
+
+.cubs-editor-column {
+  position: relative;
+  min-width: 0;
+}
+
+.cubs-editor-column-content > [data-node-view-content-react] {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.cubs-editor .cubs-editor-block-content {
+  padding: 0.15rem 0;
+  cursor: text;
+  user-select: text;
+  transition: padding-left 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cubs-editor [data-block-indent='1'] .cubs-editor-block-content {
+  padding-left: 1.5rem;
+}
+
+.cubs-editor [data-block-indent='2'] .cubs-editor-block-content {
+  padding-left: 3rem;
+}
+
+.cubs-editor [data-block-indent='3'] .cubs-editor-block-content {
+  padding-left: 4.5rem;
+}
+
+.cubs-editor .cubs-editor-block-content > :first-child,
+.cubs-editor .cubs-editor-block-content > [data-node-view-content-react] > :first-child {
+  margin-top: 0;
+}
+
+.cubs-editor .cubs-editor-block-content > :last-child,
+.cubs-editor .cubs-editor-block-content > [data-node-view-content-react] > :last-child {
+  margin-bottom: 0;
+}
+
+.cubs-editor .cubs-editor-block-content p {
+  margin: 0.2rem 0;
+  line-height: 1.65;
+}
+
+.cubs-editor .cubs-editor-text-placeholder::before {
+  height: 0;
+  float: left;
+  color: color-mix(in oklab, var(--foreground) 38%, transparent);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.cubs-editor .cubs-editor-block-content h1,
+.cubs-editor .cubs-editor-block-content h2,
+.cubs-editor .cubs-editor-block-content h3 {
+  margin: 0.65rem 0 0.3rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.cubs-editor .cubs-editor-block-content h1 {
+  font-size: 1.875rem;
+}
+
+.cubs-editor .cubs-editor-block-content h2 {
+  font-size: 1.5rem;
+}
+
+.cubs-editor .cubs-editor-block-content h3 {
+  font-size: 1.125rem;
+}
+
+.cubs-editor .cubs-editor-block-content ul:not([data-type='taskList']) {
+  list-style: disc;
+}
+
+.cubs-editor .cubs-editor-block-content ol {
+  list-style: decimal;
+}
+
+.cubs-editor .cubs-editor-block-content ul:not([data-type='taskList']),
+.cubs-editor .cubs-editor-block-content ol {
+  margin: 0.2rem 0;
+  padding-left: 1.45rem;
+}
+
+.cubs-editor .cubs-editor-block-content li {
+  margin: 0.12rem 0;
+}
+
+.cubs-editor .cubs-editor-block-content li > p {
+  margin: 0;
+}
+
+.cubs-editor .cubs-editor-block-content ul[data-type='taskList'] {
+  margin: 0.2rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cubs-editor .cubs-editor-block-content ul[data-type='taskList'] ul[data-type='taskList'] {
+  padding-left: 1.65rem;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > label {
+  display: flex;
+  height: 1.65rem;
+  flex: none;
+  align-items: center;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > label input {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  appearance: none;
+  border: 2px solid var(--divider-contrast);
+  border-radius: 999px;
+  background-position: calc(50% + 0.35px) calc(50% + 0.5px);
+  background-repeat: no-repeat;
+  background-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > label input:hover {
+  border-color: var(--p-purple);
+  transform: scale(1.06);
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > label input:checked {
+  border-color: var(--p-purple);
+  background-color: var(--p-purple);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12 4 4L19 6'/%3E%3C/svg%3E");
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > label input:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--p-purple) 50%, transparent);
+  outline-offset: 2px;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.cubs-editor .cubs-editor-block-content li[data-checked] > div > p {
+  margin: 0;
+}
+
+.cubs-editor .cubs-editor-block-content a {
+  color: var(--p-purple);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.cubs-editor .cubs-editor-block-content code {
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, var(--active) 72%, transparent);
+  padding: 0.1rem 0.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+
+.cubs-editor .tiptap-mathematics-render[data-type='inline-math'] {
+  margin-inline: 0.25rem;
+  border-radius: 0.35rem;
+  background: color-mix(in oklab, var(--p-purple) 10%, transparent);
+  padding: 0.1rem 0.35rem;
+}
+
+.cubs-editor-image-block {
+  margin: 0.35rem 0;
+  max-width: 100%;
+}
+
+.cubs-editor-image-container {
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 0.65rem;
+  line-height: 0;
+}
+
+.cubs-editor-image-container img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+.cubs-editor-image-resizer {
+  position: absolute;
+  z-index: 2;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  padding: 0;
+  border: 2px solid var(--background);
+  border-radius: 999px;
+  background: var(--p-purple);
+  box-shadow: 0 0.15rem 0.55rem color-mix(in oklab, black 28%, transparent);
+  cursor: nwse-resize;
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.cubs-editor-image-container:hover .cubs-editor-image-resizer,
+.cubs-editor-image-resizer:focus-visible,
+.cubs-editor-image-resizer:active {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.cubs-editor-image-resizer:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--p-purple) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.cubs-editor .ProseMirror-selectednode,
+.cubs-editor [data-editor-block]:focus,
+.cubs-editor [data-editor-block]:focus-visible {
+  outline: none;
+}
+
+.cubs-editor-drag-handle {
+  position: absolute;
+  z-index: 10;
+  top: 0.2rem;
+  left: -1.55rem;
+  display: grid;
+  grid-template-columns: repeat(2, 0.18rem);
+  gap: 0.14rem;
+  width: 1.35rem;
+  height: 1.65rem;
+  align-content: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  cursor: grab;
+  opacity: 0;
+  touch-action: none;
+  transition: background-color 120ms ease, opacity 120ms ease, transform 120ms ease;
+}
+
+.group\/editor-block:hover > .cubs-editor-drag-handle,
+.cubs-editor-drag-handle:focus-visible,
+.cubs-editor-drag-handle:hover {
+  background: var(--active);
+  opacity: 1;
+  outline: none;
+}
+
+.cubs-editor-drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.94);
+}
+
+.cubs-editor-drag-handle span {
+  width: 0.18rem;
+  height: 0.18rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 58%, transparent);
+}
+
+[data-editor-block].is-dragging {
+  z-index: 30;
+  opacity: 0.2;
+}
+
+.cubs-editor-drag-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  max-width: 28rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--p-purple) 34%, var(--divider));
+  border-radius: 0.8rem;
+  background: color-mix(in oklab, var(--background) 92%, var(--p-purple) 8%);
+  padding: 0.65rem 0.8rem;
+  color: var(--foreground);
+  box-shadow:
+    0 0 0 0.2rem color-mix(in oklab, var(--p-purple) 10%, transparent),
+    0 1rem 2.5rem color-mix(in oklab, black 24%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  opacity: 0.97;
+}
+
+.cubs-editor-drag-preview-icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--p-purple) 15%, var(--background));
+  color: var(--p-purple);
+}
+
+.cubs-editor-drag-preview-kind,
+.cubs-editor-drag-preview-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cubs-editor-drag-preview-kind {
+  color: var(--p-purple);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cubs-editor-drag-preview-text {
+  margin-top: 0.08rem;
+  font-weight: 600;
+}
+
+.cubs-editor-row-drop-zone,
+.cubs-editor-column-drop-zone,
+.cubs-editor-item-drop-zone {
+  position: absolute;
+  z-index: 4;
+  display: block;
+  content: '';
+  pointer-events: none;
+}
+
+.cubs-editor-row-drop-zone {
+  right: 0;
+  left: 0;
+  height: 1rem;
+}
+
+.cubs-editor-row-drop-zone.is-before {
+  top: -0.5rem;
+}
+
+.cubs-editor-row-drop-zone.is-after {
+  bottom: -0.5rem;
+}
+
+.cubs-editor-row-drop-zone.is-over::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  top: 50%;
+  height: 0.2rem;
+  border-radius: 999px;
+  background: var(--p-purple);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--p-purple) 14%, transparent);
+  content: '';
+  transform: translateY(-50%);
+}
+
+.cubs-editor-column-drop-zone {
+  top: 0;
+  bottom: 0;
+  width: 24%;
+}
+
+.cubs-editor-column-drop-zone.is-left {
+  left: 0;
+}
+
+.cubs-editor-column-drop-zone.is-right {
+  right: 0;
+}
+
+.cubs-editor-column-drop-zone.is-over::after {
+  position: absolute;
+  top: 8%;
+  bottom: 8%;
+  width: 0.2rem;
+  border-radius: 999px;
+  background: var(--p-purple);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--p-purple) 14%, transparent);
+  content: '';
+}
+
+.cubs-editor-column-drop-zone.is-left.is-over::after {
+  left: -1rem;
+}
+
+.cubs-editor-column-drop-zone.is-right.is-over::after {
+  right: -1rem;
+}
+
+.cubs-editor-item-drop-zone {
+  right: 0;
+  left: 0;
+  height: 45%;
+  min-height: 1rem;
+  max-height: 1.5rem;
+}
+
+.cubs-editor-item-drop-zone.is-before {
+  top: 0;
+}
+
+.cubs-editor-item-drop-zone.is-after {
+  bottom: 0;
+}
+
+.cubs-editor-item-drop-zone.is-over::after {
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  left: 0;
+  height: 0.16rem;
+  border-radius: 999px;
+  background: var(--p-purple);
+  box-shadow: 0 0 0 0.18rem color-mix(in oklab, var(--p-purple) 13%, transparent);
+  content: '';
+}
+
+.cubs-editor-item-drop-zone.is-before.is-over::after {
+  top: 0;
+  transform: translateY(-50%);
+}
+
+.cubs-editor-item-drop-zone.is-after.is-over::after {
+  bottom: 0;
+  transform: translateY(50%);
+}
+
+.cubs-editor-column-link {
+  position: absolute;
+  z-index: 9;
+  top: 0;
+  right: -1.25rem;
+  bottom: 0;
+  display: flex;
+  width: 0.5rem;
+  min-height: 2rem;
+  cursor: col-resize;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+
+.cubs-editor-column-link > span {
+  width: 0.125rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--divider-contrast);
+  transition: background-color 100ms ease, height 100ms ease;
+}
+
+.cubs-editor-column-link:hover > span,
+.cubs-editor-column-link:focus-visible > span,
+.cubs-editor-column-link:active > span {
+  height: 2rem;
+  background: var(--p-purple);
+}
+
+.cubs-editor:has(.is-dragging) .cubs-editor-column-link {
+  visibility: hidden;
+}
+
+@media (max-width: 48rem) {
+  .cubs-editor .ProseMirror {
+    min-height: 24rem;
+    padding: 0 1.25rem 6rem;
+  }
+
+  .cubs-editor-row-content > [data-node-view-content-react] {
+    flex-direction: column;
+    row-gap: 1rem;
+  }
+
+  .cubs-editor-row-content .node-blockColumn {
+    flex-basis: auto;
+  }
+
+  .cubs-editor-column-link,
+  .cubs-editor-column-drop-zone {
+    display: none;
+  }
+}

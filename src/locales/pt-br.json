@@ -57,22 +57,65 @@
   },
   "pages": {
     "block-editor": {
-      "full-width": "Largura completa",
       "blocks": {
         "rich-text": "Texto rico",
         "bullet-list": "Lista com marcadores",
         "enumerate-list": "Lista numerada",
-      "check-list": "Checklist",
-      "image": "Imagem",
-      "custom-node": "Nó customizado"
+        "check-list": "Checklist",
+        "image": "Imagem",
+        "custom-node": "Nó customizado"
       },
       "editor": {
         "accessible-name": "Editor modular de conteúdo",
         "drag-block": "Arrastar bloco",
-      "resize-linked-blocks": "Redimensionar colunas vinculadas",
-      "resize-image": "Redimensionar imagem",
+        "drag-preview-empty": "Bloco vazio",
+        "text-placeholder": "Digite ou use @ para mencionar uma página ou membro",
+        "resize-linked-blocks": "Redimensionar colunas vinculadas",
+        "equal-columns": "Distribuir igualmente: {{layout}}",
+        "column-layout": "Definir proporção: {{layout}}",
+        "resize-image": "Redimensionar imagem",
         "check-item": "Marcar {{item}}",
         "uncheck-item": "Desmarcar {{item}}"
+      },
+      "block-library": {
+        "add": "Adicionar bloco de texto",
+        "add-default-help": "Clique para texto; mantenha o ponteiro por 2 segundos para escolher outro bloco",
+        "dock": "Tipos de bloco",
+        "more": "Ver mais blocos",
+        "title": "Todos os blocos",
+        "description": "Escolha um tipo. Este catálogo também define as predefinições de payload usadas pelo editor.",
+        "image-compression": "Compressão de imagens",
+        "image-compression-help": "Upload e Ctrl+V usam automaticamente a mesma pipeline: primeiro reduzimos as dimensões e depois reencodamos a imagem em WebP.",
+        "compression-stage-dimensions": "1. Redução proporcional",
+        "compression-stage-encoding": "2. Compressão WebP",
+        "compression-storage": "Data URL base64 no bloco",
+        "compression-fixed": "Perfil fixo: até 960 px, WebP em 48%. O resultado é armazenado somente como texto base64 dentro do bloco.",
+        "image-error": "Não foi possível comprimir esta imagem. Tente outro arquivo.",
+        "descriptions": {
+          "text": "Parágrafo simples e opção padrão do botão de adicionar.",
+          "image": "Seleciona uma imagem, comprime no navegador e grava o Data URL diretamente no bloco.",
+          "bullet-list": "Lista não ordenada com marcadores.",
+          "numbered-list": "Lista ordenada com numeração.",
+          "check-list": "Lista de tarefas com itens marcáveis."
+        },
+        "compression": {
+          "light": {
+            "label": "Leve",
+            "description": "Até 2560 px, WebP em 86%. Preserva mais detalhes e gera payload maior."
+          },
+          "balanced": {
+            "label": "Equilibrada",
+            "description": "Até 1920 px, WebP em 78%. Perfil padrão para conteúdo comum."
+          },
+          "compact": {
+            "label": "Compacta",
+            "description": "Até 1280 px, WebP em 64%. Menor payload base64, com maior perda visual."
+          },
+          "aggressive": {
+            "label": "Compressão máxima",
+            "description": "Até 960 px, WebP em 48%. Perfil fixo para reduzir ao máximo o payload base64."
+          }
+        }
       },
       "toolbar": {
         "emphasis": "Ênfase",
@@ -116,7 +159,7 @@
         "bullet-three": "Drop indicator no destino da movimentação",
         "task-one": "Validar o texto rico",
         "task-two": "Redimensionar os blocos",
-        "task-three": "Testar o modo de largura completa",
+        "task-three": "Testar as proporções das colunas",
         "step-one": "Criar o documento",
         "step-two": "Ordenar os blocos",
         "step-three": "Versionar alterações",
