@@ -34,6 +34,8 @@ export { Menu } from './Menu'
 export type { MenuProps } from './Menu'
 export { ColorPicker } from './ColorPicker'
 export type { ColorPickerProps } from './ColorPicker'
+export { FilePicker } from './FilePicker'
+export type { FilePickerProps } from './FilePicker'
 export {
   OPTION_COLORS,
   OPTION_COLOR_CLASSES,

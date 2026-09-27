@@ -56,6 +56,75 @@
     }
   },
   "pages": {
+    "block-editor": {
+      "full-width": "Largura completa",
+      "blocks": {
+        "rich-text": "Texto rico",
+        "bullet-list": "Lista com marcadores",
+        "enumerate-list": "Lista numerada",
+      "check-list": "Checklist",
+      "image": "Imagem",
+      "custom-node": "Nó customizado"
+      },
+      "editor": {
+        "accessible-name": "Editor modular de conteúdo",
+        "drag-block": "Arrastar bloco",
+      "resize-linked-blocks": "Redimensionar colunas vinculadas",
+      "resize-image": "Redimensionar imagem",
+        "check-item": "Marcar {{item}}",
+        "uncheck-item": "Desmarcar {{item}}"
+      },
+      "toolbar": {
+        "emphasis": "Ênfase",
+        "bold": "Negrito",
+        "italic": "Itálico",
+        "underline": "Sublinhado",
+      "insert": "Link, código, equação ou imagem",
+        "link": "Link",
+        "code": "Código",
+      "equation": "Equação matemática",
+      "image-upload": "Enviar imagem",
+        "link-value": "Endereço do link",
+        "equation-value": "Expressão LaTeX",
+        "apply": "Aplicar",
+        "colors": "Cores",
+        "text-color": "Texto",
+        "markup-color": "Marcação",
+        "clear-color": "Remover cor do texto",
+        "clear-markup": "Remover marcação",
+        "indent": "Aumentar recuo",
+        "outdent": "Diminuir recuo",
+        "headings": "Títulos",
+        "heading": "Título H{{level}}"
+      },
+      "colors": {
+        "purple": "Roxo",
+        "blue": "Azul",
+        "green": "Verde",
+        "red": "Vermelho"
+      },
+      "samples": {
+        "heading": "Documento em blocos, sem perder fluidez",
+        "intro-prefix": "Selecione este texto para combinar ",
+        "bold": "negrito",
+        "italic": "itálico",
+        "and": "e",
+        "underline": "sublinhado",
+        "intro-suffix": ". O menu aparece próximo à seleção e organiza as ações em quatro conjuntos.",
+        "bullet-one": "Conteúdo comum do Tiptap dentro do bloco",
+        "bullet-two": "Ordem alterada pela alça de arraste",
+        "bullet-three": "Drop indicator no destino da movimentação",
+        "task-one": "Validar o texto rico",
+        "task-two": "Redimensionar os blocos",
+        "task-three": "Testar o modo de largura completa",
+        "step-one": "Criar o documento",
+        "step-two": "Ordenar os blocos",
+        "step-three": "Versionar alterações",
+        "callout": "Este callout é um React NodeView customizado, editável como qualquer outro conteúdo.",
+    "equation-prefix": "Equações também vivem na árvore do documento: ",
+    "image-alt": "Imagem de demonstração do editor em blocos"
+      }
+    },
     "home": {
       "bem-vindo-ao-cubs": "Bem-vindo ao <green>{{appName}}</green>!",
       "descricao": "Faça mais. Faça melhor. Faça com o Cub's!",
@@ -345,7 +414,7 @@
           "navigation": "Visualização do conteúdo da página",
           "files": "Base de dados",
           "document": {
-            "label": "Documento",
+            "label": "Editor de blocos",
             "title": "Editor de blocos em breve",
             "description": "Esta visualização será conectada ao editor de blocos da página."
           },
