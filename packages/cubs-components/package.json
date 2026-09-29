@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./calendar": {
+      "types": "./dist/calendar/index.d.ts",
+      "import": "./dist/calendar/index.js"
     }
   },
   "files": [
@@ -23,6 +27,8 @@
   },
   "dependencies": {
     "clsx": "2.1.1",
+    "dayjs": "1.11.23",
+    "motion": "13.4.4",
     "tailwind-merge": "3.6.0"
   },
   "peerDependencies": {

@@ -129,7 +129,7 @@ describe('TableView — menu da coluna', () => {
     expect(screen.queryByRole('textbox', { name: 'Renomear coluna' })).toBeNull()
   })
 
-  it('mantém nome e máscara, mas não oferece tipo/reset para a coluna title', () => {
+  it('mantém nome e máscara, mas não oferece troca de tipo para a coluna title', () => {
     render(
       <TableView
         columns={[{ ...column, id: 'page_title', key: 'title' }]}
@@ -137,12 +137,10 @@ describe('TableView — menu da coluna', () => {
         onColumnRename={() => undefined}
         onColumnTypeChange={() => undefined}
         onColumnConfigChange={() => undefined}
-        onColumnReset={() => undefined}
         labels={{
           renameColumn: 'Renomear coluna',
           changeType: 'Mudar tipo',
           maskMenu: 'Máscara',
-          resetType: 'Resetar tipo',
         }}
       />,
     )
@@ -152,7 +150,6 @@ describe('TableView — menu da coluna', () => {
     expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
     expect(screen.getByText('Máscara')).not.toBeNull()
     expect(screen.queryByText('Mudar tipo')).toBeNull()
-    expect(screen.queryByText('Resetar tipo')).toBeNull()
   })
 
   it('confirma Mover para lixeira da coluna somente pelo triangle-alert inline', () => {

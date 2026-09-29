@@ -30,7 +30,7 @@ import type {
   RowData,
 } from '../types'
 import { buildTableGroups } from '../tableGroups'
-import { columnDivergence, resolveColumnTypes, resolveColumnWidth } from '../utils'
+import { resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
 import { GuidedAddControls } from './GuidedAddControls'
 import { CONTROL_CELL_WIDTH, TableRow, TableRowDragOverlay } from './TableRow'
@@ -83,8 +83,6 @@ export interface TableViewProps {
   onColumnTypeChange?: (columnId: string, type: ColumnDataType) => void
   /** Config da coluna (formato/moeda/máscara) pelo menu; `null` LIMPA a chave. */
   onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
-  /** "Reset de tipos" (destrutivo) de uma coluna divergente. */
-  onColumnReset?: (columnId: string) => void
   /** Envia uma coluna real para a lixeira. */
   onColumnDelete?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
@@ -111,7 +109,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   sortable,
   resizable,
   isLast,
-  diverging,
   dragLabel,
   menuLabel,
   resizeLabel,
@@ -129,8 +126,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   resizable: boolean
   /** Última coluna: fecha a grade com a borda direita. */
   isLast: boolean
-  /** Há célula divergente do tipo atual → aviso vermelho no header. */
-  diverging?: boolean
   dragLabel: string
   menuLabel: string
   resizeLabel: string
@@ -253,9 +248,6 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
           // seletor `:last-child` pegaria ela, não a coluna.
           isLast && 'border-r',
           isDragging && 'z-10 opacity-90',
-          // Divergência: o header inteiro vira aviso (o tipo atual tem valores
-          // que não casam com ele). O "reset de tipos" mora no menu.
-          diverging && 'text-p-red opacity-100',
         )}
       >
         <Icon icon={TYPE_ICON[columnType]} fontSize={14} className="shrink-0" />
@@ -313,7 +305,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnReset, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const tableContentRef = useRef<HTMLDivElement>(null)
@@ -389,20 +381,6 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     () => resolveColumnTypes(localColumns, localRows),
     [localColumns, localRows],
   )
-
-  // Divergência por coluna (há valor que não casa com o tipo atual) → header
-  // vermelho + "reset de tipos" no menu. Só faz sentido com reset habilitado.
-  const divergingColumns = useMemo(() => {
-    const map: Record<string, boolean> = {}
-    if (onColumnReset) {
-      for (const column of localColumns) {
-        // Projeção mestra (`pages.title`) não troca de tipo nem sofre reset.
-        if (column.key === 'title') continue
-        map[column.id] = columnDivergence(column, localRows).length > 0
-      }
-    }
-    return map
-  }, [localColumns, localRows, onColumnReset])
 
   const rowsSortable = Boolean(onRowOrderChange) && validGroupBy.length === 0
   const columnsSortable = Boolean(onColumnOrderChange)
@@ -654,10 +632,6 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     [columnMenu, onColumnConfigChange],
   )
 
-  const handleMenuReset = useCallback(() => {
-    if (columnMenu) onColumnReset?.(columnMenu.columnId)
-  }, [columnMenu, onColumnReset])
-
   const handleMenuDelete = useCallback(() => {
     if (columnMenu) onColumnDelete?.(columnMenu.columnId)
   }, [columnMenu, onColumnDelete])
@@ -766,7 +740,6 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                       sortable={columnsSortable}
                       resizable={columnsResizable}
                       isLast={columnIndex === localColumns.length - 1}
-                      diverging={divergingColumns[column.id]}
                       dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
                       menuLabel={labels?.columnActions ?? labels?.dragColumn ?? 'Ações da coluna'}
                       resizeLabel={labels?.resizeColumn ?? 'Redimensionar coluna'}
@@ -865,7 +838,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
           onClose={closeColumnMenu}
           onRename={onColumnRename ? handleMenuRename : undefined}
           // `key: title` aponta para `pages.title`: o tipo é estruturalmente
-          // texto. Nome e máscara são apresentação; tipo/reset não se aplicam.
+          // texto. Nome e máscara são apresentação; troca de tipo não se aplica.
           onColumnTypeChange={
             menuColumn.key !== 'title' && onColumnTypeChange
               ? handleMenuTypeChange
@@ -873,10 +846,6 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
           }
           onColumnOptionsChange={onColumnOptionsChange ? handleMenuOptionsChange : undefined}
           onColumnConfigChange={onColumnConfigChange ? handleMenuConfigChange : undefined}
-          diverging={divergingColumns[menuColumn.id]}
-          onColumnReset={
-            menuColumn.key !== 'title' && onColumnReset ? handleMenuReset : undefined
-          }
           onColumnDelete={
             menuColumn.key !== 'title' && onColumnDelete ? handleMenuDelete : undefined
           }

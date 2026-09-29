@@ -19,10 +19,13 @@ do Vite; o `dist` existe para o `npm pack` e para o build da `cubs-database`.
 | `SwitchAccordion` | sim | label à esquerda, switch à direita; filhos dependem do pai |
 | `RadioGroup` | sim | opções inline ou em coluna; semântica nativa de radio |
 | `DatePicker` | sim | máscara + calendário; hora e intervalo opcionais; wire `ISO`/`startISO@endISO` |
+| `Calendar` | controlado | grade mês/semana/dia; intervalos contínuos, payloads genéricos, renderizadores e filhos recursivos |
 | `Button` | — | `variant` × `color` (paleta ou `from-theme`) |
 | `ContextMenu` | — | painel `absolute`; posicionamento fica com o caller |
 | `Popover` | — | sobre Radix; trigger `asChild` + conteúdo LIVRE, glass |
 | `Drawer` | — | sobre Radix Dialog; painel lateral acessível com 50% da viewport |
+
+Contrato do Calendar e preview: [CALENDAR.md](../../CALENDAR.md).
 
 Mais `cn`, `PALETTE`/`paletteBgText`/`paletteBorderText` e
 `applyMask`/`unmask`/`formatCurrency` e os codecs de data. Quando o

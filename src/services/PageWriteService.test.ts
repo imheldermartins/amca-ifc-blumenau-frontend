@@ -43,6 +43,31 @@ describe('PageWriteService.createColumn', () => {
   })
 })
 
+describe('PageWriteService — atualização de coluna', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    api.put.mockResolvedValue(undefined)
+  })
+
+  it('altera tipo e configuração pelo mesmo endpoint PUT da coluna', async () => {
+    const service = new PageWriteService()
+    const columnUrl = `/pages/parent/parent-1/columns/${columnId}`
+
+    await service.changeColumnType('parent-1', columnId, 'numeric')
+    await service.saveColumnConfig('parent-1', columnId, {
+      format: 'currency',
+      currency: 'BRL',
+    })
+
+    expect(api.put).toHaveBeenNthCalledWith(1, columnUrl, { type: 'numeric' })
+    expect(api.put).toHaveBeenNthCalledWith(2, columnUrl, {
+      format: 'currency',
+      currency: 'BRL',
+    })
+    expect(api.post).not.toHaveBeenCalled()
+  })
+})
+
 describe('PageWriteService — lixeira', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -171,11 +196,19 @@ describe('PageWriteService — views atômicas', () => {
         publicKey: { key: 'docente', aliases: ['professor'] },
       },
       columnWidths: { [columnId]: 320 },
+      dateColumnId: '01KXVZ0000COL000000000002',
+      colorColumnId: null,
+      calendarPropertyIds: [columnId],
+      calendarShowPropertyLabels: false,
     })
 
     expect(api.patch).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}`, {
       title: { key: 'title', column_name: 'Docente' },
       columnWidths: { [columnId]: 320 },
+      dateColumnId: '01KXVZ0000COL000000000002',
+      colorColumnId: null,
+      calendarPropertyIds: [columnId],
+      calendarShowPropertyLabels: false,
     })
   })
 

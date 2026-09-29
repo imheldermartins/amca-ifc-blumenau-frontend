@@ -4,19 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
+  CalendarPinInput,
   DataViewKind,
   DataViewSettings,
   HeaderCol,
   RowData,
 } from 'cubs-database'
+import { databaseCalendarItems } from 'cubs-database'
 
 import { PageShell } from '@components/PageShell'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
 import { PageBlockEditor } from './PageBlockEditor'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
+import { useSchedule } from '@/hooks/useSchedule'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
 import { parseRows } from '@/lib/databaseParser'
@@ -63,6 +67,8 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   const mayEdit = can(permissions.data, 'write', 'update')
   const mayEditRows = mayEdit && can(permissions.data, 'write', 'edit_subpages')
   const { slug: currentLang } = useLanguage()
+  const { workspaceId } = useWorkspace()
+  const schedule = useSchedule(workspaceId, { realtime: false })
   const navigate = useNavigate()
   const {
     database,
@@ -88,6 +94,35 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     onPersistFilters: mayEdit ? handlers.onViewFiltersChange : async () => undefined,
   })
   const changeView = viewQuery.changeView
+  const pinnedCalendarPageIds = useMemo(() => new Set(schedule.pins.map((pin) => pin.pageId)), [schedule.pins])
+
+  const handleCalendarPin = useCallback((input: CalendarPinInput) => {
+    if (!workspaceId || !pageId) return
+    const row = database?.rows.find((candidate) => candidate.id === input.pageId)
+    const projected = row ? databaseCalendarItems([row], columns, input.dateColumnId, input.colorColumnId)[0] : undefined
+    const properties = projected?.type === 'page' ? projected.data.properties ?? [] : []
+    return schedule.pin({
+      ...input,
+      ...(projected && {
+        optimisticItem: {
+          id: `optimistic:${input.pageId}`,
+          workspaceId,
+          pageId: input.pageId,
+          sourcePageId: pageId,
+          sourceTitle: database?.pageTitle ?? initialTitle ?? null,
+          title: projected.title,
+          dateColumnId: input.dateColumnId,
+          colorColumnId: input.colorColumnId ?? null,
+          start: projected.start,
+          ...(projected.end && { end: projected.end }),
+          allDay: Boolean(projected.allDay),
+          color: projected.color ?? 'purple',
+          properties: properties.map((property) => ({ id: property.id, label: property.label, value: String(property.value) })),
+          pinnedAt: new Date().toISOString(),
+        },
+      }),
+    })
+  }, [columns, database?.pageTitle, database?.rows, initialTitle, pageId, schedule, workspaceId])
 
   useEffect(() => {
     if (!pendingCreatedView || !pageId || pendingCreatedView.pageId !== pageId) return
@@ -164,7 +199,6 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       formatCurrency: i18n('pages.app.cubs-database.coluna.moeda'),
       currencyBRL: i18n('pages.app.cubs-database.coluna.brl'),
       none: i18n('pages.app.cubs-database.coluna.nenhum'),
-      resetType: i18n('pages.app.cubs-database.coluna.resetar'),
       addOption: i18n('pages.app.cubs-database.coluna.adicionar-opcao'),
       deleteOption: i18n('pages.app.cubs-database.coluna.excluir-opcao'),
       optionColor: i18n('pages.app.cubs-database.coluna.cor-opcao'),
@@ -220,6 +254,14 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       clearFilters: i18n('pages.app.cubs-database.filtros.limpar'),
       true: i18n('pages.app.cubs-database.agrupar.sim'),
       false: i18n('pages.app.cubs-database.agrupar.nao'),
+      dateProperty: i18n('pages.app.cubs-database.calendar.propriedade-data'),
+      colorProperty: i18n('pages.app.cubs-database.calendar.propriedade-cor'),
+      defaultColor: i18n('pages.app.cubs-database.calendar.roxo-padrao'),
+      visibleProperties: i18n('pages.app.cubs-database.calendar.propriedades-visiveis'),
+      dragProperty: i18n('pages.app.cubs-database.calendar.reordenar-propriedade'),
+      selectProperty: i18n('pages.app.cubs-database.calendar.mostrar-propriedade'),
+      hideAllProperties: i18n('pages.app.cubs-database.calendar.ocultar-todas'),
+      showPropertyLabels: i18n('pages.app.cubs-database.calendar.mostrar-labels'),
       conditions: {
         equals: i18n('pages.app.cubs-database.filtros.condicoes.igual'),
         contains: i18n('pages.app.cubs-database.filtros.condicoes.contem'),
@@ -375,6 +417,11 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
           onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}
           addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
           onViewFiltersChange={viewQuery.changeLocal}
+          onCalendarConfigChange={mayEdit ? handlers.onCalendarConfigChange : undefined}
+          pinnedCalendarPageIds={pinnedCalendarPageIds}
+          calendarPendingPageId={schedule.mutating ? schedule.pendingPageId : null}
+          onCalendarPin={workspaceId && pageId ? handleCalendarPin : undefined}
+          onCalendarUnpin={workspaceId ? schedule.unpin : undefined}
           onSelectionChange={handleSelectionChange}
           onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
           labels={labels}

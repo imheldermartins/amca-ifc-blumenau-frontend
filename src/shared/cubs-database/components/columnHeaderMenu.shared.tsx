@@ -34,8 +34,6 @@ export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
   none?: string
   /** Máscaras exibíveis; ausente = o token cru. */
   masks?: Partial<Record<ColumnMask, string>>
-  /** Item destrutivo de "reset de tipos" (só aparece com divergência). */
-  resetType?: string
   moveToTrash?: string
   confirmMoveToTrash?: string
 }
@@ -49,8 +47,6 @@ export interface ColumnHeaderMenuContext {
   onColumnTypeChange?: (type: ColumnDataType) => void
   onColumnOptionsChange?: (options: ColumnOption[]) => void
   onColumnConfigChange?: (patch: ColumnConfigPatch) => void
-  diverging?: boolean
-  onColumnReset?: () => void
   onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
 }
@@ -205,23 +201,6 @@ class TextMaskNodeHandler extends ColumnMenuNodeHandler {
   }
 }
 
-class ResetTypeNodeHandler extends ColumnMenuNodeHandler {
-  protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
-    if (!context.diverging || !context.onColumnReset) return undefined
-
-    return {
-      id: 'reset-type',
-      name: context.labels?.resetType ?? 'Resetar tipo',
-      icon: 'lucide:alert-triangle',
-      danger: true,
-      onSelect: () => {
-        context.onColumnReset?.()
-        context.onClose()
-      },
-    }
-  }
-}
-
 class DeleteColumnNodeHandler extends ColumnMenuNodeHandler {
   protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
     if (!context.onColumnDelete) return undefined
@@ -251,7 +230,6 @@ function createColumnMenuChain(): ColumnMenuNodeHandler {
     .setNext(new SelectOptionsNodeHandler())
     .setNext(new NumericFormatNodeHandler())
     .setNext(new TextMaskNodeHandler())
-    .setNext(new ResetTypeNodeHandler())
     .setNext(new DeleteColumnNodeHandler())
   return first
 }

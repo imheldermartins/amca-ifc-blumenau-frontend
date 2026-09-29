@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { PrioritySelect } from './PrioritySelect'
 import { reorderPriorityValues } from '../prioritySelect'
@@ -74,5 +74,28 @@ describe('PrioritySelect', () => {
 
     expect(screen.getByTestId('value').textContent).toBe('')
     expect(screen.queryByRole('searchbox', { name: 'Buscar coluna' })).toBeNull()
+  })
+
+  it('funciona como ordenação pura sem checkboxes ou ação de limpar', () => {
+    render(<PrioritySelect options={options} value={options.map((option) => option.value)} onValueChange={() => undefined} labels={labels} allowSelection={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Agrupar por' }))
+
+    expect(screen.getAllByRole('button', { name: /Alterar prioridade:/ })).toHaveLength(3)
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Limpar agrupamento' })).toBeNull()
+  })
+
+  it('acumula seleção local e salva uma vez ao fechar', () => {
+    const onValueChange = vi.fn()
+    render(<PrioritySelect options={options} value={['status']} onValueChange={onValueChange} labels={labels} commitOnClose />)
+    const trigger = screen.getByRole('button', { name: 'Agrupar por' })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar coluna: Área' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar coluna: E-mail' }))
+    expect(onValueChange).not.toHaveBeenCalled()
+
+    fireEvent.click(trigger)
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+    expect(onValueChange).toHaveBeenCalledWith(['status', 'area', 'email'])
   })
 })

@@ -225,6 +225,20 @@ export interface DataViewType {
    * fora da faixa são clampados por `resolveColumnWidth`.
    */
   columnWidths?: Record<string, number>
+  /** Coluna `date` usada pela projeção Calendar. Ausente = primeira disponível. */
+  dateColumnId?: string
+  /** Coluna `select` usada como cor. `null` força o roxo padrão. */
+  colorColumnId?: string | null
+  /** Colunas exibidas nos cards Calendar, já na ordem escolhida. Ausente = todas. */
+  calendarPropertyIds?: string[]
+  /** Exibe `[nome da coluna]:` antes dos valores nos cards e detalhes. Ausente = true. */
+  calendarShowPropertyLabels?: boolean
+}
+
+export interface CalendarPinInput {
+  pageId: string
+  dateColumnId: string
+  colorColumnId?: string | null
 }
 
 /** Conjunto de views: chave = ULID da view. */
@@ -280,7 +294,7 @@ export interface HeaderCol {
    * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva
    * (backend), então uma coluna pode carregar `options`/`format`/`mask` de um
    * tipo anterior mesmo não sendo o tipo atual. O render usa só o que o tipo
-   * ATUAL pede; o resto fica guardado até o "reset de tipos".
+   * ATUAL pede; o restante continua guardado para uma futura troca de tipo.
    */
 }
 

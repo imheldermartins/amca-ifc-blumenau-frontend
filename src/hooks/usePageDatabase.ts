@@ -90,12 +90,12 @@ export interface UsePageDatabaseResult {
     onPageTitleColumnChange: (viewId: string, column: PageTitleColumn) => void
     onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
     onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
-    onColumnReset: (columnId: string) => void
     onDeleteRow: (rowId: string) => void
     onColumnDelete: (columnId: string) => void
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
+    onCalendarConfigChange: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds'>) => void
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
     onViewKindChange: (viewId: string, view: DataViewKind) => void
     onAddView: (view: DataViewKind, sourceViewId: string) => Promise<string>
@@ -912,18 +912,6 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [pageId, handleWriteError],
     ),
-    onColumnReset: useCallback(
-      (columnId: string) => {
-        if (!pageId || columnId === TITLE_COLUMN_ID) return
-        // Destrutivo e em MASSA (coluna + N células) — sem otimismo: relê a base
-        // no sucesso (a verdade autoritativa), notifica no erro.
-        pageWriteService
-          .resetColumn(pageId, columnId)
-          .then(() => reload())
-          .catch(handleWriteError)
-      },
-      [pageId, handleWriteError, reload],
-    ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {
         saveViewPatch(viewId, { orderedRows })
@@ -939,6 +927,12 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     onColumnWidthChange: useCallback(
       (viewId: string, columnWidths: Record<string, number>) => {
         saveViewPatch(viewId, { columnWidths })
+      },
+      [saveViewPatch],
+    ),
+    onCalendarConfigChange: useCallback(
+      (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds'>) => {
+        saveViewPatch(viewId, patch)
       },
       [saveViewPatch],
     ),

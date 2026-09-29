@@ -56,5 +56,11 @@ próprio da lib (ou tokens com fallback) antes da versão externa de verdade.
   com drag-handle + checkbox + botão "Abrir ›" (`onOpenRow` recebe a row
   crua); controles aparecem no hover da linha.
 - Tipos de coluna: `text | numeric | select | date | checkbox`
-  (título sem type → 'text'). `board`/`calendar` são placeholder.
+  (título sem type → 'text'). `board` permanece placeholder; `calendar` usa a
+  grade mensal compartilhada, com cabeçalho de mês/ano, navegação e projeção de
+  páginas/propriedades em modo leitura. A primeira coluna `select` fornece a cor
+  por padrão; `colorColumnId` permite escolher outra pelo ULID. A view pode
+  persistir `calendarPropertyIds`: a lista define simultaneamente quais
+  propriedades aparecem como `coluna: valor` e sua ordem nos cards.
+  Veja o contrato e o preview em [CALENDAR.md](../../CALENDAR.md).
 - A lógica pura do processo (PageTree) entra nas próximas versões.

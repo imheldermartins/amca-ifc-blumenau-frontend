@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { Button, Drawer, Select, Tooltip } from 'cubs-components'
 
-import type { DataViewKind, HeaderCol, RowData } from '../types'
+import type { DataViewKind, DataViewType, HeaderCol, RowData } from '../types'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
 import {
   parseViewFilters,
@@ -49,6 +49,14 @@ export interface DatabaseViewToolbarLabels {
   true: string
   false: string
   conditions: Record<FilterCondition, string>
+  dateProperty?: string
+  colorProperty?: string
+  defaultColor?: string
+  visibleProperties?: string
+  dragProperty?: string
+  selectProperty?: string
+  hideAllProperties?: string
+  showPropertyLabels?: string
 }
 
 export interface DatabaseViewToolbarProps {
@@ -66,6 +74,10 @@ export interface DatabaseViewToolbarProps {
   onAddRow?: () => void
   settings?: ViewMockSettings
   onSettingsChange?: (patch: Partial<ViewMockSettings>) => void
+  calendar?: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarShowPropertyLabels'>
+  onCalendarChange?: (patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarShowPropertyLabels'>) => void
+  calendarPropertyIds?: string[]
+  onCalendarPropertyIdsChange?: (columnIds: string[]) => void
 }
 
 function updateDocument(
@@ -92,6 +104,10 @@ export function DatabaseViewToolbar({
   onAddRow,
   settings = DEFAULT_VIEW_MOCK_SETTINGS,
   onSettingsChange,
+  calendar,
+  onCalendarChange,
+  calendarPropertyIds,
+  onCalendarPropertyIdsChange,
 }: DatabaseViewToolbarProps) {
   const [presetsOpen, setPresetsOpen] = useState(false)
   // O tipo público já é v2. A leitura tolerante mantém o pacote seguro para
@@ -246,7 +262,11 @@ export function DatabaseViewToolbar({
           <h2 className="mb-3 text-lg font-semibold">{labels.presets}</h2>
           <div className="flex flex-wrap items-center gap-2">{renderControls(false)}</div>
         </div>
-        <ViewSettingsForm type={viewKind} settings={settings} onChange={onSettingsChange ?? (() => {})} />
+        <ViewSettingsForm type={viewKind} settings={settings} onChange={onSettingsChange ?? (() => {})}
+          columns={columns} calendar={calendar} onCalendarChange={onCalendarChange}
+          calendarLabels={{ dateProperty: labels.dateProperty ?? 'Propriedade de data', colorProperty: labels.colorProperty ?? 'Propriedade de cor', defaultColor: labels.defaultColor ?? 'Automática (primeira seleção)', showPropertyLabels: labels.showPropertyLabels ?? 'Mostrar nomes das propriedades' }}
+          calendarPropertyIds={calendarPropertyIds} onCalendarPropertyIdsChange={onCalendarPropertyIdsChange}
+          calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }} />
       </div>
     </Drawer>,
   ]

@@ -18,7 +18,6 @@ const dependencies = vi.hoisted(() => ({
   deleteColumn: vi.fn(),
   changeColumnType: vi.fn(),
   renameColumn: vi.fn(),
-  resetColumn: vi.fn(),
   saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
   createView: vi.fn(),
@@ -49,7 +48,6 @@ vi.mock('@/services/PageWriteService', () => ({
     deleteColumn: dependencies.deleteColumn,
     changeColumnType: dependencies.changeColumnType,
     renameColumn: dependencies.renameColumn,
-    resetColumn: dependencies.resetColumn,
     saveColumnConfig: dependencies.saveColumnConfig,
     saveCell: dependencies.saveCell,
     createView: dependencies.createView,
@@ -908,13 +906,11 @@ describe('usePageDatabase — snapshot da view', () => {
       result.current.handlers.onColumnRename('page_title', 'Outro nome')
       result.current.handlers.onColumnTypeChange('page_title', 'numeric')
       result.current.handlers.onColumnConfigChange('page_title', { mask: 'cpf' })
-      result.current.handlers.onColumnReset('page_title')
     })
 
     expect(dependencies.renameColumn).not.toHaveBeenCalled()
     expect(dependencies.changeColumnType).not.toHaveBeenCalled()
     expect(dependencies.saveColumnConfig).not.toHaveBeenCalled()
-    expect(dependencies.resetColumn).not.toHaveBeenCalled()
   })
 
   it('salva nome e máscara da coluna title no snapshot da view', async () => {

@@ -111,10 +111,11 @@ describe('databaseParser — tipos de view', () => {
     const parsed = parseViewSettings({
       [VIEW_ID]: { view: 'table', name: 'Primeira', order: 0 },
       [legacy]: { view: 'grid', name: 'Legada' },
-      [second]: { view: 'graph', name: 'Segunda', order: 1 },
+      [second]: { view: 'graph', name: 'Segunda', order: 1, dateColumnId: 'date-id', colorColumnId: null, calendarPropertyIds: [], calendarShowPropertyLabels: false },
     })
     expect(Object.keys(parsed)).toEqual([VIEW_ID, second, legacy])
     expect(parsed[second].order).toBe(1)
+    expect(parsed[second]).toMatchObject({ dateColumnId: 'date-id', colorColumnId: null, calendarPropertyIds: [], calendarShowPropertyLabels: false })
   })
 
   it('omite views com tombstone mesmo quando as demais continuam visíveis', () => {

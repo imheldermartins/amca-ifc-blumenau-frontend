@@ -32,8 +32,6 @@ describe('buildColumnHeaderMenuNodes', () => {
         onRename: vi.fn(),
         onColumnTypeChange: vi.fn(),
         onColumnOptionsChange: vi.fn(),
-        diverging: true,
-        onColumnReset: vi.fn(),
         onColumnDelete: vi.fn(),
       }),
     )
@@ -42,7 +40,6 @@ describe('buildColumnHeaderMenuNodes', () => {
       'rename',
       'change-type',
       'select-options',
-      'reset-type',
       'move-to-trash',
     ])
   })
@@ -64,26 +61,19 @@ describe('buildColumnHeaderMenuNodes', () => {
     expect(onColumnDelete).toHaveBeenCalledOnce()
   })
 
-  it('delega ações de tipo e reset e fecha o menu', () => {
+  it('delega a troca de tipo e fecha o menu', () => {
     const onClose = vi.fn()
     const onColumnTypeChange = vi.fn()
-    const onColumnReset = vi.fn()
     const nodes = buildColumnHeaderMenuNodes(
       createContext({
         onClose,
         onColumnTypeChange,
-        diverging: true,
-        onColumnReset,
       }),
     )
 
     nodes.find((node) => node.id === 'change-type')?.children?.[1]?.onSelect?.()
     expect(onColumnTypeChange).toHaveBeenCalledWith('numeric')
     expect(onClose).toHaveBeenCalledTimes(1)
-
-    nodes.find((node) => node.id === 'reset-type')?.onSelect?.()
-    expect(onColumnReset).toHaveBeenCalledOnce()
-    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('usa somente o tratador de configuração compatível com o tipo atual', () => {

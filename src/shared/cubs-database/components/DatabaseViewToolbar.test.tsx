@@ -174,6 +174,44 @@ describe('DatabaseViewToolbar', () => {
     expect(screen.queryByRole('dialog', { name: 'Predefinições' })).toBeNull()
   })
 
+  it('edita visibilidade e ordem das propriedades do Calendar com um único save ao fechar', async () => {
+    const onCalendarPropertyIdsChange = vi.fn()
+    const onCalendarChange = vi.fn()
+    render(<DatabaseViewToolbar
+      viewKind="calendar"
+      columns={[
+        { id: 'title', key: 'title', title: 'Nome', type: 'text' },
+        { id: 'date', title: 'Data', type: 'date' },
+        { id: 'status', title: 'Status', type: 'select' },
+        { id: 'owner', title: 'Responsável', type: 'text' },
+      ]}
+      rows={[]}
+      filters={emptyViewFilters()}
+      labels={labels}
+      calendar={{ dateColumnId: 'date', calendarShowPropertyLabels: true }}
+      onCalendarChange={onCalendarChange}
+      calendarPropertyIds={['status']}
+      onCalendarPropertyIdsChange={onCalendarPropertyIdsChange}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Predefinições' }))
+    const drawer = screen.getByRole('dialog', { name: 'Predefinições' })
+    expect(within(drawer).getByRole('region', { name: 'Propriedades visíveis' })).not.toBeNull()
+    const showLabels = within(drawer).getByRole('checkbox', { name: 'Mostrar nomes das propriedades' })
+    expect(showLabels.getAttribute('data-state')).toBe('checked')
+    fireEvent.click(showLabels)
+    expect(onCalendarChange).toHaveBeenCalledWith({ calendarShowPropertyLabels: false })
+    expect(within(drawer).queryByRole('checkbox', { name: 'Mostrar propriedade: Nome' })).toBeNull()
+    expect(within(drawer).queryByRole('checkbox', { name: 'Mostrar propriedade: Data' })).toBeNull()
+    const owner = within(drawer).getByRole('checkbox', { name: 'Mostrar propriedade: Responsável' })
+    fireEvent.click(owner)
+    expect(onCalendarPropertyIdsChange).not.toHaveBeenCalled()
+
+    fireEvent.blur(owner, { relatedTarget: within(drawer).getByRole('button', { name: 'Fechar predefinições' }) })
+    expect(onCalendarPropertyIdsChange).toHaveBeenCalledOnce()
+    expect(onCalendarPropertyIdsChange).toHaveBeenCalledWith(['status', 'owner'])
+  })
+
   it('limpa somente os filtros e preserva agrupamento e metadados', () => {
     render(<ClearProbe />)
     fireEvent.click(screen.getByRole('button', { name: /^Filtros/ }))

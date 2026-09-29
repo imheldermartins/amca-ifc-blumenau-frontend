@@ -6,6 +6,13 @@ export type { ViewTabsBarProps } from './components/ViewTabsBar'
 export { TableView } from './components/TableView'
 export type { TableViewProps } from './components/TableView'
 export { GridView, GridContainer, GridTile } from './components/GridView'
+export { CalendarView, type CalendarViewLabels, type CalendarViewProps } from './components/CalendarView'
+export { CalendarProperties } from './components/CalendarProperties'
+export type { CalendarPropertiesProps } from './components/CalendarProperties'
+export { mappedProps } from './calendarPropertyRenderers'
+export type { CalendarPropertyRenderContext, CalendarPropertyRenderer } from './calendarPropertyRenderers'
+export { databaseCalendarItems } from './calendarItems'
+export type { DatabaseCalendarItemTypes, DatabaseCalendarProperty } from './calendarItems'
 export { GraphView, GraphCanvas, GraphNode } from './components/GraphView'
 export { ViewSettingsForm } from './components/ViewSettingsForm'
 export { mappedForm, DEFAULT_VIEW_MOCK_SETTINGS } from './viewSettings'
@@ -74,6 +81,7 @@ export type {
   CellChange,
   CellData,
   CellEditConflict,
+  CalendarPinInput,
   CellEditorLabels,
   CellEditorProps,
   ColumnConfigPatch,
@@ -105,7 +113,6 @@ export type { ContextMenuItem } from 'cubs-components'
 
 export {
   cellErrorKey,
-  columnDivergence,
   formatCellValue,
   formatNumericValue,
   inferColumnType,

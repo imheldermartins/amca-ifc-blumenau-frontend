@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -36,6 +36,12 @@ export interface PrioritySelectProps {
   labels: PrioritySelectLabels
   icon?: string
   disabled?: boolean
+  /** Mantém todas as opções marcadas e usa o controle somente para ordenação. */
+  allowSelection?: boolean
+  /** Mantém as edições locais e emite uma única alteração ao fechar o popover. */
+  commitOnClose?: boolean
+  /** Renderiza a lista diretamente no layout, sem uma segunda camada de popover. */
+  inline?: boolean
   className?: string
 }
 
@@ -44,6 +50,7 @@ interface PriorityOptionRowProps {
   checked: boolean
   priority: number | null
   dragDisabled: boolean
+  selectionDisabled: boolean
   labels: PrioritySelectLabels
   onCheckedChange: (checked: boolean) => void
 }
@@ -53,6 +60,7 @@ function PriorityOptionRow({
   checked,
   priority,
   dragDisabled,
+  selectionDisabled,
   labels,
   onCheckedChange,
 }: PriorityOptionRowProps) {
@@ -71,7 +79,7 @@ function PriorityOptionRow({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        'flex min-h-9 min-w-0 items-center gap-2 rounded px-1.5 py-1 text-sm transition-colors hover:bg-active',
+        'flex min-h-9 min-w-0 items-center gap-3 rounded px-2 py-1.5 text-sm transition-colors hover:bg-active',
         checked && 'bg-p-purple-500/10',
         option.disabled && 'pointer-events-none opacity-50',
         isDragging && 'relative z-10 opacity-80 shadow-lg',
@@ -94,12 +102,12 @@ function PriorityOptionRow({
         <Icon icon="lucide:grip-vertical" fontSize={15} />
       </button>
 
-      <Checkbox
+      {!selectionDisabled ? <Checkbox
         checked={checked}
         disabled={option.disabled}
         aria-label={`${labels.select}: ${option.label}`}
         onCheckedChange={onCheckedChange}
-      />
+      /> : null}
 
       <Tooltip content={option.label} side="right">
         <span
@@ -135,11 +143,17 @@ export function PrioritySelect({
   labels,
   icon = 'lucide:list-filter',
   disabled,
+  allowSelection = true,
+  commitOnClose = false,
+  inline = false,
   className,
 }: PrioritySelectProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [draftValue, setDraftValue] = useState(value)
+  const draftValueRef = useRef(value)
   const sensors = useSortableSensors()
+  const activeValue = commitOnClose && open ? draftValue : value
   const normalizedSearch = search.trim().toLocaleLowerCase()
   const optionByValue = useMemo(
     () => new Map(options.map((option) => [option.value, option])),
@@ -147,12 +161,12 @@ export function PrioritySelect({
   )
   const selected = useMemo(
     () =>
-      value
+      activeValue
         .map((id) => optionByValue.get(id))
         .filter((option): option is PrioritySelectOption => Boolean(option)),
-    [optionByValue, value],
+    [activeValue, optionByValue],
   )
-  const selectedSet = useMemo(() => new Set(value), [value])
+  const selectedSet = useMemo(() => new Set(activeValue), [activeValue])
   const orderedOptions = useMemo(
     () => [...selected, ...options.filter((option) => !selectedSet.has(option.value))],
     [options, selected, selectedSet],
@@ -172,40 +186,33 @@ export function PrioritySelect({
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
     if (normalizedSearch || !over || active.id === over.id) return
-    const next = reorderPriorityValues(value, String(active.id), String(over.id))
-    if (next !== value) onValueChange(next)
+    const next = reorderPriorityValues(activeValue, String(active.id), String(over.id))
+    if (next !== activeValue) changeValue(next)
   }
 
   const handleOpenChange = (next: boolean) => {
+    if (next && commitOnClose) {
+      const initial = [...value]
+      draftValueRef.current = initial
+      setDraftValue(initial)
+    }
+    if (!next && commitOnClose && JSON.stringify(draftValueRef.current) !== JSON.stringify(value)) {
+      onValueChange([...draftValueRef.current])
+    }
     setOpen(next)
     if (!next) setSearch('')
   }
 
-  return (
-    <Popover
-      open={open}
-      onOpenChange={handleOpenChange}
-      className="w-80 p-2"
-      trigger={
-        <Button
-          variant="outlined"
-          color="from-theme"
-          disabled={disabled}
-          aria-label={labels.trigger}
-          aria-expanded={open}
-          className={cn('h-8 gap-1.5 px-2 font-normal', className)}
-        >
-          <Icon icon={icon} fontSize={17} />
-          <span>{labels.trigger}</span>
-          {value.length > 0 && (
-            <span className="rounded-full bg-p-purple-500/15 px-1.5 text-xs font-semibold text-p-purple">
-              {value.length}
-            </span>
-          )}
-          <Icon icon="lucide:chevron-down" fontSize={14} className="opacity-60" />
-        </Button>
-      }
-    >
+  const changeValue = (next: string[]) => {
+    if (commitOnClose) {
+      draftValueRef.current = next
+      setDraftValue(next)
+      return
+    }
+    onValueChange(next)
+  }
+
+  const panel = <>
       <TextField
         type="search"
         size="sm"
@@ -225,25 +232,24 @@ export function PrioritySelect({
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={visibleSelectedIds} strategy={verticalListSortingStrategy}>
-              <ul role="list" className="m-0 list-none p-0">
+              <ul role="list" className="m-0 grid list-none gap-1.5 p-0">
                 {visibleOptions.map((option) => {
-                  const priority = value.indexOf(option.value)
+                  const priority = activeValue.indexOf(option.value)
                   const checked = priority >= 0
+                  const rowOption = disabled ? { ...option, disabled: true } : option
                   return (
                     <PriorityOptionRow
                       key={option.value}
-                      option={option}
+                      option={rowOption}
                       checked={checked}
                       priority={checked ? priority : null}
                       dragDisabled={!checked || Boolean(normalizedSearch)}
+                      selectionDisabled={!allowSelection}
                       labels={labels}
-                      onCheckedChange={(next) =>
-                        onValueChange(
-                          next
-                            ? [...value, option.value]
-                            : value.filter((candidate) => candidate !== option.value),
-                        )
-                      }
+                      onCheckedChange={(next) => {
+                        if (!allowSelection) return
+                        changeValue(next ? [...activeValue, option.value] : activeValue.filter((candidate) => candidate !== option.value))
+                      }}
                     />
                   )
                 })}
@@ -252,19 +258,66 @@ export function PrioritySelect({
           </DndContext>
         )}
       </div>
-      <div className="mt-2 flex justify-end border-t border-divider pt-2">
+      {allowSelection ? <div className="mt-2 flex justify-end border-t border-divider pt-2">
         <Button
           variant="text"
           color="from-theme"
-          disabled={value.length === 0}
+          disabled={activeValue.length === 0}
           onClick={() => {
-            onValueChange([])
+            if (inline) {
+              onValueChange([])
+              return
+            }
+            if (commitOnClose) {
+              draftValueRef.current = []
+              setDraftValue([])
+            } else {
+              onValueChange([])
+            }
             handleOpenChange(false)
           }}
         >
           {labels.clear ?? 'Limpar agrupamento'}
         </Button>
+      </div> : null}
+    </>
+
+  if (inline) {
+    return <section aria-label={labels.trigger} aria-disabled={disabled} className={cn('rounded-lg border border-divider p-2', disabled && 'opacity-50', className)}>
+      <div className="mb-2 flex items-center justify-between gap-2 px-1 text-sm font-medium">
+        <span>{labels.trigger}</span>
+        <span className="rounded-full bg-p-purple-500/15 px-1.5 text-xs font-semibold text-p-purple">{activeValue.length}</span>
       </div>
+      {panel}
+    </section>
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={handleOpenChange}
+      className="w-80 p-2"
+      trigger={
+        <Button
+          variant="outlined"
+          color="from-theme"
+          disabled={disabled}
+          aria-label={labels.trigger}
+          aria-expanded={open}
+          className={cn('h-8 gap-1.5 px-2 font-normal', className)}
+        >
+          <Icon icon={icon} fontSize={17} />
+          <span>{labels.trigger}</span>
+          {activeValue.length > 0 && (
+            <span className="rounded-full bg-p-purple-500/15 px-1.5 text-xs font-semibold text-p-purple">
+              {activeValue.length}
+            </span>
+          )}
+          <Icon icon="lucide:chevron-down" fontSize={14} className="opacity-60" />
+        </Button>
+      }
+    >
+      {panel}
     </Popover>
   )
 }

@@ -130,9 +130,8 @@ export class PageWriteService {
   }
 
   /**
-   * Troca o TIPO da coluna. Não-destrutivo: o backend PRESERVA o config e os
-   * valores do tipo antigo (a limpeza é só via `resetColumn`). Manda só `type`
-   * — o `data` fica intacto.
+   * Troca o TIPO da coluna por atualização parcial. Manda só `type`; config e
+   * valores existentes ficam intactos.
    */
   changeColumnType(parentId: string, columnId: string, type: string): Promise<unknown> {
     return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { type })
@@ -148,15 +147,6 @@ export class PageWriteService {
     patch: ColumnConfigPatch,
   ): Promise<unknown> {
     return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, patch)
-  }
-
-  /**
-   * "Reset de tipos" — a limpeza destrutiva. O backend zera o `data` para a
-   * base do tipo e sobrescreve as células divergentes com o default. A base
-   * muda em massa, então quem chama relê (reload) em vez de remendar.
-   */
-  resetColumn(parentId: string, columnId: string): Promise<unknown> {
-    return apiService.post(`/pages/parent/${parentId}/columns/${columnId}/reset`)
   }
 
   /**
@@ -177,6 +167,10 @@ export class PageWriteService {
     }
     if (patch.orderedRows !== undefined) body.orderedRows = patch.orderedRows
     if (patch.columnWidths !== undefined) body.columnWidths = patch.columnWidths
+    if (patch.dateColumnId !== undefined) body.dateColumnId = patch.dateColumnId
+    if (patch.colorColumnId !== undefined) body.colorColumnId = patch.colorColumnId
+    if (patch.calendarPropertyIds !== undefined) body.calendarPropertyIds = patch.calendarPropertyIds
+    if (patch.calendarShowPropertyLabels !== undefined) body.calendarShowPropertyLabels = patch.calendarShowPropertyLabels
     if (patch.title !== undefined) {
       body.title = {
         key: patch.title.key,

@@ -10,10 +10,12 @@ import type { DatabaseViewToolbarSyncStatus } from './components/DatabaseViewSyn
 import { ViewTabsBar } from './components/ViewTabsBar'
 import { TableView } from './components/TableView'
 import { GridView } from './components/GridView'
+import { CalendarView } from './components/CalendarView'
 import { GraphView } from './components/GraphView'
 import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from './viewSettings'
 import type { TableRowLabels } from './components/TableRow'
 import type {
+  CalendarPinInput,
   CellChange,
   CellEditConflict,
   ColumnConfigPatch,
@@ -80,6 +82,14 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
   clearFilters: 'Limpar filtros',
   true: 'Sim',
   false: 'Não',
+  dateProperty: 'Propriedade de data',
+  colorProperty: 'Propriedade de cor',
+  defaultColor: 'Automática (primeira seleção)',
+  visibleProperties: 'Propriedades visíveis',
+  dragProperty: 'Reordenar propriedade',
+  selectProperty: 'Mostrar propriedade',
+  hideAllProperties: 'Ocultar todas',
+  showPropertyLabels: 'Mostrar nomes das propriedades',
   conditions: {
     equals: 'Igual a',
     contains: 'Contém',
@@ -172,7 +182,7 @@ export interface CubsDatabaseProps {
   onPageTitleColumnChange?: (viewId: string, column: PageTitleColumn) => void
   /**
    * Trocar o TIPO da coluna (menu). Não-destrutivo no backend: o config e os
-   * valores do tipo antigo ficam preservados até um "reset de tipos".
+   * valores existentes ficam preservados.
    */
   onColumnTypeChange?: (columnId: string, type: ColumnDataType) => void
   /**
@@ -180,12 +190,6 @@ export interface CubsDatabaseProps {
    * `null` numa chave a LIMPA; ausente preserva (o backend mescla).
    */
   onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
-  /**
-   * "Reset de tipos" (destrutivo) de uma coluna divergente: o backend zera o
-   * config para a base do tipo e limpa/reseta as células divergentes. A
-   * presença da prop habilita o header vermelho + o item no menu.
-   */
-  onColumnReset?: (columnId: string) => void
   /** Envia uma coluna real para a lixeira. */
   onColumnDelete?: (columnId: string) => void
   /**
@@ -206,6 +210,13 @@ export interface CubsDatabaseProps {
   filtersOverride?: ViewFiltersV2
   /** Persiste atomicamente filtros + agrupamentos + passthrough canônicos. */
   onViewFiltersChange?: (viewId: string, filters: ViewFiltersV2) => void
+  /** Persiste somente a configuração específica da view Calendar. */
+  onCalendarConfigChange?: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds' | 'calendarShowPropertyLabels'>) => void
+  /** Agenda é injetada pelo host; a lib não conhece API, usuário ou workspace. */
+  pinnedCalendarPageIds?: ReadonlySet<string>
+  calendarPendingPageId?: string | null
+  onCalendarPin?: (input: CalendarPinInput) => void | boolean | Promise<boolean>
+  onCalendarUnpin?: (pageId: string) => void | boolean | Promise<boolean>
   /** Relógio/estado de persistência e refresh remoto da view ativa. */
   filterSyncStatus?: DatabaseViewToolbarSyncStatus
   /** Traduções dos controles de filtro/agrupamento; a lib não acessa i18n. */
@@ -264,13 +275,17 @@ export function CubsDatabase({
   onPageTitleColumnChange,
   onColumnTypeChange,
   onColumnConfigChange,
-  onColumnReset,
   onColumnDelete,
   onColumnWidthChange,
   onColumnWidthPreview,
   columnWidthPreviews,
   filtersOverride,
   onViewFiltersChange,
+  onCalendarConfigChange,
+  pinnedCalendarPageIds,
+  calendarPendingPageId,
+  onCalendarPin,
+  onCalendarUnpin,
   filterSyncStatus,
   toolbarLabels,
   loading,
@@ -310,6 +325,10 @@ export function CubsDatabase({
   const stableColumnWidths = useSemanticValue(
     currentView.columnWidths,
     JSON.stringify(currentView.columnWidths ?? null),
+  )
+  const stableCalendarPropertyIds = useSemanticValue(
+    currentView.calendarPropertyIds,
+    JSON.stringify(currentView.calendarPropertyIds ?? null),
   )
 
   const basePageTitleColumn = useMemo(
@@ -458,6 +477,10 @@ export function CubsDatabase({
           ...previous,
           [mockSettingsKey]: { ...(previous[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS), ...patch },
         }))}
+        calendar={{ dateColumnId: currentView.dateColumnId, colorColumnId: currentView.colorColumnId, calendarShowPropertyLabels: currentView.calendarShowPropertyLabels }}
+        onCalendarChange={onCalendarConfigChange ? (patch) => onCalendarConfigChange(currentViewId, patch) : undefined}
+        calendarPropertyIds={stableCalendarPropertyIds}
+        onCalendarPropertyIdsChange={onCalendarConfigChange ? (calendarPropertyIds) => onCalendarConfigChange(currentViewId, { calendarPropertyIds }) : undefined}
         onAddRow={onAddRow}
         onViewKindChange={
           onViewKindChange
@@ -503,7 +526,6 @@ export function CubsDatabase({
                 ? handleColumnConfigChange
                 : undefined
             }
-            onColumnReset={onColumnReset}
             onColumnDelete={onColumnDelete}
             onColumnWidthChange={
               onColumnWidthChange
@@ -528,6 +550,14 @@ export function CubsDatabase({
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
           />
+        ) : currentView.view === 'calendar' ? (
+          <CalendarView key={currentViewId} columns={orderedColumns} rows={filteredRows}
+            dateColumnId={currentView.dateColumnId} colorColumnId={currentView.colorColumnId}
+            calendarPropertyIds={stableCalendarPropertyIds}
+            showPropertyLabels={currentView.calendarShowPropertyLabels !== false}
+            onOpenRow={onOpenRow} pinnedPageIds={pinnedCalendarPageIds}
+            pendingPageId={calendarPendingPageId} onPin={onCalendarPin} onUnpin={onCalendarUnpin}
+            sourceTitle={pageTitle} />
         ) : currentView.view === 'graph' ? (
           <GraphView
             key={`${pageId ?? ''}:${currentViewId}`}

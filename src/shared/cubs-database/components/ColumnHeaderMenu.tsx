@@ -26,10 +26,6 @@ export interface ColumnHeaderMenuProps {
   onColumnTypeChange?: (type: ColumnDataType) => void
   onColumnOptionsChange?: (options: ColumnOption[]) => void
   onColumnConfigChange?: (patch: ColumnConfigPatch) => void
-  /** A coluna tem células divergentes do tipo atual → habilita o "reset". */
-  diverging?: boolean
-  /** Executa o "reset de tipos" (destrutivo). Aparece só com `diverging`. */
-  onColumnReset?: () => void
   /** Envia a coluna real para a lixeira após confirmação inline. */
   onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
@@ -107,8 +103,6 @@ export function ColumnHeaderMenu({
   onColumnTypeChange,
   onColumnOptionsChange,
   onColumnConfigChange,
-  diverging,
-  onColumnReset,
   onColumnDelete,
   labels,
   className,
@@ -161,8 +155,6 @@ export function ColumnHeaderMenu({
     onColumnTypeChange,
     onColumnOptionsChange,
     onColumnConfigChange,
-    diverging,
-    onColumnReset,
     onColumnDelete,
     labels,
   })

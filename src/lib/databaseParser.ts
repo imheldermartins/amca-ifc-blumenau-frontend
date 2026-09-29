@@ -375,6 +375,7 @@ function parseView(raw: unknown): DataViewType | null {
 
   const columnWidths = parseColumnWidths(candidate.columnWidths)
   const orderedRows = parseIdList(candidate.orderedRows)
+  const calendarPropertyIds = parseIdList(candidate.calendarPropertyIds)
   const title = parsePageTitleColumn(candidate.title)
   const filters = parseViewFilters(candidate.filters as string | ViewFiltersV2 | null | undefined)
 
@@ -397,6 +398,10 @@ function parseView(raw: unknown): DataViewType | null {
     // campo só entra quando tem conteúdo — snapshot enxuto.
     ...(orderedRows.length > 0 && { orderedRows }),
     ...(columnWidths && { columnWidths }),
+    ...(typeof candidate.dateColumnId === 'string' && { dateColumnId: candidate.dateColumnId }),
+    ...((typeof candidate.colorColumnId === 'string' || candidate.colorColumnId === null) && { colorColumnId: candidate.colorColumnId }),
+    ...(Array.isArray(candidate.calendarPropertyIds) && { calendarPropertyIds }),
+    ...(typeof candidate.calendarShowPropertyLabels === 'boolean' && { calendarShowPropertyLabels: candidate.calendarShowPropertyLabels }),
   }
 }
 
