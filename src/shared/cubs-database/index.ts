@@ -7,6 +7,20 @@ export { TableView } from './components/TableView'
 export type { TableViewProps } from './components/TableView'
 export { GridView, GridContainer, GridTile } from './components/GridView'
 export { CalendarView, type CalendarViewLabels, type CalendarViewProps } from './components/CalendarView'
+export { ColumnLockSettings, type ColumnLockSettingsLabels } from './components/ColumnLockSettings'
+export { FlowEditorDialog } from './components/FlowEditorDialog'
+export { createDefaultFlowDefinition } from './flowDefinition'
+export {
+  createFlowMacroScope,
+  createFlowMacroSections,
+  createMacroMentionMaps,
+  encodeMacroMention,
+  extractMacroMentions,
+  formatMacroMentions,
+  macroMentionSlug,
+  parseMacroMentions,
+} from './macroMentions'
+export type { FlowEditorDialogProps } from './components/FlowEditorDialog'
 export { CalendarProperties } from './components/CalendarProperties'
 export type { CalendarPropertiesProps } from './components/CalendarProperties'
 export { mappedProps } from './calendarPropertyRenderers'
@@ -86,12 +100,30 @@ export type {
   CellEditorProps,
   ColumnConfigPatch,
   ColumnDataType,
+  ColumnLockEditor,
+  ColumnLockMap,
   ColumnMask,
   ColumnOption,
   CurrencyCode,
   DataViewKind,
   DataViewSettings,
   DataViewType,
+  FlowCallbackNode,
+  FlowConditionOperator,
+  FlowDefinition,
+  FlowDialogTarget,
+  FlowEmailNode,
+  FlowExecutionResult,
+  FlowMacroGroup,
+  FlowMacroOption,
+  FlowMacroScope,
+  FlowMacroSection,
+  FlowMacroSectionsBuilder,
+  FlowNode,
+  FlowNodeType,
+  FlowSetValueNode,
+  FlowStartNode,
+  FlowSwitchNode,
   HeaderCol,
   NumberFormat,
   OptionColor,

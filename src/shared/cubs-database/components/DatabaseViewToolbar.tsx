@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { Button, Drawer, Select, Tooltip } from 'cubs-components'
 
-import type { DataViewKind, DataViewType, HeaderCol, RowData } from '../types'
+import type { ColumnLockEditor, ColumnLockMap, DataViewKind, DataViewType, HeaderCol, RowData } from '../types'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
 import {
   parseViewFilters,
@@ -22,6 +22,7 @@ import { FilterPopover } from './FilterPopover'
 import { PrioritySelect } from './PrioritySelect'
 import { ViewSettingsForm } from './ViewSettingsForm'
 import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from '../viewSettings'
+import { ColumnLockSettings } from './ColumnLockSettings'
 
 export interface DatabaseViewToolbarLabels {
   newPage: string
@@ -57,6 +58,12 @@ export interface DatabaseViewToolbarLabels {
   selectProperty?: string
   hideAllProperties?: string
   showPropertyLabels?: string
+  columnLocks?: string
+  columnLocksDescription?: string
+  columnLockSearch?: string
+  columnLockEmpty?: string
+  columnLockAllowed?: string
+  columnLocked?: string
 }
 
 export interface DatabaseViewToolbarProps {
@@ -78,6 +85,11 @@ export interface DatabaseViewToolbarProps {
   onCalendarChange?: (patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarShowPropertyLabels'>) => void
   calendarPropertyIds?: string[]
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
+  columnLocks?: ColumnLockMap
+  columnLockEditors?: ColumnLockEditor[]
+  canManageColumnLocks?: boolean
+  currentUserId?: string
+  onColumnLockChange?: (columnKey: string, userIds: string[]) => void
 }
 
 function updateDocument(
@@ -108,6 +120,11 @@ export function DatabaseViewToolbar({
   onCalendarChange,
   calendarPropertyIds,
   onCalendarPropertyIdsChange,
+  columnLocks = {},
+  columnLockEditors = [],
+  canManageColumnLocks = false,
+  currentUserId,
+  onColumnLockChange,
 }: DatabaseViewToolbarProps) {
   const [presetsOpen, setPresetsOpen] = useState(false)
   // O tipo público já é v2. A leitura tolerante mantém o pacote seguro para
@@ -118,7 +135,13 @@ export function DatabaseViewToolbar({
     () => new Map(columns.map((column) => [column.id, column])),
     [columns],
   )
-  const validGroupBy = document.groupBy.filter((id) => columnsById.has(id))
+  const valueColumns = useMemo(
+    () => columns.filter((column) => columnTypes[column.id] !== 'flow'),
+    [columnTypes, columns],
+  )
+  const validGroupBy = document.groupBy.filter((id) =>
+    valueColumns.some((column) => column.id === id),
+  )
   const viewOptions = useMemo(
     () =>
       DATA_VIEW_KINDS.map((view) => ({
@@ -163,7 +186,7 @@ export function DatabaseViewToolbar({
         onValueChange={(value) => onViewKindChange?.(value as DataViewKind)}
       />
       <PrioritySelect
-        options={columns.map((column) => ({ value: column.id, label: column.title }))}
+        options={valueColumns.map((column) => ({ value: column.id, label: column.title }))}
         value={validGroupBy}
         onValueChange={changeGroups}
         disabled={!onChange}
@@ -179,7 +202,7 @@ export function DatabaseViewToolbar({
         }}
       />
       <FilterPopover
-        columns={columns}
+        columns={valueColumns}
         columnTypes={columnTypes}
         filterCount={document.clauses.length}
         disabled={!onChange}
@@ -204,7 +227,7 @@ export function DatabaseViewToolbar({
       {document.clauses.map((clause, index) => {
         const column = columnsById.get(clause.columnId)
         const columnType = column ? columnTypes[column.id] : undefined
-        if (!column || !columnType) return null
+        if (!column || !columnType || columnType === 'flow') return null
         return (
           <FilterChip
             key={`${clause.columnId}:${clause.condition}:${clause.values.join('\u0000')}:${index}`}
@@ -267,6 +290,21 @@ export function DatabaseViewToolbar({
           calendarLabels={{ dateProperty: labels.dateProperty ?? 'Propriedade de data', colorProperty: labels.colorProperty ?? 'Propriedade de cor', defaultColor: labels.defaultColor ?? 'Automática (primeira seleção)', showPropertyLabels: labels.showPropertyLabels ?? 'Mostrar nomes das propriedades' }}
           calendarPropertyIds={calendarPropertyIds} onCalendarPropertyIdsChange={onCalendarPropertyIdsChange}
           calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }} />
+        {canManageColumnLocks && currentUserId && onColumnLockChange ? <ColumnLockSettings
+          columns={columns}
+          locks={columnLocks}
+          editors={columnLockEditors}
+          currentUserId={currentUserId}
+          onChange={onColumnLockChange}
+          labels={{
+            title: labels.columnLocks ?? 'Bloqueio de colunas',
+            description: labels.columnLocksDescription ?? 'Aplica-se a todas as views desta database.',
+            search: labels.columnLockSearch ?? 'Buscar pessoa',
+            empty: labels.columnLockEmpty ?? 'Nenhum editor disponível',
+            allowed: labels.columnLockAllowed ?? 'Pode editar',
+            locked: labels.columnLocked ?? 'Coluna bloqueada',
+          }}
+        /> : null}
       </div>
     </Drawer>,
   ]

@@ -145,6 +145,54 @@ describe('CubsDatabase — tipo da view atual', () => {
     expect(screen.getByText('Sem registros')).not.toBeNull()
     expect(document.querySelector('[data-grid-container]')).toBeNull()
   })
+
+  it('desmonta a Grid ao trocar da tab Grade para a tab Calendário', () => {
+    const calendarViewId = '01KXVZ0000VIEW00000000002'
+    const columns = [
+      { id: 'page_title', key: 'title' as const, title: 'Título', type: 'text' as const },
+      { id: 'event-date', title: 'Data', type: 'date' as const },
+    ]
+    const rows = [{
+      id: 'page-1',
+      cells: {
+        page_title: { value: 'Reunião' },
+        'event-date': { value: '2026-10-01' },
+      },
+    }]
+    const base = {
+      filters: emptyViewFilters(),
+      orderedHeaderCols: ['page_title', 'event-date'],
+    }
+    render(
+      <CubsDatabase
+        settings={{
+          [VIEW_ID]: {
+            ...base,
+            view: 'grid',
+            name: 'Grade',
+            urlKey: { key: 'grade', aliases: [] },
+          },
+          [calendarViewId]: {
+            ...base,
+            view: 'calendar',
+            name: 'Calendário',
+            urlKey: { key: 'calendario', aliases: [] },
+            dateColumnId: 'event-date',
+          },
+        }}
+        headerCols={columns}
+        rows={rows}
+      />,
+    )
+
+    expect(document.querySelector('[data-grid-container]')).not.toBeNull()
+    expect(document.querySelector('[data-database-calendar]')).toBeNull()
+
+    fireEvent.click(screen.getByText('Calendário'))
+
+    expect(document.querySelector('[data-grid-container]')).toBeNull()
+    expect(document.querySelector('[data-database-calendar]')).not.toBeNull()
+  })
 })
 
 describe('CubsDatabase — filtros e agrupamentos', () => {

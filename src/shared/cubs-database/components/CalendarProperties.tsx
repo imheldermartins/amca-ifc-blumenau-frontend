@@ -23,10 +23,12 @@ export function CalendarProperties({ properties, compact = false, showLabels = t
     >
       {properties.map((property) => {
         const render = mappedProps[property.type]
+        const content = render(property, { compact })
+        if (content === null || content === undefined) return null
         return (
           <div key={property.id} className={cn('flex min-w-0 max-w-full items-start justify-start', showLabels && 'gap-1.5')}>
             <dt className={cn('shrink-0 text-dark-100 dark:text-light-900', !showLabels && 'sr-only')}>{property.label}:</dt>
-            <dd className="min-w-0 max-w-full overflow-hidden">{render(property, { compact })}</dd>
+            <dd className="min-w-0 max-w-full overflow-hidden">{content}</dd>
           </div>
         )
       })}

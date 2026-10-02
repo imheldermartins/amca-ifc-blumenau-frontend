@@ -399,7 +399,36 @@
           "source": "Origem",
           "writeErrorTitle": "Não foi possível atualizar a agenda",
           "writeErrorDescription": "A alteração foi desfeita. Tente novamente.",
-          "cancel": "Cancelar"
+          "cancel": "Cancelar",
+          "requestPinTitle": "Solicitar fixação na agenda",
+          "requestPinDescription": "Escolha uma pessoa que já pode visualizar “{{title}}”. Ela decidirá se quer incluir a página na própria agenda.",
+          "requestPinAction": "Enviar solicitação",
+          "searchRecipients": "Buscar pessoa por nome ou e-mail",
+          "noRecipients": "Nenhuma outra pessoa com acesso a esta página foi encontrada.",
+          "recipientsError": "Não foi possível carregar as pessoas disponíveis.",
+          "requestPinSuccessTitle": "Solicitação enviada",
+          "requestPinSuccessDescription": "{{recipient}} receberá uma notificação e um e-mail.",
+          "requestPinErrorTitle": "Não foi possível enviar a solicitação",
+          "requestPinErrorDescription": "Atualize a página e confirme se a pessoa ainda possui acesso."
+      },
+      "notifications": {
+        "title": "Notificações",
+        "description": "Pedidos e lembretes desta workspace.",
+        "empty": "Nenhuma notificação por aqui.",
+        "load-error": "Não foi possível carregar as notificações.",
+        "error-title": "Não foi possível responder",
+        "error-description": "A página pode ter mudado ou seu acesso pode ter sido revogado.",
+        "someone": "Alguém",
+        "pin-request-title": "Pedido de agenda",
+        "pin-request-description": "{{requester}} quer que você fixe “{{page}}” na sua agenda.",
+        "reminder-title": "Evento começando",
+        "reminder-description": "“{{page}}” chegou ao horário definido.",
+        "flow-email-title": "E-mail de flow",
+        "flow-email-description": "Um flow em “{{page}}” enviou um e-mail para você.",
+        "unread": "Não lida",
+        "decline": "Recusar",
+        "accept-pin": "Fixar na agenda",
+        "open-page": "Abrir página"
       },
       "account-menu": {
         "open": "Abrir menu da conta",
@@ -482,6 +511,7 @@
         "sem-titulo": "Sem Título",
         "title-label": "Título da página",
         "title-save-error": "Não foi possível salvar o título.",
+        "title-locked": "Título bloqueado para edição",
         "views": {
           "navigation": "Visualização do conteúdo da página",
           "files": "Base de dados",
@@ -528,6 +558,16 @@
           "mostrar-labels": "Mostrar nomes das propriedades",
           "ocultar-todas": "Ocultar todas"
         },
+        "lock": {
+          "title": "Bloqueio de colunas",
+          "description": "O bloqueio vale para todas as views desta database e também para as células da coluna.",
+          "search": "Buscar pessoa com permissão de edição",
+          "empty": "Nenhum outro editor disponível.",
+          "allowed": "Pode editar",
+          "locked": "Coluna bloqueada",
+          "error-title": "Não foi possível salvar o bloqueio",
+          "error-description": "As permissões podem ter mudado. Atualize e tente novamente."
+        },
         "vazio": "Esta página ainda não possui subpáginas.",
         "em-breve": "Esta view ainda está em construção.",
         "abrir": "Abrir",
@@ -555,7 +595,8 @@
           "numeric": "Número",
           "select": "Seleção",
           "date": "Data",
-          "checkbox": "Checkbox"
+          "checkbox": "Checkbox",
+          "flow": "Flow"
         },
         "coluna": {
           "tipo": "Tipo",
@@ -569,13 +610,15 @@
           "adicionar-opcao": "Adicionar opção",
           "excluir-opcao": "Excluir opção",
           "cor-opcao": "Cor da opção",
-          "nome-opcao": "Nome da opção"
+          "nome-opcao": "Nome da opção",
+          "configurar-flow": "Configurar flow"
         },
         "mascaras": {
           "cpf": "CPF",
           "cep": "CEP",
           "telefone": "Telefone",
-          "data": "Data (dd/mm/aaaa)"
+          "data": "Data (dd/mm/aaaa)",
+          "email": "E-mail"
         },
         "date-picker": {
           "escolher": "Escolher data",
@@ -785,7 +828,8 @@
           "promote_members": "Alterar roles dos membros",
           "edit_subpages": "Editar subpáginas",
           "delete": "Excluir esta página",
-          "create_page_roles": "Criar e editar templates da página"
+          "create_page_roles": "Criar e editar templates da página",
+          "lock_columns": "Bloquear colunas e definir editores"
         }
       }
     },

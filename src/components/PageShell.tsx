@@ -119,6 +119,8 @@ export interface PageShellProps extends UsePageRealtimeOptions {
   children?: ReactNode
   /** Conteúdo do editor de blocos, exibido quando `document` está ativo. */
   documentContent?: ReactNode
+  /** Decisão global de lock-in da coluna sintética `title`. */
+  titleReadOnly?: boolean
 }
 
 /**
@@ -142,6 +144,7 @@ export function PageShell({
   onContentViewChange,
   children,
   documentContent,
+  titleReadOnly = false,
   ...realtimeOptions
 }: PageShellProps) {
   const auth = useAuth()
@@ -301,7 +304,7 @@ export function PageShell({
   }, [displayedActivityKind, displayedUpdatedAt, relativeTimeNow])
 
   const saveTitle = useCallback(async () => {
-    if (!pageId || titleSaving) return
+    if (!pageId || titleSaving || titleReadOnly) return
     if (cancelTitleBlurRef.current) {
       cancelTitleBlurRef.current = false
       return
@@ -325,7 +328,7 @@ export function PageShell({
     } finally {
       if (titleSaveRequestRef.current.pageId === pageId && titleSaveRequestRef.current.sequence === request) setTitleSaving(false)
     }
-  }, [displayedTitle, draftTitle, pageId, titleSaving])
+  }, [displayedTitle, draftTitle, pageId, titleReadOnly, titleSaving])
 
   const openPageSettings = useCallback(
     (fragment: PageSettingsFragment) => {
@@ -469,7 +472,7 @@ export function PageShell({
             <PageTitleSkeleton />
           ) : pageLoading ? (
             displayedTitle
-          ) : can(permission.data, 'write', 'update') ? (
+          ) : can(permission.data, 'write', 'update') && !titleReadOnly ? (
             <input
               value={draftTitle}
               readOnly={titleSaving}
@@ -493,7 +496,7 @@ export function PageShell({
               {i18n('pages.app.pagina.sem-titulo')}
             </span>
           ) : (
-            displayedTitle
+            <span className="flex items-center gap-2">{displayedTitle}{titleReadOnly && <Icon icon="lucide:lock-keyhole" className="size-4 opacity-45" aria-label={i18n('pages.app.pagina.title-locked')} />}</span>
           )}
         </Typography>
         {titleSaveFailed && <Typography variant="caption" as="p" role="alert" className="text-p-red">{i18n('pages.app.pagina.title-save-error')}</Typography>}

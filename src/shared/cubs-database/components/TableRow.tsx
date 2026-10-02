@@ -60,6 +60,7 @@ export interface TableRowProps {
   columnTypes?: Record<string, ColumnDataType>
   /** Células em falha/impasse (chave `cellErrorKey`) — a linha lê as suas. */
   cellErrors?: Set<string>
+  lockedColumnKeys?: ReadonlySet<string>
   /** true = linha ímpar visual (bg-contrast); false = bg-background. */
   zebra: boolean
   selected: boolean
@@ -81,6 +82,7 @@ export interface TableRowProps {
   onCellEditConflict?: (conflict: CellEditConflict) => void
   /** Reordenação das options de uma coluna select (array completo). */
   onColumnOptionsChange?: (columnId: string, options: ColumnOption[]) => void
+  onFlowOpen?: (row: RowData, column: HeaderCol) => void
   /** Move esta página uma posição na ordem visual atual. */
   onMoveRow?: (rowIndex: number, direction: -1 | 1) => void
   canMoveUp?: boolean
@@ -109,7 +111,7 @@ export interface TableRowProps {
  * memoiza `labels` — um único literal inline em qualquer nível acima anula
  * este memo.
  */
-export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
+export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, lockedColumnKeys, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onFlowOpen, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
   const {
     attributes,
     listeners,
@@ -200,9 +202,11 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
           width={columnWidths?.[column.id]}
           isLast={columnIndex === columns.length - 1}
           hasError={cellErrors?.has(cellErrorKey(row.id, column.id))}
-          onCellChange={onCellChange}
+          locked={lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id)}
+          onFlowOpen={onFlowOpen}
+          onCellChange={lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id) ? undefined : onCellChange}
           onCellEditConflict={onCellEditConflict}
-          onColumnOptionsChange={onColumnOptionsChange}
+          onColumnOptionsChange={lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id) ? undefined : onColumnOptionsChange}
           labels={labels}
         />
       ))}
@@ -232,6 +236,7 @@ function formatOverlayCell(row: RowData, column: HeaderCol, type?: ColumnDataTyp
   }
   if (type === 'numeric' && column.format) return formatNumericValue(value, column.format)
   if (type === 'date') return formatDatePickerValue(value)
+  if (type === 'flow') return column.flow ? 'Flow' : ''
   return formatCellValue(value)
 }
 

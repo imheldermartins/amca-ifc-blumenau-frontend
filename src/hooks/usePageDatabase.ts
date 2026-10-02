@@ -10,6 +10,9 @@ import {
   type DataViewKind,
   type DataViewSettings,
   type DataViewType,
+  type FlowDefinition,
+  type FlowExecutionResult,
+  type FlowMacroOption,
   type PageTitleColumn,
   type ViewFiltersV2,
 } from 'cubs-database'
@@ -39,6 +42,7 @@ import type {
   PageStructureEvent,
 } from '@/services/PageRealtimeChannel'
 import { pageWriteService } from '@/services/PageWriteService'
+import { flowService } from '@/services/FlowService'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
 
@@ -90,6 +94,9 @@ export interface UsePageDatabaseResult {
     onPageTitleColumnChange: (viewId: string, column: PageTitleColumn) => void
     onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
     onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
+    onFlowConfigChange: (columnId: string, flow: FlowDefinition) => Promise<FlowDefinition>
+    onFlowLoadMacros: (input: { columnId: string; rowId?: string }) => Promise<FlowMacroOption[]>
+    onFlowExecute: (input: { columnId: string; rowId: string }) => Promise<FlowExecutionResult>
     onDeleteRow: (rowId: string) => void
     onColumnDelete: (columnId: string) => void
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
@@ -911,6 +918,46 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         pageWriteService.saveColumnConfig(pageId, columnId, patch).catch(handleWriteError)
       },
       [pageId, handleWriteError],
+    ),
+    onFlowConfigChange: useCallback(
+      async (columnId: string, flow: FlowDefinition) => {
+        if (!pageId || columnId === TITLE_COLUMN_ID) throw new Error('Coluna Flow inválida')
+        try {
+          const saved = await flowService.save(pageId, columnId, flow)
+          setDatabase((current) => current ? {
+            ...current,
+            headerCols: current.headerCols.map((column) =>
+              column.id === columnId ? { ...column, flow: saved } : column,
+            ),
+          } : current)
+          return saved
+        } catch (error) {
+          handleWriteError(error)
+          throw error
+        }
+      },
+      [pageId, handleWriteError],
+    ),
+    onFlowLoadMacros: useCallback(
+      (input: { columnId: string; rowId?: string }) => {
+        if (!pageId) return Promise.resolve([])
+        return flowService.macros(pageId, input.columnId, input.rowId)
+      },
+      [pageId],
+    ),
+    onFlowExecute: useCallback(
+      async (input: { columnId: string; rowId: string }) => {
+        const result = await flowService.execute(input.rowId, input.columnId)
+        setDatabase((current) => current ? {
+          ...current,
+          rows: current.rows.map((row) => row.id === input.rowId ? {
+            ...row,
+            cells: { ...row.cells, [input.columnId]: { value: result } },
+          } : row),
+        } : current)
+        return result
+      },
+      [],
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {

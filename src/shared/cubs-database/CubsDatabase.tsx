@@ -20,7 +20,13 @@ import type {
   CellEditConflict,
   ColumnConfigPatch,
   ColumnDataType,
+  ColumnLockEditor,
+  ColumnLockMap,
   ColumnOption,
+  FlowDefinition,
+  FlowExecutionResult,
+  FlowMacroOption,
+  FlowMacroSectionsBuilder,
   DataViewKind,
   DataViewSettings,
   DataViewType,
@@ -90,6 +96,12 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
   selectProperty: 'Mostrar propriedade',
   hideAllProperties: 'Ocultar todas',
   showPropertyLabels: 'Mostrar nomes das propriedades',
+  columnLocks: 'Bloqueio de colunas',
+  columnLocksDescription: 'Aplica-se a todas as views desta database.',
+  columnLockSearch: 'Buscar pessoa',
+  columnLockEmpty: 'Nenhum editor disponível',
+  columnLockAllowed: 'Pode editar',
+  columnLocked: 'Coluna bloqueada',
   conditions: {
     equals: 'Igual a',
     contains: 'Contém',
@@ -190,6 +202,10 @@ export interface CubsDatabaseProps {
    * `null` numa chave a LIMPA; ausente preserva (o backend mescla).
    */
   onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
+  onFlowConfigChange?: (columnId: string, flow: FlowDefinition) => Promise<FlowDefinition | void> | FlowDefinition | void
+  onFlowLoadMacros?: (input: { columnId: string; rowId?: string }) => Promise<FlowMacroOption[]>
+  buildFlowMacroSections?: FlowMacroSectionsBuilder
+  onFlowExecute?: (input: { columnId: string; rowId: string }) => Promise<FlowExecutionResult>
   /** Envia uma coluna real para a lixeira. */
   onColumnDelete?: (columnId: string) => void
   /**
@@ -217,6 +233,14 @@ export interface CubsDatabaseProps {
   calendarPendingPageId?: string | null
   onCalendarPin?: (input: CalendarPinInput) => void | boolean | Promise<boolean>
   onCalendarUnpin?: (pageId: string) => void | boolean | Promise<boolean>
+  onCalendarRequestPin?: (input: CalendarPinInput) => void
+  /** Bloqueio global da coluna; a lib só projeta a decisão fornecida pelo host. */
+  columnLocks?: ColumnLockMap
+  columnLockEditors?: ColumnLockEditor[]
+  lockedColumnKeys?: ReadonlySet<string>
+  canManageColumnLocks?: boolean
+  currentUserId?: string
+  onColumnLockChange?: (columnKey: string, userIds: string[]) => void
   /** Relógio/estado de persistência e refresh remoto da view ativa. */
   filterSyncStatus?: DatabaseViewToolbarSyncStatus
   /** Traduções dos controles de filtro/agrupamento; a lib não acessa i18n. */
@@ -275,6 +299,10 @@ export function CubsDatabase({
   onPageTitleColumnChange,
   onColumnTypeChange,
   onColumnConfigChange,
+  onFlowConfigChange,
+  onFlowLoadMacros,
+  buildFlowMacroSections,
+  onFlowExecute,
   onColumnDelete,
   onColumnWidthChange,
   onColumnWidthPreview,
@@ -286,6 +314,13 @@ export function CubsDatabase({
   calendarPendingPageId,
   onCalendarPin,
   onCalendarUnpin,
+  onCalendarRequestPin,
+  columnLocks,
+  columnLockEditors,
+  lockedColumnKeys,
+  canManageColumnLocks,
+  currentUserId,
+  onColumnLockChange,
   filterSyncStatus,
   toolbarLabels,
   loading,
@@ -481,6 +516,11 @@ export function CubsDatabase({
         onCalendarChange={onCalendarConfigChange ? (patch) => onCalendarConfigChange(currentViewId, patch) : undefined}
         calendarPropertyIds={stableCalendarPropertyIds}
         onCalendarPropertyIdsChange={onCalendarConfigChange ? (calendarPropertyIds) => onCalendarConfigChange(currentViewId, { calendarPropertyIds }) : undefined}
+        columnLocks={columnLocks}
+        columnLockEditors={columnLockEditors}
+        canManageColumnLocks={canManageColumnLocks}
+        currentUserId={currentUserId}
+        onColumnLockChange={onColumnLockChange}
         onAddRow={onAddRow}
         onViewKindChange={
           onViewKindChange
@@ -507,6 +547,7 @@ export function CubsDatabase({
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
             onCellChange={onCellChange}
+            lockedColumnKeys={lockedColumnKeys}
             onCellEditConflict={onCellEditConflict}
             onColumnOptionsChange={onColumnOptionsChange}
             onRowOrderChange={
@@ -526,6 +567,10 @@ export function CubsDatabase({
                 ? handleColumnConfigChange
                 : undefined
             }
+            onFlowConfigChange={onFlowConfigChange}
+            onFlowLoadMacros={onFlowLoadMacros}
+            buildFlowMacroSections={buildFlowMacroSections}
+            onFlowExecute={onFlowExecute}
             onColumnDelete={onColumnDelete}
             onColumnWidthChange={
               onColumnWidthChange
@@ -557,6 +602,7 @@ export function CubsDatabase({
             showPropertyLabels={currentView.calendarShowPropertyLabels !== false}
             onOpenRow={onOpenRow} pinnedPageIds={pinnedCalendarPageIds}
             pendingPageId={calendarPendingPageId} onPin={onCalendarPin} onUnpin={onCalendarUnpin}
+            onRequestPin={onCalendarRequestPin}
             sourceTitle={pageTitle} />
         ) : currentView.view === 'graph' ? (
           <GraphView

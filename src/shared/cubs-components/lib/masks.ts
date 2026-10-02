@@ -53,6 +53,8 @@ export function unmaskCurrencyCents(value: string): number {
 type MaskFormatter = (digits: string) => string
 
 export const MASKS = {
+  /** Máscara semântica: preserva o endereço; o editor usa input[type=email]. */
+  email: (value: string) => value,
   /** (11) 98765-4321 — fixo (10 dígitos) ou celular (11 dígitos). */
   'phone-br': '(##) #####-####',
   /** 000.000.000-00 */
@@ -91,6 +93,7 @@ function resolvePattern(mask: MaskName, pattern: string, digits: string): string
  */
 export function applyMask(mask: MaskName, value: string): string {
   const entry = MASKS[mask]
+  if (mask === 'email') return value
   const digits = unmask(value)
 
   if (typeof entry === 'function') {

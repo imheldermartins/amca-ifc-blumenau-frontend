@@ -26,6 +26,7 @@ const mappedPropertyValues: Record<ColumnDataType, PropertyValueFormatter> = {
   select: (value, column) => typeof value === 'string'
     ? column.options?.find((option) => option.id === value)?.label
     : undefined,
+  flow: () => undefined,
 }
 
 /** Read-only projection; the host persists the selected columns and their per-view order. */
@@ -39,10 +40,10 @@ export function databaseCalendarItems(rows: RowData[], columns: HeaderCol[], dat
     ? columns.find((column) => column.id === colorColumnId && column.type === 'select')
     : columns.find((column) => column.type === 'select')
   const propertyColumns = calendarPropertyIds === undefined
-    ? columns
+    ? columns.filter((column) => column.type !== 'flow')
     : calendarPropertyIds.flatMap((id) => {
         const column = columns.find((candidate) => candidate.id === id)
-        return column ? [column] : []
+        return column && column.type !== 'flow' ? [column] : []
       })
   return rows.flatMap((row) => {
     const value = parseDatePickerValue(row.cells[dateColumn.id]?.value)

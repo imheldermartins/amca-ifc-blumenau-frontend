@@ -23,6 +23,7 @@ export const CELL_EDITORS: Record<ColumnDataType, CellEditor> = {
   select: SelectCellEditor,
   checkbox: CheckboxCellEditor,
   date: DateCellEditor,
+  flow: null,
 }
 
 export { CheckboxCellEditor } from './CheckboxCellEditor'

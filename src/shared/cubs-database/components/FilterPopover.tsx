@@ -224,21 +224,25 @@ export function FilterPopover({
   onClear,
 }: FilterPopoverProps) {
   const [open, setOpen] = useState(false)
-  const [columnId, setColumnId] = useState(columns[0]?.id ?? '')
-  const selectedColumn = columns.find((column) => column.id === columnId) ?? columns[0]
+  const filterableColumns = useMemo(
+    () => columns.filter((column) => columnTypes[column.id] !== 'flow'),
+    [columns, columnTypes],
+  )
+  const [columnId, setColumnId] = useState(() => columns.find((column) => columnTypes[column.id] !== 'flow')?.id ?? '')
+  const selectedColumn = filterableColumns.find((column) => column.id === columnId) ?? filterableColumns[0]
   const selectedType = selectedColumn ? columnTypes[selectedColumn.id] : undefined
   const defaultCondition = selectedType ? mappedFilters[selectedType].defaultCondition : 'equals'
   const [condition, setCondition] = useState<FilterCondition>(defaultCondition)
   const [values, setValues] = useState<string[]>([])
 
   useEffect(() => {
-    const firstColumn = columns[0]
-    if (!firstColumn || columns.some((column) => column.id === columnId)) return
+    const firstColumn = filterableColumns[0]
+    if (!firstColumn || filterableColumns.some((column) => column.id === columnId)) return
     const firstType = columnTypes[firstColumn.id] ?? 'text'
     setColumnId(firstColumn.id)
     setCondition(mappedFilters[firstType].defaultCondition)
     setValues([])
-  }, [columnId, columns, columnTypes])
+  }, [columnId, filterableColumns, columnTypes])
 
   useEffect(() => {
     if (
@@ -260,8 +264,8 @@ export function FilterPopover({
   const canAdd = Boolean(selectedColumn && definition?.accepts(values))
 
   const columnOptions = useMemo(
-    () => columns.map((column) => ({ value: column.id, label: column.title })),
-    [columns],
+    () => filterableColumns.map((column) => ({ value: column.id, label: column.title })),
+    [filterableColumns],
   )
   const conditionOptions = (selectedType ? mappedFilters[selectedType].conditions : []).map(
     (candidate) => ({
@@ -310,7 +314,7 @@ export function FilterPopover({
         <Button
           variant="outlined"
           color="from-theme"
-          disabled={disabled || columns.length === 0}
+          disabled={disabled || filterableColumns.length === 0}
           aria-expanded={open}
           className="h-8 gap-1.5 px-2 font-normal"
         >

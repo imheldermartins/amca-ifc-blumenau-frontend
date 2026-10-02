@@ -13,12 +13,14 @@ import type {
 import { databaseCalendarItems } from 'cubs-database'
 
 import { PageShell } from '@components/PageShell'
+import { SchedulePinRequestDialog, type SchedulePinRequestTarget } from '@/components/SchedulePinRequestDialog'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
 import { PageBlockEditor } from './PageBlockEditor'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
+import { useColumnLocks, usePageTitleLock } from '@/hooks/useColumnLocks'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { useSchedule } from '@/hooks/useSchedule'
 import { i18n } from '@/lib/i18n'
@@ -69,6 +71,8 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   const { slug: currentLang } = useLanguage()
   const { workspaceId } = useWorkspace()
   const schedule = useSchedule(workspaceId, { realtime: false })
+  const columnLocks = useColumnLocks(databasePageId)
+  const pageTitleLock = usePageTitleLock(pageId)
   const navigate = useNavigate()
   const {
     database,
@@ -84,6 +88,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
   const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
+  const [pinRequestTarget, setPinRequestTarget] = useState<SchedulePinRequestTarget | null>(null)
   const settings = contentView === 'files' ? database?.settings ?? EMPTY_SETTINGS : EMPTY_SETTINGS
   const columns = contentView === 'files' ? database?.headerCols ?? EMPTY_COLUMNS : EMPTY_COLUMNS
   const viewQuery = useDatabaseViewQuery({
@@ -123,6 +128,12 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       }),
     })
   }, [columns, database?.pageTitle, database?.rows, initialTitle, pageId, schedule, workspaceId])
+
+  const handleCalendarRequestPin = useCallback((input: CalendarPinInput) => {
+    const row = database?.rows.find((candidate) => candidate.id === input.pageId)
+    if (!row) return
+    setPinRequestTarget({ ...input, title: readRowPageTitle(row) ?? i18n('pages.app.pagina.sem-titulo') })
+  }, [database?.rows])
 
   useEffect(() => {
     if (!pendingCreatedView || !pageId || pendingCreatedView.pageId !== pageId) return
@@ -189,6 +200,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         select: i18n('pages.app.cubs-database.tipos.select'),
         date: i18n('pages.app.cubs-database.tipos.date'),
         checkbox: i18n('pages.app.cubs-database.tipos.checkbox'),
+        flow: i18n('pages.app.cubs-database.tipos.flow'),
       },
       // Menu de coluna (submenus + editor de options).
       changeType: i18n('pages.app.cubs-database.coluna.tipo'),
@@ -203,11 +215,13 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       deleteOption: i18n('pages.app.cubs-database.coluna.excluir-opcao'),
       optionColor: i18n('pages.app.cubs-database.coluna.cor-opcao'),
       optionNamePlaceholder: i18n('pages.app.cubs-database.coluna.nome-opcao'),
+      flowConfig: i18n('pages.app.cubs-database.coluna.configurar-flow'),
       masks: {
         cpf: i18n('pages.app.cubs-database.mascaras.cpf'),
         cep: i18n('pages.app.cubs-database.mascaras.cep'),
         'phone-br': i18n('pages.app.cubs-database.mascaras.telefone'),
         date: i18n('pages.app.cubs-database.mascaras.data'),
+        email: i18n('pages.app.cubs-database.mascaras.email'),
       },
       groupEmpty: i18n('pages.app.cubs-database.agrupar.sem-valor'),
       groupTrue: i18n('pages.app.cubs-database.agrupar.sim'),
@@ -262,6 +276,12 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
       selectProperty: i18n('pages.app.cubs-database.calendar.mostrar-propriedade'),
       hideAllProperties: i18n('pages.app.cubs-database.calendar.ocultar-todas'),
       showPropertyLabels: i18n('pages.app.cubs-database.calendar.mostrar-labels'),
+      columnLocks: i18n('pages.app.cubs-database.lock.title'),
+      columnLocksDescription: i18n('pages.app.cubs-database.lock.description'),
+      columnLockSearch: i18n('pages.app.cubs-database.lock.search'),
+      columnLockEmpty: i18n('pages.app.cubs-database.lock.empty'),
+      columnLockAllowed: i18n('pages.app.cubs-database.lock.allowed'),
+      columnLocked: i18n('pages.app.cubs-database.lock.locked'),
       conditions: {
         equals: i18n('pages.app.cubs-database.filtros.condicoes.igual'),
         contains: i18n('pages.app.cubs-database.filtros.condicoes.contem'),
@@ -389,6 +409,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         contentLoading={contentView === 'files' && loading && !broken}
         contentView={contentView}
         onContentViewChange={handleContentViewChange}
+        titleReadOnly={Boolean(pageTitleLock.data?.locked && !pageTitleLock.data.canEdit)}
         documentContent={<PageBlockEditor key={pageId ?? 'pending-page'} />}
         {...realtimeOptions}
       >
@@ -422,6 +443,13 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
           calendarPendingPageId={schedule.mutating ? schedule.pendingPageId : null}
           onCalendarPin={workspaceId && pageId ? handleCalendarPin : undefined}
           onCalendarUnpin={workspaceId ? schedule.unpin : undefined}
+          onCalendarRequestPin={workspaceId ? handleCalendarRequestPin : undefined}
+          columnLocks={columnLocks.locks}
+          columnLockEditors={columnLocks.editors}
+          lockedColumnKeys={columnLocks.lockedColumnKeys}
+          canManageColumnLocks={columnLocks.canManage}
+          currentUserId={columnLocks.currentUserId}
+          onColumnLockChange={columnLocks.canManage ? columnLocks.save : undefined}
           onSelectionChange={handleSelectionChange}
           onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
           labels={labels}
@@ -434,6 +462,12 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         open={viewQuery.conflict}
         onReplace={viewQuery.acceptPersistence}
         onKeepSaved={viewQuery.rejectPersistence}
+      />
+      <SchedulePinRequestDialog
+        open={Boolean(pinRequestTarget)}
+        onOpenChange={(open) => { if (!open) setPinRequestTarget(null) }}
+        workspaceId={workspaceId}
+        target={pinRequestTarget}
       />
     </>
   )

@@ -298,19 +298,29 @@ export function useDatabaseViewQuery({
     () => buildResolution(queryAll, settings, columns, preferredViewId),
     [columns, preferredViewId, queryAll, settings],
   )
-  const key = stateKey(scopeKey, resolution.activeViewId)
+  // A troca de tab precisa ser imediata. A URL continua sendo a fonte
+  // copiável/canônica, mas não pode manter o renderer anterior montado até o
+  // router concluir a navegação assíncrona.
+  const [pendingViewId, setPendingViewId] = useState<string | null>(null)
+  const activeViewId = pendingViewId && settings[pendingViewId]
+    ? pendingViewId
+    : resolution.activeViewId
+  const key = stateKey(scopeKey, activeViewId)
   const activeKeyRef = useRef(key)
   activeKeyRef.current = key
-  const savedFilters = settings[resolution.activeViewId]?.filters
+  const savedFilters = settings[activeViewId]?.filters
+  const activeFilters = activeViewId === resolution.activeViewId
+    ? resolution.filters
+    : savedFilters ? cloneFilters(savedFilters) : resolution.filters
   const initialState = useMemo<InternalState>(
     () => ({
       key,
-      viewId: resolution.activeViewId,
-      filters: resolution.filters,
+      viewId: activeViewId,
+      filters: activeFilters,
       status: 'confirmed',
-      updatedAt: savedFilters?.updatedAt ?? resolution.filters.updatedAt,
+      updatedAt: savedFilters?.updatedAt ?? activeFilters.updatedAt,
     }),
-    [key, resolution.activeViewId, resolution.filters, savedFilters?.updatedAt],
+    [activeFilters, activeViewId, key, savedFilters?.updatedAt],
   )
   const [internal, setInternal] = useState<InternalState>(initialState)
   const rendered = internal.key === key ? internal : initialState
@@ -468,14 +478,14 @@ export function useDatabaseViewQuery({
   // órfãos. A UI adota a poda imediatamente; URL e banco recebem uma única
   // versão canônica por documento+catálogo de origem.
   useEffect(() => {
-    if (!pruning.changed || !resolution.activeViewId) return
+    if (!pruning.changed || !activeViewId) return
     const source = `${JSON.stringify(rendered.filters)}\u0000${filterCatalogFingerprint(columns)}`
     if (cleanupSourceRef.current.get(key) === source) return
     cleanupSourceRef.current.set(key, source)
     setResolvedConflictScope(resolutionScope(key, pruning.filters))
-    writeUrl(resolution.activeViewId, pruning.filters, true)
-    enqueue(resolution.activeViewId, pruning.filters)
-  }, [columns, enqueue, key, pruning, rendered.filters, resolution.activeViewId, writeUrl])
+    writeUrl(activeViewId, pruning.filters, true)
+    enqueue(activeViewId, pruning.filters)
+  }, [activeViewId, columns, enqueue, key, pruning, rendered.filters, writeUrl])
 
   // Trocar página/view força o flush da última versão do scope anterior.
   useEffect(() => {
@@ -503,9 +513,11 @@ export function useDatabaseViewQuery({
     if (previous === null || previous === currentQueryFingerprint) return
     if (expectedQueryRef.current === currentQueryFingerprint) {
       expectedQueryRef.current = null
+      if (pendingViewId === resolution.activeViewId) setPendingViewId(null)
       return
     }
 
+    setPendingViewId(null)
     const nextState: InternalState = {
       key,
       viewId: resolution.activeViewId,
@@ -515,14 +527,14 @@ export function useDatabaseViewQuery({
     }
     setInternal(nextState)
     setResolvedConflictScope(null)
-  }, [currentQueryFingerprint, key, resolution, savedFilters?.updatedAt])
+  }, [currentQueryFingerprint, key, pendingViewId, resolution, savedFilters?.updatedAt])
 
   // Sempre deixa a URL copiável/canônica. Alias, ULID legado e critérios
   // removidos usam replace e não criam uma entrada artificial no histórico.
   useEffect(() => {
-    if (!resolution.activeViewId) return
+    if (!activeViewId) return
     const patch = encodeViewFiltersUrl(
-      resolution.activeViewId,
+      activeViewId,
       currentState.filters,
       settings,
       columns,
@@ -531,13 +543,13 @@ export function useDatabaseViewQuery({
       replaceQueryNamespace(queryAll, isViewFilterQueryKey, patch),
     )
     if (target === currentQueryFingerprint || expectedQueryRef.current === target) return
-    writeUrl(resolution.activeViewId, currentState.filters, true)
+    writeUrl(activeViewId, currentState.filters, true)
   }, [
+    activeViewId,
     columns,
     currentQueryFingerprint,
     queryAll,
     currentState.filters,
-    resolution.activeViewId,
     resolution.needsCanonicalReplace,
     settings,
     writeUrl,
@@ -546,7 +558,7 @@ export function useDatabaseViewQuery({
   // Realtime altera `settings`. Somente o documento de filtros participa
   // desta comparação: largura, ordem ou título não abrem aviso.
   useEffect(() => {
-    if (!savedFilters || !resolution.activeViewId) return
+    if (!savedFilters || !activeViewId) return
     const savedFingerprint = JSON.stringify(savedFilters)
     const previous = previousSavedRef.current.get(key)
     previousSavedRef.current.set(key, savedFingerprint)
@@ -581,7 +593,7 @@ export function useDatabaseViewQuery({
           current.key === key
             ? {
                 key,
-                viewId: resolution.activeViewId,
+                viewId: activeViewId,
                 filters: echoed,
                 status: 'confirmed',
                 updatedAt: echoed.updatedAt,
@@ -620,7 +632,7 @@ export function useDatabaseViewQuery({
           }
         : current,
     )
-  }, [columns, key, resolution.activeViewId, savedFilters])
+  }, [activeViewId, columns, key, savedFilters])
 
   const currentConflictScope = resolutionScope(key, currentState.filters)
   const savedHasCriteria = Boolean(savedFilters && hasViewFilters(savedFilters))
@@ -630,7 +642,7 @@ export function useDatabaseViewQuery({
         viewFiltersSemanticSignature(savedFilters),
   )
   const conflict = Boolean(
-    resolution.activeViewId &&
+    activeViewId &&
       resolution.explicit &&
       savedHasCriteria &&
       differsFromSaved &&
@@ -677,6 +689,7 @@ export function useDatabaseViewQuery({
         updatedAt: filters.updatedAt,
       })
       setResolvedConflictScope(resolutionScope(nextKey, filters))
+      setPendingViewId(viewId)
       replaceViewUrl(viewId, filters)
     },
     [key, replaceViewUrl, scopeKey, settings],
@@ -710,7 +723,7 @@ export function useDatabaseViewQuery({
 
   return useMemo(
     () => ({
-      activeViewId: resolution.activeViewId,
+      activeViewId,
       requestedViewId: resolution.requestedViewId,
       effectiveFilters: currentState.filters,
       conflict,
@@ -729,6 +742,7 @@ export function useDatabaseViewQuery({
     }),
     [
       acceptPersistence,
+      activeViewId,
       applyRemote,
       changeLocal,
       changeView,
@@ -738,7 +752,6 @@ export function useDatabaseViewQuery({
       currentState.filters,
       currentState.status,
       currentState.updatedAt,
-      resolution.activeViewId,
       resolution.diagnostics,
       resolution.requestedViewId,
       retry,

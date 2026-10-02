@@ -31,6 +31,7 @@ export interface CalendarViewLabels {
   openPage?: string
   pin?: string
   unpin?: string
+  requestPin?: string
   cancel?: string
   confirmUnpin?: string
   colorProperty?: string
@@ -49,6 +50,7 @@ export interface CalendarViewProps {
   pendingPageId?: string | null
   onPin?: (input: CalendarPinInput) => void | boolean | Promise<boolean>
   onUnpin?: (pageId: string) => void | boolean | Promise<boolean>
+  onRequestPin?: (input: CalendarPinInput) => void
   sourceTitle?: string
   locale?: string
   labels?: CalendarViewLabels
@@ -57,7 +59,7 @@ export interface CalendarViewProps {
 const iconButtonClass = 'flex size-8 shrink-0 items-center justify-center rounded-md outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-p-purple'
 
 /** Monthly database projection. Agenda persistence is injected by the host. */
-export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, pinnedPageIds, pendingPageId, onPin, onUnpin, sourceTitle, locale = 'pt-BR', labels }: CalendarViewProps) {
+export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, pinnedPageIds, pendingPageId, onPin, onUnpin, onRequestPin, sourceTitle, locale = 'pt-BR', labels }: CalendarViewProps) {
   const dateColumn = dateColumnId ? columns.find((column) => column.id === dateColumnId && column.type === 'date') : columns.find((column) => column.type === 'date')
   const defaultColorColumn = colorColumnId ? columns.find((column) => column.id === colorColumnId && column.type === 'select') : columns.find((column) => column.type === 'select')
   const items = useMemo(() => databaseCalendarItems(rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds), [rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds])
@@ -85,6 +87,10 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
   const pinSelected = (nextColorColumnId = selectedColorColumnId) => {
     if (!selected || !dateColumn || !onPin) return
     return onPin({ pageId: selected.id, dateColumnId: dateColumn.id, colorColumnId: nextColorColumnId })
+  }
+  const requestSelected = () => {
+    if (!selected || !dateColumn || !onRequestPin) return
+    onRequestPin({ pageId: selected.id, dateColumnId: dateColumn.id, colorColumnId: selectedColorColumnId })
   }
 
   return <div data-database-calendar className="flex h-[max(720px,calc(100dvh-180px))] min-h-0 flex-col">
@@ -117,6 +123,7 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
         <Button variant="filled" color="purple" disabled={pendingPageId === item.id} onClick={() => { if (onUnpin) void Promise.resolve(onUnpin(item.id)).then((saved) => { if (saved !== false) setConfirmingUnpin(false) }) }}>{labels?.confirmUnpin ?? 'Desafixar'}</Button>
       </> : <>
         {onOpenRow && selectedRow ? <Button variant="text" color="from-theme" onClick={() => onOpenRow(selectedRow)}>{labels?.openPage ?? 'Abrir página'}</Button> : null}
+        {onRequestPin ? <Button variant="text" color="from-theme" onClick={requestSelected}><Icon icon="lucide:send" className="mr-2 size-4" />{labels?.requestPin ?? 'Solicitar fixação'}</Button> : null}
         {onPin ? <Button variant="filled" color="purple" disabled={pendingPageId === item.id} onClick={() => { if (isPinned) setConfirmingUnpin(true); else pinSelected() }}><Icon icon={pendingPageId === item.id ? 'lucide:loader-circle' : isPinned ? 'solar:pin-bold' : 'lucide:pin'} className={cn('mr-2 size-4', pendingPageId === item.id && 'animate-spin')} />{labels?.[isPinned ? 'unpin' : 'pin'] ?? (isPinned ? 'Desafixar da agenda' : 'Fixar na agenda')}</Button> : null}
       </>}
     />

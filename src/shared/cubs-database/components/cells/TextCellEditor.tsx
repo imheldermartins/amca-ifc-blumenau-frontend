@@ -44,6 +44,7 @@ export const TextCellEditor = memo(function TextCellEditor({
       aria-invalid={hasError || undefined}
       surface="plain"
       size="sm"
+      type={column.mask === 'email' ? 'email' : 'text'}
       className="w-full"
       placeholder={column.key === 'title' ? 'Sem Título' : undefined}
       // A máscara da coluna (cpf/cep/...) formata a digitação; o valor commitado

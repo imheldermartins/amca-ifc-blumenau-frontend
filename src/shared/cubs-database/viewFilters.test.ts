@@ -196,6 +196,7 @@ describe('mappedFilters', () => {
     expect(Object.keys(mappedFilters).sort()).toEqual([
       'checkbox',
       'date',
+      'flow',
       'numeric',
       'select',
       'text',
@@ -209,6 +210,7 @@ describe('mappedFilters', () => {
     expect(mappedFilters.select.conditions.map(({ id }) => id)).toEqual(['equals'])
     expect(mappedFilters.date.conditions.map(({ id }) => id)).toEqual(['equals', 'between'])
     expect(mappedFilters.checkbox.conditions.map(({ id }) => id)).toEqual(['equals'])
+    expect(mappedFilters.flow.conditions).toEqual([])
     expect(getFilterCondition('numeric', 'contains')).toBeUndefined()
   })
 })

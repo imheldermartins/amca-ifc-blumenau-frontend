@@ -83,6 +83,10 @@ export interface TableCellProps {
   isLast?: boolean
   /** Falha/impasse nesta célula — wash vermelho, moldura e `aria-invalid`. */
   hasError?: boolean
+  /** Mantém a aparência normal, mas remove o editor e explica a restrição. */
+  locked?: boolean
+  /** Flow não é editor de valor: abre a preview/modal e a API executa. */
+  onFlowOpen?: (row: RowData, column: HeaderCol) => void
   /** Presente = célula EDITÁVEL (despacha para o editor do cellMap). */
   onCellChange?: (change: CellChange) => void
   /** O receiver interrompeu uma edição ativa e aplicou o valor externo. */
@@ -122,6 +126,8 @@ export const TableCell = memo(function TableCell({
   width,
   isLast,
   hasError,
+  locked,
+  onFlowOpen,
   onCellChange,
   onCellEditConflict,
   onColumnOptionsChange,
@@ -155,6 +161,49 @@ export const TableCell = memo(function TableCell({
       }),
     [onCellEditConflict, row.id, column, type, previousValue],
   )
+
+  if (type === 'flow') {
+    const nodes = column.flow?.nodes ?? []
+    const shown = nodes.slice(0, 4)
+    const canExecute = Boolean(onFlowOpen && column.flow && !locked)
+    return (
+      <div
+        role="cell"
+        title={locked ? 'Coluna bloqueada' : undefined}
+        className={cn(
+          'flex shrink-0 items-center overflow-clip border-l border-divider p-2 pb-2.5 text-sm',
+          isLast && 'border-r',
+        )}
+        style={{ width: resolveColumnWidth(width) }}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+          {shown.length > 0 ? shown.map((node, index) => (
+            <span key={node.id} className="contents">
+              {index > 0 && <Icon icon="lucide:chevron-right" className="size-3 shrink-0 opacity-35" />}
+              <span className={cn(
+                'shrink-0 rounded-md border border-divider px-1.5 py-0.5 text-[10px] font-medium leading-4',
+                (node.type === 'start' || node.type === 'callback') && 'rounded-full border-foreground/20 bg-foreground text-background',
+              )}>
+                {node.type === 'start' ? 'Início' : node.type === 'email' ? 'E-mail' : node.type === 'set_value' ? 'Atualizar' : node.type === 'switch' ? 'Condição' : 'Retorno'}
+              </span>
+            </span>
+          )) : <span className="truncate text-xs opacity-45">Flow não configurado</span>}
+          {nodes.length > shown.length && <span className="shrink-0 text-xs opacity-45">+{nodes.length - shown.length}</span>}
+        </div>
+        {canExecute && (
+          <button
+            type="button"
+            onClick={() => onFlowOpen?.(row, column)}
+            className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-md border border-p-purple bg-p-purple-500/5 px-2 py-1 text-[11px] font-semibold text-foreground transition-[background-color,color,box-shadow] hover:bg-p-purple hover:text-white hover:shadow-sm hover:shadow-p-purple-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-purple-500/35"
+          >
+            <Icon icon="lucide:play" className="size-3 fill-current" />
+            Executar
+          </button>
+        )}
+        {locked && <Icon icon="lucide:lock-keyhole" className="ml-2 size-3 shrink-0 opacity-40" aria-label="Coluna bloqueada" />}
+      </div>
+    )
+  }
 
   if (Editor && onCellChange) {
     return (
@@ -191,6 +240,7 @@ export const TableCell = memo(function TableCell({
   return (
     <div
       role="cell"
+      title={locked ? 'Coluna bloqueada' : undefined}
       className={cn(
         'flex shrink-0 items-center border-l border-divider px-2.5 py-1.5 text-sm',
         isLast && 'border-r',
@@ -205,6 +255,7 @@ export const TableCell = memo(function TableCell({
         // mesmo numa linha em que todas as células estejam vazias.
         <div aria-hidden className="min-h-5 w-full self-stretch" />
       )}
+      {locked && <Icon icon="lucide:lock-keyhole" className="ml-auto size-3 shrink-0 opacity-40" aria-label="Coluna bloqueada" />}
     </div>
   )
 })

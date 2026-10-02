@@ -26,6 +26,7 @@ export interface ColumnHeaderMenuProps {
   onColumnTypeChange?: (type: ColumnDataType) => void
   onColumnOptionsChange?: (options: ColumnOption[]) => void
   onColumnConfigChange?: (patch: ColumnConfigPatch) => void
+  onFlowConfigure?: () => void
   /** Envia a coluna real para a lixeira após confirmação inline. */
   onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
@@ -103,6 +104,7 @@ export function ColumnHeaderMenu({
   onColumnTypeChange,
   onColumnOptionsChange,
   onColumnConfigChange,
+  onFlowConfigure,
   onColumnDelete,
   labels,
   className,
@@ -155,6 +157,7 @@ export function ColumnHeaderMenu({
     onColumnTypeChange,
     onColumnOptionsChange,
     onColumnConfigChange,
+    onFlowConfigure,
     onColumnDelete,
     labels,
   })

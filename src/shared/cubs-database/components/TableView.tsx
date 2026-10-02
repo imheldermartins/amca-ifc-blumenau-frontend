@@ -26,6 +26,10 @@ import type {
   ColumnConfigPatch,
   ColumnDataType,
   ColumnOption,
+  FlowDefinition,
+  FlowExecutionResult,
+  FlowMacroOption,
+  FlowMacroSectionsBuilder,
   HeaderCol,
   RowData,
 } from '../types'
@@ -41,6 +45,7 @@ import { VirtualScroller } from './VirtualScroller'
 import { TYPE_ICON } from './columnTypeIcons'
 import { useSortableSensors } from './dndSensors'
 import { useShiftKey } from './useShiftKey'
+import { FlowEditorDialog } from './FlowEditorDialog'
 import {
   EMPTY_SELECTION,
   inShiftRange,
@@ -59,6 +64,8 @@ export interface TableViewProps {
   columnWidths?: Record<string, number>
   /** Células em falha/impasse (chave `cellErrorKey`) — marca vermelha. */
   cellErrors?: Set<string>
+  /** Chaves globais bloqueadas para o usuário atual (`title` ou id real). */
+  lockedColumnKeys?: ReadonlySet<string>
   loading?: boolean
   emptyLabel?: string
   /** Clique no botão "Abrir ›" de uma linha — recebe a row crua. */
@@ -83,6 +90,11 @@ export interface TableViewProps {
   onColumnTypeChange?: (columnId: string, type: ColumnDataType) => void
   /** Config da coluna (formato/moeda/máscara) pelo menu; `null` LIMPA a chave. */
   onColumnConfigChange?: (columnId: string, patch: ColumnConfigPatch) => void
+  /** Configuração/execução de Flow são transportes injetados pelo app host. */
+  onFlowConfigChange?: (columnId: string, flow: FlowDefinition) => Promise<FlowDefinition | void> | FlowDefinition | void
+  onFlowLoadMacros?: (input: { columnId: string; rowId?: string }) => Promise<FlowMacroOption[]>
+  buildFlowMacroSections?: FlowMacroSectionsBuilder
+  onFlowExecute?: (input: { columnId: string; rowId: string }) => Promise<FlowExecutionResult>
   /** Envia uma coluna real para a lixeira. */
   onColumnDelete?: (columnId: string) => void
   /** Resize solto → mapa COMPLETO de larguras (px por id de coluna). */
@@ -108,6 +120,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   orderIndex,
   sortable,
   resizable,
+  locked,
   isLast,
   dragLabel,
   menuLabel,
@@ -124,6 +137,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
   orderIndex: number
   sortable: boolean
   resizable: boolean
+  locked: boolean
   /** Última coluna: fecha a grade com a borda direita. */
   isLast: boolean
   dragLabel: string
@@ -252,6 +266,11 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
       >
         <Icon icon={TYPE_ICON[columnType]} fontSize={14} className="shrink-0" />
         <span className="truncate">{column.title}</span>
+        {locked && (
+          <span title="Coluna bloqueada" className="ml-auto inline-flex shrink-0">
+            <Icon icon="lucide:lock-keyhole" fontSize={12} className="opacity-55" />
+          </span>
+        )}
         {resizable && (
           // Alça sobre a borda DIREITA (a mesma que separa da próxima coluna).
           // `touch-none` porque o pointer capture precisa dos eventos que o
@@ -305,12 +324,15 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, lockedColumnKeys, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onFlowConfigChange, onFlowLoadMacros, buildFlowMacroSections, onFlowExecute, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const tableContentRef = useRef<HTMLDivElement>(null)
   const sensors = useSortableSensors()
   const shiftHeld = useShiftKey()
+  const isColumnLocked = useCallback((column: HeaderCol) =>
+    lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id) ?? false,
+  [lockedColumnKeys])
 
   // Ordem otimista local (linhas, colunas e larguras), re-sincronizada quando
   // a prop muda.
@@ -353,6 +375,11 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
   const suppressHandleMenuRef = useRef<string | null>(null)
   const suppressRowHandleMenuRef = useRef<string | null>(null)
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
+  const [flowDialog, setFlowDialog] = useState<{
+    mode: 'configure' | 'execute'
+    columnId: string
+    rowId?: string
+  } | null>(null)
 
   const validGroupBy = useMemo(
     () => groupBy.filter((id) => localColumns.some((column) => column.id === id)),
@@ -568,6 +595,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       onColumnTypeChange ||
       onColumnOptionsChange ||
       onColumnConfigChange ||
+      onFlowConfigChange ||
       onColumnDelete,
   )
 
@@ -636,6 +664,16 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     if (columnMenu) onColumnDelete?.(columnMenu.columnId)
   }, [columnMenu, onColumnDelete])
 
+  const handleMenuFlowConfigure = useCallback(() => {
+    if (!columnMenu) return
+    setFlowDialog({ mode: 'configure', columnId: columnMenu.columnId })
+    setColumnMenu(null)
+  }, [columnMenu])
+
+  const handleFlowOpen = useCallback((row: RowData, column: HeaderCol) => {
+    setFlowDialog({ mode: 'execute', columnId: column.id, rowId: row.id })
+  }, [])
+
   const renderTableRow = (row: RowData, indentLevel = 0) => {
     const rowIndex = rowIndexById.get(row.id)
     if (rowIndex === undefined) return null
@@ -657,8 +695,10 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
         onShiftHover={handleRowHover}
         onOpenRow={onOpenRow}
         onCellChange={onCellChange}
+        lockedColumnKeys={lockedColumnKeys}
         onCellEditConflict={onCellEditConflict}
         onColumnOptionsChange={onColumnOptionsChange}
+        onFlowOpen={onFlowExecute ? handleFlowOpen : undefined}
         onMoveRow={rowsSortable ? handleRowMove : undefined}
         canMoveUp={rowsSortable && rowIndex > 0}
         canMoveDown={rowsSortable && rowIndex < displayRows.length - 1}
@@ -739,6 +779,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                       orderIndex={columnIndex}
                       sortable={columnsSortable}
                       resizable={columnsResizable}
+                      locked={isColumnLocked(column)}
                       isLast={columnIndex === localColumns.length - 1}
                       dragLabel={labels?.dragColumn ?? 'Arrastar coluna'}
                       menuLabel={labels?.columnActions ?? labels?.dragColumn ?? 'Ações da coluna'}
@@ -836,24 +877,41 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
           column={menuColumn}
           columnType={columnTypes[menuColumn.id]}
           onClose={closeColumnMenu}
-          onRename={onColumnRename ? handleMenuRename : undefined}
+          onRename={!isColumnLocked(menuColumn) && onColumnRename ? handleMenuRename : undefined}
           // `key: title` aponta para `pages.title`: o tipo é estruturalmente
           // texto. Nome e máscara são apresentação; troca de tipo não se aplica.
           onColumnTypeChange={
-            menuColumn.key !== 'title' && onColumnTypeChange
+            !isColumnLocked(menuColumn) && menuColumn.key !== 'title' && onColumnTypeChange
               ? handleMenuTypeChange
               : undefined
           }
-          onColumnOptionsChange={onColumnOptionsChange ? handleMenuOptionsChange : undefined}
-          onColumnConfigChange={onColumnConfigChange ? handleMenuConfigChange : undefined}
+          onColumnOptionsChange={!isColumnLocked(menuColumn) && onColumnOptionsChange ? handleMenuOptionsChange : undefined}
+          onColumnConfigChange={!isColumnLocked(menuColumn) && onColumnConfigChange ? handleMenuConfigChange : undefined}
+          onFlowConfigure={
+            !isColumnLocked(menuColumn) && menuColumn.type === 'flow' && onFlowConfigChange
+              ? handleMenuFlowConfigure
+              : undefined
+          }
           onColumnDelete={
-            menuColumn.key !== 'title' && onColumnDelete ? handleMenuDelete : undefined
+            !isColumnLocked(menuColumn) && menuColumn.key !== 'title' && onColumnDelete ? handleMenuDelete : undefined
           }
           labels={labels}
           className="top-9"
           style={{ left: columnMenu.left }}
         />
       ) : null}
+      <FlowEditorDialog
+        open={Boolean(flowDialog)}
+        mode={flowDialog?.mode ?? 'execute'}
+        column={flowDialog ? localColumns.find((column) => column.id === flowDialog.columnId) ?? null : null}
+        row={flowDialog?.rowId ? localRows.find((row) => row.id === flowDialog.rowId) : undefined}
+        columns={localColumns}
+        onOpenChange={(open) => { if (!open) setFlowDialog(null) }}
+        loadMacros={onFlowLoadMacros}
+        buildMacroSections={buildFlowMacroSections}
+        onSave={onFlowConfigChange}
+        onExecute={onFlowExecute}
+      />
     </div>
   )
 }

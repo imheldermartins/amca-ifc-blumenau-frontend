@@ -27,6 +27,9 @@ import type {
   DataViewKind,
   DataViewSettings,
   DataViewType,
+  FlowConditionOperator,
+  FlowDefinition,
+  FlowNode,
   HeaderCol,
   NumberFormat,
   OptionColor,
@@ -47,7 +50,7 @@ import { OPTION_COLORS } from 'cubs-components'
 
 // --- Formato cru das respostas da API ---
 
-export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
+export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow'
 
 /** Opção de uma coluna `select`; o valor da célula é o `id` dela, não o texto. */
 export interface ApiSelectOption {
@@ -63,6 +66,7 @@ export interface ApiPageColumnData {
   currency?: string
   mask?: string
   publicKey?: PublicKeyMetadata
+  flow?: unknown
 }
 
 /** GET /pages/parent/:id/columns */
@@ -129,7 +133,7 @@ export const TITLE_COLUMN_ID = 'page_title'
  */
 export const FALLBACK_VIEW_ID = '01KXVZ0000FALLBACKTABLE001'
 
-const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox']
+const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow']
 
 // --- Helpers de desserialização (tolerantes: dado ruim vira ausência) ---
 
@@ -160,10 +164,42 @@ function isColumnType(value: unknown): value is ColumnDataType {
   return COLUMN_TYPES.includes(value as ColumnDataType)
 }
 
-const COLUMN_MASKS: readonly ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date']
+const COLUMN_MASKS: readonly ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date', 'email']
 
 function isColumnMask(value: unknown): value is ColumnMask {
   return COLUMN_MASKS.includes(value as ColumnMask)
+}
+
+const FLOW_OPERATORS: readonly FlowConditionOperator[] = [
+  'equals', 'not_equals', 'contains', 'greater_than', 'less_than', 'is_empty', 'is_not_empty',
+]
+
+/** Fronteira tolerante da definição; a API continuará sendo a autoridade. */
+export function parseFlowDefinition(raw: unknown): FlowDefinition | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  const trigger = value.trigger as Record<string, unknown> | undefined
+  if (value.version !== 1 || trigger?.type !== 'manual' || !Array.isArray(value.nodes)) return undefined
+
+  const nodes: FlowNode[] = []
+  for (const rawNode of value.nodes) {
+    if (!rawNode || typeof rawNode !== 'object' || Array.isArray(rawNode)) return undefined
+    const node = rawNode as Record<string, unknown>
+    const config = node.config as Record<string, unknown> | undefined
+    if (typeof node.id !== 'string' || !config) return undefined
+    if (node.type === 'start' && typeof config.nextNodeId === 'string') {
+      nodes.push({ id: node.id, type: 'start', config: { nextNodeId: config.nextNodeId } })
+    } else if (node.type === 'email' && typeof config.to === 'string' && typeof config.subject === 'string' && typeof config.body === 'string' && typeof config.nextNodeId === 'string') {
+      nodes.push({ id: node.id, type: 'email', config: { to: config.to, subject: config.subject, body: config.body, nextNodeId: config.nextNodeId } })
+    } else if (node.type === 'set_value' && typeof config.columnId === 'string' && typeof config.value === 'string' && typeof config.nextNodeId === 'string') {
+      nodes.push({ id: node.id, type: 'set_value', config: { columnId: config.columnId, value: config.value, nextNodeId: config.nextNodeId } })
+    } else if (node.type === 'switch' && typeof config.left === 'string' && typeof config.operator === 'string' && FLOW_OPERATORS.includes(config.operator as FlowConditionOperator) && typeof config.trueTargetId === 'string' && typeof config.falseTargetId === 'string') {
+      nodes.push({ id: node.id, type: 'switch', config: { left: config.left, operator: config.operator as FlowConditionOperator, ...(typeof config.right === 'string' && { right: config.right }), trueTargetId: config.trueTargetId, falseTargetId: config.falseTargetId } })
+    } else if (node.type === 'callback' && typeof config.message === 'string') {
+      nodes.push({ id: node.id, type: 'callback', config: { message: config.message } })
+    } else return undefined
+  }
+  return { version: 1, trigger: { type: 'manual' }, nodes }
 }
 
 // --- Colunas ---
@@ -269,6 +305,7 @@ export function parseHeaderCols(
     // os usa (a troca de tipo não-destrutiva do backend), e o render decide.
     const currency: CurrencyCode | undefined = column.data?.currency === 'BRL' ? 'BRL' : undefined
     const mask = isColumnMask(column.data?.mask) ? column.data.mask : undefined
+    const flow = parseFlowDefinition(column.data?.flow)
 
     return {
       id: column.id,
@@ -281,6 +318,7 @@ export function parseHeaderCols(
       ...(format && { format }),
       ...(currency && { currency }),
       ...(mask && { mask }),
+      ...(flow && { flow }),
     }
   })
 

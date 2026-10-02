@@ -192,6 +192,61 @@ describe('databaseParser — cores das opções', () => {
   })
 })
 
+describe('databaseParser — máscara de e-mail', () => {
+  it('preserva email no contrato da coluna text', () => {
+    const [, contact] = parseHeaderCols([
+      {
+        id: 'contact',
+        name: 'Contato',
+        type: 'text',
+        data: { mask: 'email' },
+        parent_id: 'page-1',
+      },
+    ], 'Título')
+
+    expect(contact.mask).toBe('email')
+  })
+})
+
+describe('databaseParser — flow', () => {
+  it('preserva somente uma definição manual estruturalmente válida', () => {
+    const validFlow = {
+      version: 1 as const,
+      trigger: { type: 'manual' as const },
+      nodes: [
+        { id: 'start', type: 'start', config: { nextNodeId: 'callback' } },
+        { id: 'callback', type: 'callback', config: { message: 'Concluído' } },
+      ],
+    }
+    const [, valid, invalid] = parseHeaderCols([
+      {
+        id: 'flow-valid',
+        name: 'Aprovação',
+        type: 'flow',
+        data: { flow: validFlow },
+        parent_id: 'page-1',
+      },
+      {
+        id: 'flow-invalid',
+        name: 'Inválido',
+        type: 'flow',
+        data: {
+          flow: {
+            version: 1,
+            trigger: { type: 'automatic' },
+            nodes: [],
+          },
+        },
+        parent_id: 'page-1',
+      },
+    ], 'Título')
+
+    expect(valid).toMatchObject({ type: 'flow', flow: validFlow })
+    expect(invalid).toMatchObject({ type: 'flow' })
+    expect(invalid.flow).toBeUndefined()
+  })
+})
+
 describe('databaseParser — reconcile de filter keys', () => {
   const page = {
     id: '01KXVZ0000PAGE00000000001',

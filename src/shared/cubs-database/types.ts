@@ -8,7 +8,100 @@
  */
 
 /** Tipos de dado que uma coluna pode ter. */
-export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
+export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow'
+
+export type FlowNodeType = 'start' | 'email' | 'set_value' | 'switch' | 'callback'
+export type FlowConditionOperator =
+  | 'equals'
+  | 'not_equals'
+  | 'contains'
+  | 'greater_than'
+  | 'less_than'
+  | 'is_empty'
+  | 'is_not_empty'
+
+interface FlowNodeBase<TType extends FlowNodeType, TConfig> {
+  id: string
+  type: TType
+  config: TConfig
+}
+
+export type FlowStartNode = FlowNodeBase<'start', { nextNodeId: string }>
+export type FlowEmailNode = FlowNodeBase<
+  'email',
+  { to: string; subject: string; body: string; nextNodeId: string }
+>
+export type FlowSetValueNode = FlowNodeBase<
+  'set_value',
+  { columnId: string; value: string; nextNodeId: string }
+>
+export type FlowSwitchNode = FlowNodeBase<
+  'switch',
+  {
+    left: string
+    operator: FlowConditionOperator
+    right?: string
+    trueTargetId: string
+    falseTargetId: string
+  }
+>
+export type FlowCallbackNode = FlowNodeBase<'callback', { message: string }>
+
+export type FlowNode =
+  | FlowStartNode
+  | FlowEmailNode
+  | FlowSetValueNode
+  | FlowSwitchNode
+  | FlowCallbackNode
+
+export interface FlowDefinition {
+  version: 1
+  trigger: { type: 'manual' }
+  nodes: FlowNode[]
+}
+
+export type FlowMacroGroup = 'people' | 'page' | 'workspace' | 'columns'
+
+export interface FlowMacroOption {
+  token: string
+  label: string
+  group: FlowMacroGroup
+  valueType?: 'text' | 'number' | 'boolean' | 'date' | 'email' | 'unknown'
+  preview?: string | null
+}
+
+export interface FlowMacroScope {
+  people: FlowMacroOption[]
+  page: FlowMacroOption[]
+  workspace: FlowMacroOption[]
+  columns: FlowMacroOption[]
+}
+
+export interface FlowMacroSection {
+  id: string
+  label: string
+  options: FlowMacroOption[]
+}
+
+/** Permite ao host recompor e reordenar o catálogo sem acoplar o editor à API. */
+export type FlowMacroSectionsBuilder = (scope: FlowMacroScope) => FlowMacroSection[]
+
+export interface FlowExecutionResult {
+  executionId: string
+  status: 'succeeded' | 'failed'
+  startedAt: string
+  finishedAt: string
+  executedNodeIds: string[]
+  callback: string | null
+  effects: { emailsQueued: number; valuesUpdated: number }
+  error?: string
+}
+
+export interface FlowDialogTarget {
+  column: HeaderCol
+  row?: RowData
+  mode: 'configure' | 'execute'
+}
 
 /**
  * Cores aceitas para uma option de coluna `select`. Vem do pacote
@@ -61,7 +154,7 @@ export interface CellEditorLabels {
  * pacote (sem percentage/currency, que são de numeric). Vira a `mask` do
  * `TextField` no editor.
  */
-export type ColumnMask = 'cpf' | 'cep' | 'phone-br' | 'date'
+export type ColumnMask = 'cpf' | 'cep' | 'phone-br' | 'date' | 'email'
 
 /**
  * Patch de config da coluna (numeric/text) emitido pelo menu. `null` LIMPA a
@@ -241,6 +334,14 @@ export interface CalendarPinInput {
   colorColumnId?: string | null
 }
 
+export type ColumnLockMap = Record<string, { userIds: string[] }>
+
+export interface ColumnLockEditor {
+  id: string
+  name: string | null
+  email: string
+}
+
 /** Conjunto de views: chave = ULID da view. */
 export type DataViewSettings = Record<string, DataViewType>
 
@@ -290,6 +391,8 @@ export interface HeaderCol {
   currency?: CurrencyCode
   /** Máscara de uma coluna `text` — vira a `mask` do editor. */
   mask?: ColumnMask
+  /** Definição autoritativa da coluna Flow; a célula guarda apenas a última execução. */
+  flow?: FlowDefinition
   /**
    * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva
    * (backend), então uma coluna pode carregar `options`/`format`/`mask` de um

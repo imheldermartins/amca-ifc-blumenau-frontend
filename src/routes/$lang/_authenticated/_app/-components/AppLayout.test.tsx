@@ -23,6 +23,7 @@ vi.mock('@/contexts/WorkspaceContext', () => ({ useWorkspace: () => ({
 }) }))
 vi.mock('@/hooks/useClientStorage', () => ({ useLocalStorageState: () => [false, vi.fn()] }))
 vi.mock('@/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }) }))
+vi.mock('@/hooks/useNotifications', () => ({ useNotifications: () => ({ unreadCount: 0 }) }))
 vi.mock('@/hooks/useDialog', () => ({ useDialog: () => ({
   dialogProps: { open: false, onOpenChange: vi.fn() }, openDialog: vi.fn(), closeDialog: vi.fn(),
 }) }))

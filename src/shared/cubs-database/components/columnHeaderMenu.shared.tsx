@@ -11,8 +11,8 @@ import type {
 import { ColumnOptionsEditor, type ColumnOptionsEditorLabels } from './ColumnOptionsEditor'
 import { TYPE_ICON } from './columnTypeIcons'
 
-const COLUMN_TYPES: ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox']
-const TEXT_MASKS: ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date']
+const COLUMN_TYPES: ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow']
+const TEXT_MASKS: ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date', 'email']
 
 export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
   /** Rótulo do trigger que também funciona como drag handle. */
@@ -26,6 +26,7 @@ export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
   optionsMenu?: string
   formatMenu?: string
   maskMenu?: string
+  flowConfig?: string
   /** Numeric. */
   formatPercentage?: string
   formatCurrency?: string
@@ -47,6 +48,7 @@ export interface ColumnHeaderMenuContext {
   onColumnTypeChange?: (type: ColumnDataType) => void
   onColumnOptionsChange?: (options: ColumnOption[]) => void
   onColumnConfigChange?: (patch: ColumnConfigPatch) => void
+  onFlowConfigure?: () => void
   onColumnDelete?: () => void
   labels?: ColumnHeaderMenuLabels
 }
@@ -201,6 +203,19 @@ class TextMaskNodeHandler extends ColumnMenuNodeHandler {
   }
 }
 
+class FlowConfigurationNodeHandler extends ColumnMenuNodeHandler {
+  protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
+    if (context.columnType !== 'flow' || !context.onFlowConfigure) return undefined
+
+    return {
+      id: 'flow-configure',
+      name: context.labels?.flowConfig ?? 'Configurar flow',
+      icon: 'lucide:workflow',
+      onSelect: context.onFlowConfigure,
+    }
+  }
+}
+
 class DeleteColumnNodeHandler extends ColumnMenuNodeHandler {
   protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
     if (!context.onColumnDelete) return undefined
@@ -230,6 +245,7 @@ function createColumnMenuChain(): ColumnMenuNodeHandler {
     .setNext(new SelectOptionsNodeHandler())
     .setNext(new NumericFormatNodeHandler())
     .setNext(new TextMaskNodeHandler())
+    .setNext(new FlowConfigurationNodeHandler())
     .setNext(new DeleteColumnNodeHandler())
   return first
 }

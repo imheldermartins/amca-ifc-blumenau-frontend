@@ -457,6 +457,7 @@ describe('useDatabaseViewQuery', () => {
     expect(onPersist).toHaveBeenCalledTimes(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'View A' }))
+    expect(screen.getByTestId('active').textContent).toBe(VIEW_A)
     expect(queryState.reset).toHaveBeenCalledWith(
       { view: 'tabela', fv: '2', group: 'area' },
       { replace: true },

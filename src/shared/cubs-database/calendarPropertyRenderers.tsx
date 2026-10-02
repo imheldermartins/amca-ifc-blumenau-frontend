@@ -44,4 +44,5 @@ export const mappedProps: Record<ColumnDataType, CalendarPropertyRenderer> = {
       />
     ) : <span className="opacity-60">—</span>
   },
+  flow: () => null,
 }

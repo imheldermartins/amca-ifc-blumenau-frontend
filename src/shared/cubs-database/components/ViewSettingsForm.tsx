@@ -96,7 +96,7 @@ export function ViewSettingsForm({
   const dateColumns = columns.filter((column) => column.type === 'date')
   const colorColumns = columns.filter((column) => column.type === 'select')
   const activeDateColumnId = calendar?.dateColumnId ?? dateColumns[0]?.id
-  const propertyColumns = columns.filter((column) => column.key !== 'title' && column.id !== activeDateColumnId)
+  const propertyColumns = columns.filter((column) => column.key !== 'title' && column.id !== activeDateColumnId && column.type !== 'flow')
   const visiblePropertyIds = calendarPropertyIds ?? propertyColumns.map((column) => column.id)
   return (
     <div className="grid gap-4">

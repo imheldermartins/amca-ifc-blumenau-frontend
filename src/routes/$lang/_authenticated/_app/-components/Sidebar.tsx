@@ -1,9 +1,11 @@
 import type { GlobalSettingsFragment } from "@/components/GlobalSettingsModal"
+import { NotificationCenter } from '@/components/NotificationCenter'
 import { Typography } from "@/components/Typography"
 import { useAuth } from "@/contexts/AuthContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTheme } from "@/hooks/useTheme"
+import { useNotifications } from '@/hooks/useNotifications'
 import { i18n } from "@/lib/i18n"
 import { Button, cn, Popover, Switch } from "@/shared/cubs-components"
 import { Icon } from "@iconify/react"
@@ -32,10 +34,12 @@ export default ({
     const location = useLocation()
 
     const workspaceState = useWorkspace()
+    const [notificationsOpen, setNotificationsOpen] = React.useState(false)
 
     const currentWorkspaceId = workspaceState.workspaceId
     const currentPageRootId = workspaceState.workspace?.pageRootId
     const userLabel = auth.user?.name ?? auth.user?.email ?? i18n('pages.app.account-menu.user')
+    const notifications = useNotifications(currentWorkspaceId)
 
     const workspacePath = currentPageRootId
         ? `/${currentLang}/page/${currentPageRootId}`
@@ -108,7 +112,7 @@ export default ({
         })
     }
 
-    return (
+    return <>
         <aside
             className={cn(
                 'm-3 rounded-2xl border border-divider-contrast bg-background p-2 shadow-2xl shadow-dark-900/15 backdrop-blur-xl',
@@ -198,11 +202,13 @@ export default ({
                                     label: i18n('pages.app.account-menu.settings')
                                 },
                                 {
-                                    // onClick: () => openGlobalSettings('#notifications'),
+                                    onClick: () => {
+                                        setAccountMenuOpen(false)
+                                        setNotificationsOpen(true)
+                                    },
                                     icon: 'lucide:bell',
                                     label: i18n('pages.app.account-menu.notifications'),
-                                    classNames: 'cursor-not-allowed!',
-                                    disabled: true
+                                    badge: notifications.unreadCount,
                                 },
                                 { divider: true },
                                 {
@@ -211,7 +217,7 @@ export default ({
                                     label: i18n('pages.app.account-menu.logout'),
                                     classNames: 'shadow-none! text-p-red! hover:bg-p-red-600/20 dark:hover:bg-p-red-600/10 focus-visible:bg-p-red-600/20'
                                 }
-                            ] as { divider?: boolean; disabled?: boolean; render?: () => React.ReactNode; onClick?: () => void; icon?: string; label?: string; classNames?: string }[]).map((item, index) => {
+                            ] as { divider?: boolean; disabled?: boolean; render?: () => React.ReactNode; onClick?: () => void; icon?: string; label?: string; classNames?: string; badge?: number }[]).map((item, index) => {
                                 if (item.divider) 
                                     return <hr key={index} className="border-divider-contrast my-1 z-0" />
 
@@ -230,6 +236,7 @@ export default ({
                                     >
                                         {item.icon && <Icon icon={item.icon} className="sizes-5 shrink-0" />}
                                         <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                        {Boolean(item.badge) && <span className="flex min-w-5 items-center justify-center rounded-full bg-p-purple px-1.5 py-0.5 text-[10px] font-semibold text-white">{item.badge}</span>}
                                     </Button>
                                 )
                             })
@@ -238,5 +245,6 @@ export default ({
                 </Popover>
             </div>
         </aside>
-    )
+        {notificationsOpen && <NotificationCenter open onOpenChange={setNotificationsOpen} />}
+    </>
 }

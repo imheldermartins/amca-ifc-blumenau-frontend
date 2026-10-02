@@ -484,6 +484,12 @@ export const mappedFilters = {
     defaultCondition: 'equals',
     conditions: [checkboxEquals],
   },
+  // Flow é uma ação, não um valor consultável. A entrada vazia mantém a
+  // exaustividade do contrato enquanto a UI o remove dos seletores.
+  flow: {
+    defaultCondition: 'equals',
+    conditions: [],
+  },
 } satisfies Record<ColumnDataType, FilterTypeDefinition>
 
 export function getFilterCondition(
