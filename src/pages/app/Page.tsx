@@ -28,13 +28,11 @@ import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigatio
 import { parseRows } from '@/lib/databaseParser'
 import { databaseService } from '@/services/DatabaseService'
 
-export interface PageDatabaseViewProps {
-  /** Página a exibir; `undefined` = ainda sendo resolvida (workspace). */
-  pageId?: string
+export interface PageProps {
+  /** Identidade canônica da página, resolvida pelo TanStack Router. */
+  pageId: string
   /** Título já conhecido pela tela que abriu esta página. */
   initialTitle?: string | null
-  /** Erro ANTES de ter um pageId (ex.: a workspace não resolveu a entrada). */
-  failedToResolve?: boolean
 }
 
 /**
@@ -50,9 +48,9 @@ const EMPTY_COLUMNS: HeaderCol[] = []
 const EMPTY_ROWS: RowData[] = []
 
 /**
- * Uma página do Cub's com a base dentro. É a view compartilhada pelos DOIS
- * caminhos de entrada convergem em `/page/:id`, inclusive a página inicial
- * resolvida por `/workspace/:id`.
+ * Componente de aplicação da página: unifica shell e recursos de conteúdo.
+ * Todos os caminhos de entrada convergem em `/page/:id`, inclusive a página
+ * inicial resolvida por `/workspace/:id`.
  *
  * O estado e a escrita moram no `usePageDatabase`; aqui só a composição.
  *
@@ -62,7 +60,7 @@ const EMPTY_ROWS: RowData[] = []
  * inline desce até TODAS as células e invalida o `memo` de cada uma. A
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
-export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: PageDatabaseViewProps) {
+export function Page({ pageId, initialTitle }: PageProps) {
   const [contentView, setContentView] = useState<PageContentView>('files')
   const databasePageId = contentView === 'files' ? pageId : undefined
   const permissions = usePageAccess(pageId)
@@ -143,7 +141,7 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
     setPendingCreatedView(null)
   }, [changeView, pageId, pendingCreatedView, settings])
 
-  const broken = failed || failedToResolve
+  const broken = failed
   // `currentLang` na lista de dependências é PROPOSITAL, e o linter reclama
   // porque não consegue ver a ligação: `i18n()` lê do singleton do i18next,
   // não de uma variável do escopo. Trocar de idioma muda o slug da rota, e é
@@ -410,54 +408,57 @@ export function PageDatabaseView({ pageId, initialTitle, failedToResolve }: Page
         contentView={contentView}
         onContentViewChange={handleContentViewChange}
         titleReadOnly={Boolean(pageTitleLock.data?.locked && !pageTitleLock.data.canEdit)}
-        documentContent={<PageBlockEditor key={pageId ?? 'pending-page'} />}
+        content={{
+          files: (
+            <CubsDatabase
+              pageId={pageId}
+              pageTitle={database?.pageTitle ?? initialTitle ?? undefined}
+              onLoadGraphChildren={loadGraphChildren}
+              settings={settings}
+              headerCols={columns}
+              rows={database?.rows ?? EMPTY_ROWS}
+              activeViewId={viewQuery.activeViewId}
+              filtersOverride={viewQuery.effectiveFilters}
+              cellErrors={cellErrors}
+              columnWidthPreviews={columnWidthPreviews}
+              loading={loading && !broken}
+              emptyLabel={i18n(
+                broken ? 'pages.app.cubs-database.erro' : 'pages.app.cubs-database.vazio',
+              )}
+              placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
+              onOpenRow={handleOpenRow}
+              {...(mayEdit ? handlers : {})}
+              onCellChange={mayEditRows ? handlers.onCellChange : undefined}
+              onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
+              onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
+              onViewChange={handleViewChange}
+              onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}
+              addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
+              onViewFiltersChange={viewQuery.changeLocal}
+              onCalendarConfigChange={mayEdit ? handlers.onCalendarConfigChange : undefined}
+              pinnedCalendarPageIds={pinnedCalendarPageIds}
+              calendarPendingPageId={schedule.mutating ? schedule.pendingPageId : null}
+              onCalendarPin={workspaceId && pageId ? handleCalendarPin : undefined}
+              onCalendarUnpin={workspaceId ? schedule.unpin : undefined}
+              onCalendarRequestPin={workspaceId ? handleCalendarRequestPin : undefined}
+              columnLocks={columnLocks.locks}
+              columnLockEditors={columnLocks.editors}
+              lockedColumnKeys={columnLocks.lockedColumnKeys}
+              canManageColumnLocks={columnLocks.canManage}
+              currentUserId={columnLocks.currentUserId}
+              onColumnLockChange={columnLocks.canManage ? columnLocks.save : undefined}
+              onSelectionChange={handleSelectionChange}
+              onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
+              labels={labels}
+              toolbarLabels={toolbarLabels}
+              viewMenuItems={mayEdit ? viewMenuItems : undefined}
+              onRenameView={mayEdit ? handlers.onRenameView : undefined}
+            />
+          ),
+          document: <PageBlockEditor key={pageId} />,
+        }}
         {...realtimeOptions}
-      >
-        <CubsDatabase
-          pageId={pageId}
-          pageTitle={database?.pageTitle ?? initialTitle ?? undefined}
-          onLoadGraphChildren={loadGraphChildren}
-          settings={settings}
-          headerCols={columns}
-          rows={database?.rows ?? EMPTY_ROWS}
-          activeViewId={viewQuery.activeViewId}
-          filtersOverride={viewQuery.effectiveFilters}
-          cellErrors={cellErrors}
-          columnWidthPreviews={columnWidthPreviews}
-          loading={loading && !broken}
-          emptyLabel={i18n(
-            broken ? 'pages.app.cubs-database.erro' : 'pages.app.cubs-database.vazio',
-          )}
-          placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
-          onOpenRow={handleOpenRow}
-          {...(mayEdit ? handlers : {})}
-          onCellChange={mayEditRows ? handlers.onCellChange : undefined}
-          onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
-          onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
-          onViewChange={handleViewChange}
-          onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}
-          addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
-          onViewFiltersChange={viewQuery.changeLocal}
-          onCalendarConfigChange={mayEdit ? handlers.onCalendarConfigChange : undefined}
-          pinnedCalendarPageIds={pinnedCalendarPageIds}
-          calendarPendingPageId={schedule.mutating ? schedule.pendingPageId : null}
-          onCalendarPin={workspaceId && pageId ? handleCalendarPin : undefined}
-          onCalendarUnpin={workspaceId ? schedule.unpin : undefined}
-          onCalendarRequestPin={workspaceId ? handleCalendarRequestPin : undefined}
-          columnLocks={columnLocks.locks}
-          columnLockEditors={columnLocks.editors}
-          lockedColumnKeys={columnLocks.lockedColumnKeys}
-          canManageColumnLocks={columnLocks.canManage}
-          currentUserId={columnLocks.currentUserId}
-          onColumnLockChange={columnLocks.canManage ? columnLocks.save : undefined}
-          onSelectionChange={handleSelectionChange}
-          onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
-          labels={labels}
-          toolbarLabels={toolbarLabels}
-          viewMenuItems={mayEdit ? viewMenuItems : undefined}
-          onRenameView={mayEdit ? handlers.onRenameView : undefined}
-        />
-      </PageShell>
+      />
       <ReplaceViewFiltersModal
         open={viewQuery.conflict}
         onReplace={viewQuery.acceptPersistence}

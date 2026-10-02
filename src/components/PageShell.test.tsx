@@ -108,7 +108,7 @@ describe('PageShell — page-updated', () => {
 
   it('mostra a criação até a primeira edição e então acompanha database-updated', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-08-31T18:00:00.000Z').getTime())
-    render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
+    render(<PageShell pageId={PAGE_ID} content={{ files: 'conteúdo' }} />)
 
     await screen.findByText('Título inicial')
     expect(screen.queryByText('pages.app.pagina.updated-at')).toBeNull()
@@ -138,7 +138,7 @@ describe('PageShell — page-updated', () => {
   })
 
   it('atualiza o chrome com guarda própria e aceita empate de timestamp', async () => {
-    render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
+    render(<PageShell pageId={PAGE_ID} content={{ files: 'conteúdo' }} />)
     await screen.findByText('Título inicial')
 
     act(() => {
@@ -181,7 +181,7 @@ describe('PageShell — page-updated', () => {
   })
 
   it('troca Criado por Atualizado ao receber a edição do título em realtime', async () => {
-    render(<PageShell pageId={PAGE_ID}>conteúdo</PageShell>)
+    render(<PageShell pageId={PAGE_ID} content={{ files: 'conteúdo' }} />)
     await screen.findByText('pages.app.pagina.created-at')
 
     act(() => {
@@ -226,9 +226,12 @@ describe('PageShell — carregamento inicial', () => {
     dependencies.getPage.mockReturnValueOnce(request.promise)
 
     const { rerender } = render(
-      <PageShell pageId={PAGE_ID} initialTitle="Título transportado" contentLoading>
-        conteúdo autoritativo
-      </PageShell>,
+      <PageShell
+        pageId={PAGE_ID}
+        initialTitle="Título transportado"
+        contentLoading
+        content={{ files: 'conteúdo autoritativo' }}
+      />,
     )
 
     expect(screen.getByRole('heading', { name: 'Título transportado' })).toBeTruthy()
@@ -237,9 +240,12 @@ describe('PageShell — carregamento inicial', () => {
     expect(screen.queryByText('conteúdo autoritativo')).toBeNull()
 
     rerender(
-      <PageShell pageId={PAGE_ID} initialTitle="Título transportado" contentLoading={false}>
-        conteúdo autoritativo
-      </PageShell>,
+      <PageShell
+        pageId={PAGE_ID}
+        initialTitle="Título transportado"
+        contentLoading={false}
+        content={{ files: 'conteúdo autoritativo' }}
+      />,
     )
     expect(screen.getByText('conteúdo autoritativo')).toBeTruthy()
 
@@ -254,9 +260,11 @@ describe('PageShell — carregamento inicial', () => {
     )
 
     render(
-      <PageShell pageId={PAGE_ID} contentLoading>
-        conteúdo prematuro
-      </PageShell>,
+      <PageShell
+        pageId={PAGE_ID}
+        contentLoading
+        content={{ files: 'conteúdo prematuro' }}
+      />,
     )
 
     const titleSkeleton = document.querySelector('[data-page-title-skeleton]')
@@ -363,10 +371,11 @@ describe('PageShell — visualizações de conteúdo', () => {
     render(
       <PageShell
         pageId={PAGE_ID}
-        documentContent={<div>editor de blocos atual</div>}
-      >
-        base atual
-      </PageShell>,
+        content={{
+          files: 'base atual',
+          document: <div>editor de blocos atual</div>,
+        }}
+      />,
     )
     await screen.findByText('Título inicial')
 

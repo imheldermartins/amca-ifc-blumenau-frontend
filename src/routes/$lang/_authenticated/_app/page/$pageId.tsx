@@ -1,8 +1,9 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useLocation } from '@tanstack/react-router'
 
 import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
+import { readPageNavigationTitle } from '@/lib/pageNavigation'
 import { findPageWorkspace } from '@/lib/pageWorkspace'
-import { PageRoutePage } from '@/pages/app/PageRoutePage'
+import { Page } from '@/pages/app/Page'
 import { databaseService } from '@/services/DatabaseService'
 import { workspaceService } from '@/services/WorkspaceService'
 
@@ -39,5 +40,9 @@ export const Route = createFileRoute('/$lang/_authenticated/_app/page/$pageId')(
 
 function PageRoute() {
   const { pageId } = Route.useParams()
-  return <PageRoutePage pageId={pageId} />
+  const initialTitle = useLocation({
+    select: (location) => readPageNavigationTitle(location.state, pageId),
+  })
+
+  return <Page key={pageId} pageId={pageId} initialTitle={initialTitle} />
 }

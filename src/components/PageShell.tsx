@@ -1,20 +1,21 @@
 import { useNavigate } from '@tanstack/react-router'
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { Collaborators } from '@components/Collaborators'
 import {
-  PageContentViewSwitcher,
   type PageContentView,
   type PageContentViewLabels,
 } from '@components/PageContentViewSwitcher'
 import {
+  PageShellContent,
+  type PageContentSlots,
+} from '@components/PageShellContent'
+import { PageShellHeader } from '@components/PageShellHeader'
+import {
   PageSettingsModal,
   type PageSettingsFragment,
 } from '@components/PageSettingsModal'
-import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
-import { Typography } from '@components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useDialog } from '@/hooks/useDialog'
@@ -32,7 +33,6 @@ import {
   type ApiPageCollaborator,
 } from '@/services/SharedPagesService'
 import type { UserIdentity } from '@/types/user'
-import { Icon } from '@iconify/react'
 
 const DEFAULT_PAGE_SETTINGS_FRAGMENT: PageSettingsFragment = '#general'
 type PageActivityKind = 'created' | 'updated'
@@ -55,59 +55,9 @@ function urlWithoutHash(): string {
   return `${window.location.pathname}${window.location.search}`
 }
 
-function PageContentPlaceholder({ view }: { view: Exclude<PageContentView, 'files'> }) {
-  const icon = view === 'document' ? 'lucide:file-text' : 'lucide:workflow'
-  return (
-    <section
-      id={`page-content-${view}`}
-      role="tabpanel"
-      aria-labelledby={`page-content-tab-${view}`}
-      className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-divider bg-contrast/40 px-6 text-center"
-    >
-      <span className="mb-3 rounded-xl bg-active p-3 text-dark-100 dark:text-light-900">
-        <Icon icon={icon} fontSize={28} aria-hidden="true" />
-      </span>
-      <Typography variant="h3">
-        {i18n(`pages.app.pagina.views.${view}.title`)}
-      </Typography>
-      <Typography variant="subtitle" className="mt-1 max-w-md">
-        {i18n(`pages.app.pagina.views.${view}.description`)}
-      </Typography>
-    </section>
-  )
-}
-
-function PageContentSkeleton({ view }: { view: PageContentView }) {
-  return (
-    <div
-      id={`page-content-${view}`}
-      role="tabpanel"
-      aria-labelledby={`page-content-tab-${view}`}
-      aria-busy="true"
-      data-page-content-skeleton
-      className="relative w-full pb-6"
-    >
-      <div aria-hidden="true" className="w-full space-y-3">
-        <div className="h-8 w-48 max-w-full animate-pulse rounded-lg bg-active" />
-        <div className="h-10 w-full animate-pulse rounded-xl bg-active" />
-        <div className="overflow-hidden rounded-xl border border-divider">
-          {[0, 1, 2, 3].map((row) => (
-            <div
-              key={row}
-              className="flex h-10 w-full items-center border-b border-divider px-3 last:border-b-0"
-            >
-              <span className="block h-3 w-full animate-pulse rounded bg-active" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export interface PageShellProps extends UsePageRealtimeOptions {
-  /** Página aberta. `undefined` = ainda resolvendo (ex.: a entrada da workspace). */
-  pageId?: string
+  /** Página aberta, já resolvida pela rota canônica `/page/:id`. */
+  pageId: string
   /** Título transportado pela tela anterior; a API continua autoritativa. */
   initialTitle?: string | null
   /** Impede montar o renderer de conteúdo antes de seu snapshot estar pronto. */
@@ -115,20 +65,17 @@ export interface PageShellProps extends UsePageRealtimeOptions {
   /** Tab de conteúdo controlada pelo host quando ele precisa desmontar dados. */
   contentView?: PageContentView
   onContentViewChange?: (view: PageContentView) => void
-  /** Conteúdo da visualização de base, exibido quando `files` está ativo. */
-  children?: ReactNode
-  /** Conteúdo do editor de blocos, exibido quando `document` está ativo. */
-  documentContent?: ReactNode
+  /** Renderers dos recursos da página, indexados pela tab que os apresenta. */
+  content?: PageContentSlots
   /** Decisão global de lock-in da coluna sintética `title`. */
   titleReadOnly?: boolean
 }
 
 /**
  * Moldura padrão de uma página do Cub's: cabeçalho persistente e seletor do
- * conteúdo abaixo dele. `files` renderiza `children`; documento e workflow já
- * têm seus pontos de montagem sem acoplar esses renderers ao chrome da página.
- * Toda página aberta no app passa por `/page/:id`. A entrada
- * `/workspace/:id` apenas resolve a página inicial antes de redirecionar.
+ * conteúdo abaixo dele. Cada recurso entra por um slot tipado, sem acoplar seu
+ * renderer ao chrome da página. Toda página aberta no app passa por
+ * `/page/:id`; `/workspace/:id` apenas resolve a página inicial e redireciona.
  *
  * É também o ÚNICO lugar que entra na sala de realtime (`usePageRealtime`), e
  * isso é de propósito: entrar na sala vira consequência de ABRIR A PÁGINA, não
@@ -142,8 +89,7 @@ export function PageShell({
   contentLoading,
   contentView: controlledContentView,
   onContentViewChange,
-  children,
-  documentContent,
+  content,
   titleReadOnly = false,
   ...realtimeOptions
 }: PageShellProps) {
@@ -330,6 +276,11 @@ export function PageShell({
     }
   }, [displayedTitle, draftTitle, pageId, titleReadOnly, titleSaving])
 
+  const cancelTitleEdit = useCallback((cancelBlur: boolean) => {
+    cancelTitleBlurRef.current = cancelBlur
+    setDraftTitle(displayedTitle ?? '')
+  }, [displayedTitle])
+
   const openPageSettings = useCallback(
     (fragment: PageSettingsFragment) => {
       setPageSettingsFragment(fragment)
@@ -460,96 +411,36 @@ export function PageShell({
 
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
-      <header className="mb-8 flex flex-col-reverse">
-        <Typography
-          variant="h1"
-          className="w-full flex-1"
-          aria-busy={!displayedFailed && pageLoading && displayedTitle === null}
-        >
-          {displayedFailed ? (
-            i18n('pages.app.pagina.indisponivel')
-          ) : displayedTitle === null && pageLoading ? (
-            <PageTitleSkeleton />
-          ) : pageLoading ? (
-            displayedTitle
-          ) : can(permission.data, 'write', 'update') && !titleReadOnly ? (
-            <input
-              value={draftTitle}
-              readOnly={titleSaving}
-              aria-label={i18n('pages.app.pagina.title-label')}
-              placeholder={i18n('pages.app.pagina.sem-titulo')}
-              className="min-h-[1.2em] w-full border-0 bg-transparent p-0 text-inherit shadow-none outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0"
-              style={{ font: 'inherit' }}
-              onChange={(event) => setDraftTitle(event.target.value)}
-              onBlur={() => void saveTitle()}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') event.currentTarget.blur()
-                if (event.key === 'Escape') {
-                  cancelTitleBlurRef.current = event.currentTarget === document.activeElement
-                  setDraftTitle(displayedTitle ?? '')
-                  event.currentTarget.blur()
-                }
-              }}
-            />
-          ) : displayedTitle === null ? (
-            <span className="block min-h-[1.2em] opacity-50">
-              {i18n('pages.app.pagina.sem-titulo')}
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">{displayedTitle}{titleReadOnly && <Icon icon="lucide:lock-keyhole" className="size-4 opacity-45" aria-label={i18n('pages.app.pagina.title-locked')} />}</span>
-          )}
-        </Typography>
-        {titleSaveFailed && <Typography variant="caption" as="p" role="alert" className="text-p-red">{i18n('pages.app.pagina.title-save-error')}</Typography>}
-        <div className="flex items-center justify-between">
-          {activityLabel ? (
-            <time
-              dateTime={displayedUpdatedAt ?? undefined}
-              className="text-sm text-dark-100 dark:text-light-900"
-            >
-              {activityLabel}
-            </time>
-          ) : (
-            <span aria-hidden="true" />
-          )}
-          <div className="flex items-center gap-3">
-            <PageContentViewSwitcher
-              value={contentView}
-              onValueChange={changeContentView}
-              labels={contentViewLabels}
-            />
-            <Collaborators
-              participants={visualParticipants}
-              currentUserId={auth.user?.id}
-              viewers={viewers}
-              loading={collaboratorsLoading}
-              settingsOpen={pageSettingsOpen}
-              onOpenSettings={can(permission.data,'read','members') || can(permission.data,'write','add_members') ? () => openPageSettings('#collaborators') : undefined}
-            />
-          </div>
-        </div>
-      </header>
+      <PageShellHeader
+        title={displayedTitle}
+        draftTitle={draftTitle}
+        loading={pageLoading}
+        failed={displayedFailed}
+        editable={can(permission.data, 'write', 'update')}
+        readOnly={titleReadOnly}
+        saving={titleSaving}
+        saveFailed={titleSaveFailed}
+        activityLabel={activityLabel}
+        activityAt={displayedUpdatedAt}
+        contentView={contentView}
+        contentViewLabels={contentViewLabels}
+        participants={visualParticipants}
+        currentUserId={auth.user?.id}
+        viewers={viewers}
+        collaboratorsLoading={collaboratorsLoading}
+        settingsOpen={pageSettingsOpen}
+        onDraftTitleChange={setDraftTitle}
+        onSaveTitle={() => void saveTitle()}
+        onCancelTitle={cancelTitleEdit}
+        onContentViewChange={changeContentView}
+        onOpenCollaborators={
+          can(permission.data, 'read', 'members') || can(permission.data, 'write', 'add_members')
+            ? () => openPageSettings('#collaborators')
+            : undefined
+        }
+      />
 
-      {showContentSkeleton ? (
-        <PageContentSkeleton view={contentView} />
-      ) : contentView === 'files' ? (
-        <div
-          id="page-content-files"
-          role="tabpanel"
-          aria-labelledby="page-content-tab-files"
-        >
-          {children}
-        </div>
-      ) : contentView === 'document' && documentContent ? (
-        <div
-          id="page-content-document"
-          role="tabpanel"
-          aria-labelledby="page-content-tab-document"
-        >
-          {documentContent}
-        </div>
-      ) : (
-        <PageContentPlaceholder view={contentView} />
-      )}
+      <PageShellContent view={contentView} loading={showContentSkeleton} slots={content} />
 
       <PageSettingsModal
         open={pageSettingsOpen}
