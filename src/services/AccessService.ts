@@ -6,6 +6,7 @@ export interface AccessRole { id: string; name: string; roles: Permissions; isDe
 export interface AccessMember { id: string; membershipId: string; name: string | null; email: string; roleId: string | null; roleName: string | null; permissions: Permissions; access?: ScopeAccess }
 export interface MembershipRequest { id: string; requesterId: string; requesterName: string | null; requesterEmail: string; status: 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired'; acceptedBy: string | null; decidedAt: string | null; createdAt: string }
 export interface AccessInvite { id: string; scopeType: AccessScope; scopeId: string; scopeName: string; roleId: string; roleName: string; recipientEmail: string | null; authorId: string; authorName: string; status: 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired'; expiresAt: string | null; acceptanceLimit: number | null; acceptanceCount: number; notifiedAt: string | null; createdAt: string }
+export interface InviteCreationResult { invite: AccessInvite; inviteUrl: string | null; notificationPending: boolean }
 export const can = (access: { permissions?: Permissions } | null | undefined, kind: keyof Permissions, action: string) => Boolean(access?.permissions?.read.includes('view') && access.permissions[kind].includes(action))
 export const canDelegate = (access: Partial<ScopeAccess> | undefined, permissions: Permissions) => Boolean(access?.permissions && (['read','write'] as const).every(kind=>permissions[kind].every(action=>access.permissions![kind].includes(action))))
 export const rolePermission = { organization: 'create_org_roles', workspace: 'create_wk_roles', page: 'create_page_roles' } as const
@@ -19,7 +20,8 @@ export const accessService = {
   members: (scope: AccessScope,id: string) => apiService.get<AccessMember[]>(base(scope,id)+'/members'),
   member: (scope: AccessScope,id: string,userId: string) => apiService.get<AccessMember>(base(scope,id)+'/member/'+userId),
   assign: (scope: AccessScope,id: string,userId: string,roleId: string) => apiService.put(base(scope,id)+'/member/'+userId,{roleId}),
-  add: (scope: AccessScope,id: string,email: string,roleId: string) => apiService.post(base(scope,id)+'/members',{email,roleId}),
+  removeMember: (scope: AccessScope,id: string,userId: string) => apiService.delete(base(scope,id)+'/member/'+userId),
+  add: (scope: AccessScope,id: string,email: string,roleId: string) => apiService.post<InviteCreationResult>(base(scope,id)+'/members',{email,roleId}),
   searchEmail: (scope: AccessScope,id:string,email:string) => apiService.get<{found:boolean;user:{id:string;name:string|null;email:string;verified:boolean}|null;isMember:boolean}>(base(scope,id)+'/member-search?email='+encodeURIComponent(email.trim().toLowerCase())),
   invites: (scope: AccessScope,id:string) => apiService.get<AccessInvite[]>(base(scope,id)+'/invites'),
   createInvite: (scope:AccessScope,id:string,input:{recipientEmail?:string|null;roleId?:string;expiresIn:'24h'|'7d'|'never';acceptanceLimit:number|null}) => apiService.post<{invite:AccessInvite;inviteUrl:string|null;notificationPending:boolean}>(base(scope,id)+'/invites',input),

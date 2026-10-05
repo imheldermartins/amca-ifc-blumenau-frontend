@@ -56,5 +56,8 @@ export interface CalendarProps<M extends object = mappedItemsTypes> {
   onItemClick?: (item: CalendarItem<M>) => void
   /** Altura dos charts no mês. Mantém o default compacto para consumidores existentes. */
   monthItemHeight?: number
+  /** Authorized totals supplied independently from capped previews. */
+  dayCounts?: Record<string, number>
+  renderDayOverflow?: (day: string, items: CalendarItem<M>[]) => ReactNode
   className?: string
 }

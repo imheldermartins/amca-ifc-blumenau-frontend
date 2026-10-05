@@ -54,11 +54,42 @@ export type FlowNode =
   | FlowSwitchNode
   | FlowCallbackNode
 
-export interface FlowDefinition {
+export interface FlowDefinitionV1 {
   version: 1
   trigger: { type: 'manual' }
   nodes: FlowNode[]
 }
+
+export type FlowStartNodeV2 = FlowNodeBase<'start', Record<string, never>>
+export type FlowEmailStepV2 = FlowNodeBase<
+  'email',
+  { to: string; subject: string; body: string }
+>
+export type FlowSetValueStepV2 = FlowNodeBase<
+  'set_value',
+  { columnId: string; value: unknown }
+>
+export type FlowSwitchStepV2 = FlowNodeBase<
+  'switch',
+  {
+    columnId: string
+    operator: FlowConditionOperator
+    value?: unknown
+    whenTrue: FlowStepV2[]
+    whenFalse: FlowStepV2[]
+  }
+>
+export type FlowStepV2 = FlowEmailStepV2 | FlowSetValueStepV2 | FlowSwitchStepV2
+export type FlowCallbackNodeV2 = FlowNodeBase<'callback', { message?: string }>
+export type FlowNodeV2 = FlowStartNodeV2 | FlowStepV2 | FlowCallbackNodeV2
+
+export interface FlowDefinitionV2 {
+  version: 2
+  trigger: { type: 'manual' }
+  nodes: FlowNodeV2[]
+}
+
+export type FlowDefinition = FlowDefinitionV1 | FlowDefinitionV2
 
 export type FlowMacroGroup = 'people' | 'page' | 'workspace' | 'columns'
 
@@ -146,6 +177,12 @@ export type { CurrencyCode }
 /** Rótulos dos editores de célula injetados pelo app host. */
 export interface CellEditorLabels {
   dragOption?: string
+  optionsMenu?: string
+  selectOption?: string
+  addOption?: string
+  deleteOption?: string
+  optionColor?: string
+  optionNamePlaceholder?: string
   datePicker?: DatePickerLabels
 }
 
@@ -162,9 +199,39 @@ export type ColumnMask = 'cpf' | 'cep' | 'phone-br' | 'date' | 'email'
  * `onColumnConfigChange` — o app manda ao backend, que mescla (ver mergeData).
  */
 export interface ColumnConfigPatch {
+  flowButton?: FlowButtonConfig
   format?: NumberFormat | null
   currency?: CurrencyCode | null
   mask?: ColumnMask | null
+}
+
+export interface FlowButtonConfig {
+  label: string | null
+  icon: string
+}
+
+export interface BoardViewConfig {
+  selectColumnId?: string
+  optionOrder?: string[]
+  collapsedOptionIds?: string[]
+  propertyIds?: string[]
+  showPropertyLabels?: boolean
+}
+
+export interface BoardMoveInput {
+  rowId: string
+  selectColumnId: string
+  optionId: string | null
+  orderedRows?: string[]
+  beforeId?: string
+  afterId?: string
+  boundary?: 'start' | 'end'
+  previousOptionId?: string | null
+}
+
+export interface BoardCreateInput {
+  selectColumnId: string
+  optionId: string | null
 }
 
 /**
@@ -232,7 +299,7 @@ export interface CellEditorProps {
    * commitar o rascunho; o callback permite ao host desenhar o impasse.
    */
   onExternalConflict?: () => void
-  /** Só o select usa: a coluna teve as options reordenadas (array COMPLETO). */
+  /** Só o select usa: CRUD e reordenação das options da coluna (array COMPLETO). */
   onOptionsChange?: (options: ColumnOption[]) => void
   /**
    * A célula está em falha/impasse. O editor marca o campo como inválido
@@ -251,6 +318,32 @@ export type DataViewKind =
   | 'calendar'
   | 'timeline'
   | 'graph'
+  | 'form'
+
+export type CatalogIcon = `${'cuida' | 'lucide'}:${string}`
+
+export interface FormViewConfig {
+  version: 1
+  flowColumnId: string
+  /** IDs das colunas ocultas somente no preenchimento desta view. */
+  hiddenFieldIds?: string[]
+  submitButton: {
+    label: string
+    icon: CatalogIcon | null
+  }
+}
+
+export interface FormFieldAnswer {
+  /** Chave pública da coluna; ids internos nunca atravessam a rota pública. */
+  key: string
+  value: unknown
+}
+
+export interface FormSubmissionInput {
+  /** Estável entre retries do mesmo clique; o backend rejeita reutilização divergente. */
+  clientRequestId: string
+  fields: FormFieldAnswer[]
+}
 
 export type FilterCondition =
   | 'equals'
@@ -310,6 +403,8 @@ export interface DataViewType {
    * POR VIEW de propósito: a ordem é apresentação, como a largura de coluna.
    */
   orderedRows?: string[]
+  /** Server-owned indexed order. Migrated views no longer send the complete row ID list. */
+  rowOrder?: { version: 2; revision: number }
   /**
    * Largura das colunas EM PIXELS, indexada pelo ID da coluna. Mora na VIEW e
    * não na coluna de propósito: largura é apresentação, então a mesma coluna
@@ -318,6 +413,8 @@ export interface DataViewType {
    * fora da faixa são clampados por `resolveColumnWidth`.
    */
   columnWidths?: Record<string, number>
+  /** Tamanho dos cards da Grade; ausente = médio. Persistido por visualização. */
+  tileSize?: 'small' | 'medium' | 'large'
   /** Coluna `date` usada pela projeção Calendar. Ausente = primeira disponível. */
   dateColumnId?: string
   /** Coluna `select` usada como cor. `null` força o roxo padrão. */
@@ -326,6 +423,9 @@ export interface DataViewType {
   calendarPropertyIds?: string[]
   /** Exibe `[nome da coluna]:` antes dos valores nos cards e detalhes. Ausente = true. */
   calendarShowPropertyLabels?: boolean
+  board?: BoardViewConfig
+  /** Configuração autoritativa da projeção Form; ausente em snapshots legados. */
+  form?: FormViewConfig
 }
 
 export interface CalendarPinInput {
@@ -393,6 +493,7 @@ export interface HeaderCol {
   mask?: ColumnMask
   /** Definição autoritativa da coluna Flow; a célula guarda apenas a última execução. */
   flow?: FlowDefinition
+  flowButton?: FlowButtonConfig
   /**
    * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva
    * (backend), então uma coluna pode carregar `options`/`format`/`mask` de um

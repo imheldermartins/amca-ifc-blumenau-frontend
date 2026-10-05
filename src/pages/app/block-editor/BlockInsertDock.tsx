@@ -18,8 +18,10 @@ import {
   EDITOR_BLOCK_OPTIONS,
   EDITOR_BLOCK_OPTION_IDS,
   insertBlockFromCatalog,
+  insertFormSubmitBlock,
   type EditorBlockOptionId,
 } from './blockCatalog'
+import type { FormBlockOption } from './editorEnvironmentContext'
 import {
   DEFAULT_IMAGE_COMPRESSION_PRESET,
   IMAGE_COMPRESSION_PRESETS,
@@ -30,19 +32,22 @@ const DOCK_HOVER_DELAY_MS = 2_000
 
 interface BlockInsertDockProps {
   editor: Editor
+  forms?: FormBlockOption[]
 }
 
 function optionLabel(optionId: EditorBlockOptionId): string {
   return i18n(EDITOR_BLOCK_OPTIONS[optionId].labelKey)
 }
 
-export function BlockInsertDock({ editor }: BlockInsertDockProps) {
+export function BlockInsertDock({ editor, forms = [] }: BlockInsertDockProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hoverTimerRef = useRef<number | null>(null)
   const [dockOpen, setDockOpen] = useState(false)
   const [libraryOpen, setLibraryOpen] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [imageError, setImageError] = useState<string | null>(null)
+  const [selectingForm, setSelectingForm] = useState(false)
+  const optionIds = EDITOR_BLOCK_OPTION_IDS.filter((id) => id !== 'form-submit' || forms.length > 0)
 
   const clearHoverTimer = () => {
     if (hoverTimerRef.current === null) return
@@ -75,6 +80,18 @@ export function BlockInsertDock({ editor }: BlockInsertDockProps) {
     const option = EDITOR_BLOCK_OPTIONS[optionId]
     if (option.payload.action === 'select-image') {
       selectImage()
+      return
+    }
+    if (option.payload.action === 'select-form') {
+      if (forms.length === 1) {
+        insertFormSubmitBlock(editor, forms[0]!.viewId)
+        closeDock()
+        setLibraryOpen(false)
+      } else if (forms.length > 1) {
+        closeDock()
+        setSelectingForm(true)
+        setLibraryOpen(true)
+      }
       return
     }
 
@@ -143,7 +160,7 @@ export function BlockInsertDock({ editor }: BlockInsertDockProps) {
                 'dark:border-divider-contrast dark:shadow-dark-900/40 dark:ring-light-100/5',
               )}
             >
-              {EDITOR_BLOCK_OPTION_IDS.map((optionId) => {
+              {optionIds.map((optionId) => {
                 const option = EDITOR_BLOCK_OPTIONS[optionId]
                 return (
                   <Tooltip key={optionId} content={optionLabel(optionId)} delayDuration={150}>
@@ -222,7 +239,7 @@ export function BlockInsertDock({ editor }: BlockInsertDockProps) {
           </Typography>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {EDITOR_BLOCK_OPTION_IDS.map((optionId) => {
+            {optionIds.map((optionId) => {
               const option = EDITOR_BLOCK_OPTIONS[optionId]
               return (
                 <button
@@ -256,6 +273,26 @@ export function BlockInsertDock({ editor }: BlockInsertDockProps) {
               )
             })}
           </div>
+          {selectingForm && forms.length > 1 && (
+            <div className="mt-5 rounded-xl border border-divider bg-contrast/30 p-4">
+              <Typography variant="h3">Escolha o formulário</Typography>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {forms.map((form) => <button
+                  key={form.viewId}
+                  type="button"
+                  className="flex items-center gap-3 rounded-lg border border-divider bg-background p-3 text-left hover:bg-active"
+                  onClick={() => {
+                    insertFormSubmitBlock(editor, form.viewId)
+                    setSelectingForm(false)
+                    setLibraryOpen(false)
+                  }}
+                >
+                  <Icon icon={form.icon ?? 'lucide:send'} className="size-5 text-p-purple" />
+                  <span className="text-sm font-medium">{form.label}</span>
+                </button>)}
+              </div>
+            </div>
+          )}
         </section>
 
         <section className="rounded-xl border border-divider bg-contrast/30 p-4">

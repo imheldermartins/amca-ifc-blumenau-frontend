@@ -4,6 +4,7 @@ import {
   FALLBACK_VIEW_ID,
   needsFilterKeyReconcile,
   parseDatabase,
+  parseFlowDefinition,
   parseHeaderCols,
   parseViewSettings,
 } from './databaseParser'
@@ -105,6 +106,16 @@ describe('databaseParser — coluna mestra de título', () => {
 })
 
 describe('databaseParser — tipos de view', () => {
+  it.each(['small', 'medium', 'large'] as const)('preserva tamanho %s da Grade salvo no snapshot', (tileSize) => {
+    const parsed = parseViewSettings({ [VIEW_ID]: { view: 'grid', name: 'Grade', tileSize } })
+    expect(parsed[VIEW_ID].tileSize).toBe(tileSize)
+  })
+
+  it.each([undefined, null, 'enorme', 240, ['small'], { size: 'small' }])('ignora tamanho inválido ou legado (%j)', (tileSize) => {
+    const parsed = parseViewSettings({ [VIEW_ID]: { view: 'grid', name: 'Grade', tileSize } })
+    expect(parsed[VIEW_ID].tileSize).toBeUndefined()
+  })
+
   it('ordena as tabs pelo order persistido e mantém legado estável no fim', () => {
     const second = '01KXVZ0000VIEW00000000002'
     const legacy = '01KXVZ0000VIEW00000000003'
@@ -124,7 +135,7 @@ describe('databaseParser — tipos de view', () => {
     const data = { [VIEW_ID]: deleted, '01KXVZ0000VIEW00000000002': live }
     expect(Object.keys(parseViewSettings(data))).toEqual(['01KXVZ0000VIEW00000000002'])
   })
-  it.each(['table', 'grid', 'board', 'calendar', 'timeline', 'graph'] as const)(
+  it.each(['table', 'grid', 'board', 'calendar', 'timeline', 'graph', 'form'] as const)(
     'preserva o modo %s recebido no snapshot',
     (view) => {
       const parsed = parseDatabase({
@@ -153,6 +164,38 @@ describe('databaseParser — tipos de view', () => {
       expect(parsed.settings[VIEW_ID].view).toBe(view)
     },
   )
+
+  it('lê a configuração persistida da view form e poda configuração inválida', () => {
+    const flowColumnId = '01KXVZ0000FLOW00000000001'
+    const valid = parseViewSettings({
+      [VIEW_ID]: {
+        view: 'form',
+        name: 'Inscrição',
+        form: {
+          version: 1,
+          flowColumnId,
+          hiddenFieldIds: ['page_title'],
+          submitButton: { label: 'Enviar inscrição', icon: 'lucide:send' },
+        },
+      },
+    })
+    expect(valid[VIEW_ID].form).toEqual({
+      version: 1,
+      flowColumnId,
+      hiddenFieldIds: ['page_title'],
+      submitButton: { label: 'Enviar inscrição', icon: 'lucide:send' },
+    })
+
+    const invalid = parseViewSettings({
+      [VIEW_ID]: {
+        view: 'form',
+        name: 'Legado quebrado',
+        form: { version: 1, flowColumnId, submitButton: { label: '', icon: 'javascript:x' } },
+      },
+    })
+    expect(invalid[VIEW_ID].view).toBe('form')
+    expect(invalid[VIEW_ID].form).toBeUndefined()
+  })
 })
 
 describe('databaseParser — cores das opções', () => {
@@ -209,6 +252,24 @@ describe('databaseParser — máscara de e-mail', () => {
 })
 
 describe('databaseParser — flow', () => {
+  it('preserva recursivamente uma definição v2', () => {
+    const flow = {
+      version: 2,
+      trigger: { type: 'manual' },
+      nodes: [
+        { id: 'start', type: 'start', config: {} },
+        { id: 'condition', type: 'switch', config: {
+          columnId: 'status', operator: 'equals', value: 'approved',
+          whenTrue: [{ id: 'email', type: 'email', config: { to: '@page.title', subject: 'Oi', body: 'Oi' } }],
+          whenFalse: [{ id: 'nested', type: 'switch', config: { columnId: 'score', operator: 'greater_than', value: 5, whenTrue: [], whenFalse: [] } }],
+        } },
+        { id: 'done', type: 'callback', config: { message: 'Fim' } },
+      ],
+    }
+
+    expect(parseFlowDefinition(flow)).toEqual(flow)
+  })
+
   it('preserva somente uma definição manual estruturalmente válida', () => {
     const validFlow = {
       version: 1 as const,

@@ -1,13 +1,12 @@
 import { Icon } from '@iconify/react'
 import { Button, cn } from 'cubs-components'
 
-export type PageContentView = 'files' | 'document' | 'workflow'
+export type PageContentView = 'files' | 'document'
 
 export interface PageContentViewLabels {
   navigation: string
   files: string
   document: string
-  workflow: string
 }
 
 export interface PageContentViewSwitcherProps {
@@ -19,7 +18,6 @@ export interface PageContentViewSwitcherProps {
 const VIEWS: ReadonlyArray<{ id: PageContentView; icon: string }> = [
   { id: 'files', icon: 'lucide:files' },
   { id: 'document', icon: 'lucide:file-text' },
-  { id: 'workflow', icon: 'lucide:workflow' },
 ]
 
 /** Alterna somente o conteúdo da página; o PageShell permanece montado. */

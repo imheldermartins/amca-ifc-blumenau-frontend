@@ -37,6 +37,7 @@ function canExposeAxiosCause(url: string): boolean {
   return ![
     '/auth/login',
     '/auth/register',
+    '/forms/publications/',
   ].some((sensitivePath) => url.includes(sensitivePath))
 }
 

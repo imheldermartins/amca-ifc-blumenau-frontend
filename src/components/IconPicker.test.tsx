@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FormProvider, useForm } from 'react-hook-form'
 
 const loadWorkspaceIconCatalog = vi.hoisted(() => vi.fn())
 
@@ -13,6 +14,24 @@ import { IconPicker } from './IconPicker'
 afterEach(() => cleanup())
 
 describe('IconPicker', () => {
+  it('atualiza o campo RHF antes de avisar a seleção e o blur ao cabeçalho', async () => {
+    loadWorkspaceIconCatalog.mockResolvedValueOnce([{ library: 'cuida', name: 'archive', value: 'cuida:archive' }])
+    const change = vi.fn(), blur = vi.fn()
+    function HeaderPicker() {
+      const form = useForm({ defaultValues: { icon: 'lucide:smile' } })
+      return <FormProvider {...form}>
+        <IconPicker name="icon" label="Ícone" variant="icon"
+          labels={{ choose: 'Escolher', search: 'Buscar', empty: 'Vazio', loading: 'Carregando', loadMore: 'Mais' }}
+          onValueChange={(next) => change(next, form.getValues('icon'))} onBlur={blur} />
+      </FormProvider>
+    }
+    render(<HeaderPicker />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ícone' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'archive' }))
+    expect(change).toHaveBeenCalledWith('cuida:archive', 'cuida:archive')
+    expect(blur).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
   it('mescla as bibliotecas, ordena pelo nome e usa busca com ícone nativo', async () => {
     loadWorkspaceIconCatalog.mockResolvedValueOnce([
       { library: 'lucide', name: 'zebra', value: 'lucide:zebra' },

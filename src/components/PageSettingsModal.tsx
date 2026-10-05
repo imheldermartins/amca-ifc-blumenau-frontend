@@ -1,11 +1,10 @@
-import { Button, cn } from 'cubs-components'
+import { Button, cn, SOFT_SELECTION_CLASSES } from 'cubs-components'
 
-import { Avatar } from '@components/Avatar'
+import { AccessMembersPanel } from '@/pages/access/AccessMembersPanel'
 import { Modal } from '@components/Modal'
 import { Typography } from '@components/Typography'
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { i18n } from '@/lib/i18n'
-import type { UserVisualIdentity } from '@/types/user'
 
 export type PageSettingsFragment = '#general' | '#collaborators'
 
@@ -16,46 +15,13 @@ export interface PageSettingsModalProps {
   onFragmentChange: (fragment: PageSettingsFragment) => void
   pageId?: string
   pageTitle: string | null
-  currentUser: UserVisualIdentity | null
-  /** Somente os vínculos; o usuário atual é exibido separadamente. */
-  collaborators: readonly UserVisualIdentity[]
-  loading: boolean
-  failed: boolean
-  onOpenPermissions?: () => void
+  onMembersChanged?: () => void
 }
 
 const SECTIONS: Array<{ fragment: PageSettingsFragment; labelKey: string }> = [
   { fragment: '#general', labelKey: 'pages.app.page-settings.general' },
   { fragment: '#collaborators', labelKey: 'pages.app.page-settings.collaborators' },
 ]
-
-function IdentityRow({ user, current = false }: { user: UserVisualIdentity; current?: boolean }) {
-  return (
-    <li className="flex items-center gap-3 py-2.5">
-      <Avatar
-        slug={user.slug}
-        color={user.color}
-        label={user.name ?? user.email}
-        active={current}
-      />
-      <div className="min-w-0 flex-1">
-        <Typography variant="body" as="p" className="truncate font-semibold">
-          {user.name ?? user.email}
-          {current && (
-            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-              {i18n('pages.app.page-settings.you')}
-            </span>
-          )}
-        </Typography>
-        {user.name && (
-          <Typography variant="caption" as="p" className="truncate">
-            {user.email}
-          </Typography>
-        )}
-      </div>
-    </li>
-  )
-}
 
 /** Configurações locais da página, deep-linkadas por fragmento. */
 export function PageSettingsModal({
@@ -65,11 +31,7 @@ export function PageSettingsModal({
   onFragmentChange,
   pageId,
   pageTitle,
-  currentUser,
-  collaborators,
-  loading,
-  failed,
-  onOpenPermissions,
+  onMembersChanged,
 }: PageSettingsModalProps) {
   const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
 
@@ -77,11 +39,11 @@ export function PageSettingsModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      size="lg"
+      size="xl"
       accessibleTitle={i18n('pages.app.page-settings.title')}
       className="p-0"
     >
-      <div id="page-settings-dialog" className="grid min-h-80 grid-cols-[10rem_minmax(0,1fr)]">
+      <div id="page-settings-dialog" className="grid min-h-80 grid-cols-1 sm:grid-cols-[10rem_minmax(0,1fr)]">
         <nav
           role="tablist"
           aria-label={i18n('pages.app.page-settings.navigation')}
@@ -101,7 +63,7 @@ export function PageSettingsModal({
                 color="from-theme"
                 className={cn(
                   'w-full justify-start px-2 py-1.5 font-medium',
-                  selected && 'bg-active text-foreground',
+                  selected && SOFT_SELECTION_CLASSES,
                 )}
                 onClick={() => onFragmentChange(section.fragment)}
               >
@@ -138,58 +100,9 @@ export function PageSettingsModal({
             </dl>
           )}
 
-          {activeSection.fragment === '#collaborators' && (
-            <div className="mt-5 grid gap-5 pb-8">
-              {onOpenPermissions && <Button variant="filled" color="purple" onClick={onOpenPermissions}>
-                {i18n('access.manage-permissions')}
-              </Button>}
-
-              {currentUser && (
-                <section aria-labelledby="page-settings-current-user">
-                  <Typography
-                    id="page-settings-current-user"
-                    variant="caption"
-                    as="h3"
-                    className="mb-2"
-                  >
-                    {i18n('pages.app.page-settings.current-user')}
-                  </Typography>
-                  <ul className="divide-y divide-divider">
-                    <IdentityRow user={currentUser} current />
-                  </ul>
-                </section>
-              )}
-
-              <section aria-labelledby="page-settings-access-list">
-                <Typography
-                  id="page-settings-access-list"
-                  variant="caption"
-                  as="h3"
-                  className="mb-2"
-                >
-                  {i18n('pages.app.page-settings.people-with-access')}
-                </Typography>
-
-                {loading ? (
-                  <p role="status" className="text-sm text-muted-foreground">
-                    {i18n('common.carregando')}
-                  </p>
-                ) : failed ? (
-                  <p role="alert" className="text-sm text-p-red">
-                    {i18n('pages.app.page-settings.collaborators-error')}
-                  </p>
-                ) : collaborators.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {i18n('pages.app.page-settings.collaborators-empty')}
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-divider">
-                    {collaborators.map((collaborator) => (
-                      <IdentityRow key={collaborator.id} user={collaborator} />
-                    ))}
-                  </ul>
-                )}
-              </section>
+          {activeSection.fragment === '#collaborators' && pageId && (
+            <div className="mt-5 pb-4">
+              <AccessMembersPanel key={pageId} scope="page" id={pageId} onMembersChanged={onMembersChanged} />
             </div>
           )}
         </section>

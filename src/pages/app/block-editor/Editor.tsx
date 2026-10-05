@@ -10,6 +10,8 @@ import { EditorMenus } from './EditorMenus'
 import { EditorDnd } from './EditorDnd'
 import { BlockInsertDock } from './BlockInsertDock'
 import { createEditorExtensions } from './editorExtensions'
+import { EditorEnvironmentProvider } from './EditorEnvironment'
+import type { FormBlockOption } from './editorEnvironmentContext'
 
 function createBlockId(): string {
   return crypto.randomUUID()
@@ -44,10 +46,21 @@ function createEmptyEditorContent(): JSONContent {
   }
 }
 
-export function Editor() {
+export function Editor({
+  content,
+  forms = [],
+  onChange = () => undefined,
+  onOpenForm = () => undefined,
+}: {
+  content?: JSONContent
+  forms?: FormBlockOption[]
+  onChange?: (content: JSONContent) => void
+  onOpenForm?: (viewId: string) => void
+}) {
   const editor = useEditor({
     extensions: createEditorExtensions(),
-    content: createEmptyEditorContent(),
+    content: content ?? createEmptyEditorContent(),
+    onUpdate: ({ editor: current }) => onChange(current.getJSON()),
     editorProps: {
       attributes: {
         'aria-label': i18n('pages.block-editor.editor.accessible-name'),
@@ -58,12 +71,14 @@ export function Editor() {
   if (!editor) return null
 
   return (
+    <EditorEnvironmentProvider value={{ forms, openForm: onOpenForm }}>
     <section className="cubs-editor w-full">
       <EditorDnd editor={editor}>
         <EditorContent editor={editor} />
-        <BlockInsertDock editor={editor} />
+        <BlockInsertDock editor={editor} forms={forms} />
         <EditorMenus editor={editor} />
       </EditorDnd>
     </section>
+    </EditorEnvironmentProvider>
   )
 }

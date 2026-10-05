@@ -1,4 +1,4 @@
-import { type PropsWithChildren } from 'react'
+import { StrictMode, type PropsWithChildren } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,11 +15,13 @@ const dependencies = vi.hoisted(() => ({
   createRow: vi.fn(),
   createColumn: vi.fn(),
   deleteRow: vi.fn(),
+  deleteRows: vi.fn(),
   deleteColumn: vi.fn(),
   changeColumnType: vi.fn(),
   renameColumn: vi.fn(),
   saveColumnConfig: vi.fn(),
   saveCell: vi.fn(),
+  moveRow: vi.fn(),
   createView: vi.fn(),
   duplicateView: vi.fn(),
   deleteView: vi.fn(),
@@ -45,11 +47,13 @@ vi.mock('@/services/PageWriteService', () => ({
     createRow: dependencies.createRow,
     createColumn: dependencies.createColumn,
     deleteRow: dependencies.deleteRow,
+    deleteRows: dependencies.deleteRows,
     deleteColumn: dependencies.deleteColumn,
     changeColumnType: dependencies.changeColumnType,
     renameColumn: dependencies.renameColumn,
     saveColumnConfig: dependencies.saveColumnConfig,
     saveCell: dependencies.saveCell,
+    moveRow: dependencies.moveRow,
     createView: dependencies.createView,
     duplicateView: dependencies.duplicateView,
     deleteView: dependencies.deleteView,
@@ -131,6 +135,7 @@ beforeEach(() => {
     data: { publicKey: { key: 'coluna', aliases: [] } },
   })
   dependencies.deleteRow.mockResolvedValue(undefined)
+  dependencies.deleteRows.mockImplementation((rowIds: string[]) => Promise.resolve({ deletedRowIds: rowIds, failures: [] }))
   dependencies.deleteColumn.mockResolvedValue(undefined)
   dependencies.patchView.mockResolvedValue(undefined)
   dependencies.deleteView.mockResolvedValue(undefined)
@@ -141,6 +146,92 @@ beforeEach(() => {
 })
 
 afterEach(() => cleanup())
+
+describe('usePageDatabase — Board writes', () => {
+  function projectionBridge() {
+    return { current: {
+      orderRevision: 7, onEvent: vi.fn(), onStructure: vi.fn(), onResync: vi.fn(),
+      onAccessDenied: vi.fn(), onRowOrder: vi.fn(), onLocalRows: vi.fn(), onCreatedRow: vi.fn(),
+    } }
+  }
+  it('uses the atomic anchor movement without sending the complete order', async () => {
+    const bridge = projectionBridge()
+    dependencies.moveRow.mockResolvedValue({ orderRevision: 8 })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID, bridge), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await result.current.handlers.onBoardMove('view', { rowId: ROW_ID, selectColumnId: COLUMN_ID,
+        optionId: 'option', previousOptionId: 'previous', beforeId: NEW_ROW_ID })
+    })
+    expect(dependencies.moveRow).toHaveBeenCalledExactlyOnceWith(PAGE_ID, 'view', {
+      rowId: ROW_ID, beforeId: NEW_ROW_ID, afterId: undefined, boundary: undefined, expectedOrderRevision: 7,
+      targetOptionId: 'option', previousOptionId: 'inicial',
+    })
+    expect(dependencies.saveCell).not.toHaveBeenCalled()
+    expect(dependencies.patchView).not.toHaveBeenCalled()
+    expect(bridge.current.onResync).toHaveBeenCalledOnce()
+  })
+  it.each([false, true])('registers the new draft only after select assignment settles (failure=%s)', async (fails) => {
+    const bridge = projectionBridge()
+    const cell = deferred<unknown>()
+    dependencies.saveCell.mockReturnValue(cell.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID, bridge), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    let creation!: Promise<unknown>
+    act(() => { creation = result.current.handlers.onBoardCreateRow({ selectColumnId: COLUMN_ID, optionId: 'option' }) })
+    await waitFor(() => expect(dependencies.saveCell).toHaveBeenCalledOnce())
+    expect(bridge.current.onCreatedRow).not.toHaveBeenCalled()
+    await act(async () => { if (fails) cell.reject(new Error('blocked')); else cell.resolve({}); await creation })
+    expect(bridge.current.onCreatedRow).toHaveBeenCalledExactlyOnceWith({ id: NEW_ROW_ID,
+      cells: fails ? {} : { [COLUMN_ID]: { value: 'option' } },
+    })
+    expect(dependencies.deleteRow).not.toHaveBeenCalled()
+  })
+  it('confirms the select before saving the view order', async () => {
+    const cell = deferred<unknown>()
+    dependencies.saveCell.mockReturnValue(cell.promise)
+    dependencies.patchView.mockResolvedValue({ view: { view: 'board', orderedRows: [ROW_ID] } })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    let request!: Promise<void>
+    act(() => { request = result.current.handlers.onBoardMove('view', { rowId: ROW_ID, selectColumnId: COLUMN_ID, optionId: 'option', orderedRows: [ROW_ID] }) })
+    await waitFor(() => expect(dependencies.saveCell).toHaveBeenCalledOnce())
+    expect(dependencies.patchView).not.toHaveBeenCalled()
+    await act(async () => { cell.resolve({}); await request })
+    expect(dependencies.patchView).toHaveBeenCalledWith(PAGE_ID, 'view', { orderedRows: [ROW_ID] })
+    expect(result.current.database?.rows[0]?.cells[COLUMN_ID]?.value).toBe('option')
+  })
+  it('does not save order after a forbidden select change', async () => {
+    dependencies.saveCell.mockRejectedValue(new Error('Coluna bloqueada'))
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await expect(result.current.handlers.onBoardMove('view', { rowId: ROW_ID, selectColumnId: COLUMN_ID, optionId: 'option', orderedRows: [ROW_ID] })).rejects.toThrow('bloqueada')
+    })
+    expect(dependencies.patchView).not.toHaveBeenCalled()
+    expect(result.current.database?.rows[0]?.cells[COLUMN_ID]?.value).toBe('inicial')
+  })
+  it('keeps a newly created page when assigning its Board fails', async () => {
+    dependencies.saveCell.mockRejectedValue(new Error('Coluna bloqueada'))
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      expect(await result.current.handlers.onBoardCreateRow({ selectColumnId: COLUMN_ID, optionId: 'option' })).toEqual({ id: NEW_ROW_ID, cells: {} })
+    })
+    expect(result.current.database?.rows.some((row) => row.id === NEW_ROW_ID)).toBe(true)
+    expect(dependencies.deleteRow).not.toHaveBeenCalled()
+  })
+  it('merges optimistic Board preferences but sends only the changed fields', async () => {
+    const loaded = database('inicial')
+    loaded.settings.view = { view: 'board', name: 'Quadros', urlKey: { key: 'quadros', aliases: [] }, filters: emptyFilters(), orderedHeaderCols: [], board: { selectColumnId: COLUMN_ID, propertyIds: [COLUMN_ID] } }
+    dependencies.loadPage.mockResolvedValue(loaded)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    act(() => result.current.handlers.onBoardConfigChange('view', { showPropertyLabels: false }))
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledWith(PAGE_ID, 'view', { board: { showPropertyLabels: false } }))
+    expect(result.current.database?.settings.view?.board).toEqual({ selectColumnId: COLUMN_ID, propertyIds: [COLUMN_ID], showPropertyLabels: false })
+  })
+})
 
 describe('usePageDatabase — identidade da rota', () => {
   it('carrega a base usando exatamente o pageId recebido pela rota', async () => {
@@ -328,6 +419,90 @@ describe('usePageDatabase — título da página aberta', () => {
 })
 
 describe('usePageDatabase — criação de coluna', () => {
+  const createdColumn = {
+    id: NEW_COLUMN_ID, parent_id: PAGE_ID, name: 'Coluna', type: 'text' as const,
+    data: { publicKey: { key: 'coluna', aliases: [] } },
+  }
+
+  it('envia uma única criação enquanto HTTP está pendente, mesmo depois do eco', async () => {
+    const request = deferred<typeof createdColumn>()
+    dependencies.createColumn.mockReturnValue(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    act(() => {
+      result.current.handlers.onAddColumn()
+      result.current.handlers.onAddColumn()
+    })
+    expect(dependencies.createColumn).toHaveBeenCalledOnce()
+    expect(result.current.addingColumn).toBe(true)
+    act(() => {
+      result.current.realtimeOptions.onEvent?.({ type: 'column-created', payload: {
+        pageId: PAGE_ID, columnId: NEW_COLUMN_ID, column: createdColumn,
+        updatedAt: '2026-10-04T12:00:00.000Z', originUserId: 'user-1',
+      } })
+      result.current.handlers.onAddColumn()
+    })
+    expect(dependencies.createColumn).toHaveBeenCalledOnce()
+    expect(result.current.addingColumn).toBe(true)
+    await act(async () => request.resolve(createdColumn))
+    expect(result.current.addingColumn).toBe(false)
+    expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
+  })
+
+  it('deduplica ecos repetidos depois do HTTP em StrictMode sem iniciar outra request', async () => {
+    const Wrapper = createWrapper()
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), {
+      wrapper: ({ children }: PropsWithChildren) => <StrictMode><Wrapper>{children}</Wrapper></StrictMode>,
+    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => result.current.handlers.onAddColumn())
+    const event = { type: 'column-created' as const, payload: {
+      pageId: PAGE_ID, columnId: NEW_COLUMN_ID, column: createdColumn,
+      updatedAt: '2026-10-04T12:00:00.000Z', originUserId: 'user-1',
+    } }
+    act(() => {
+      result.current.realtimeOptions.onEvent?.(event)
+      result.current.realtimeOptions.onEvent?.(event)
+    })
+    expect(dependencies.createColumn).toHaveBeenCalledOnce()
+    expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
+    expect(result.current.database?.rows[0].cells[NEW_COLUMN_ID]).toBeUndefined()
+  })
+
+  it('libera a criação para nova tentativa quando HTTP falha', async () => {
+    dependencies.createColumn.mockRejectedValueOnce(new AppError('api', 'falhou', { status: 500 }))
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => result.current.handlers.onAddColumn())
+    expect(result.current.addingColumn).toBe(false)
+    expect(dependencies.feedback).toHaveBeenCalledOnce()
+    await act(async () => result.current.handlers.onAddColumn())
+    expect(dependencies.createColumn).toHaveBeenCalledTimes(2)
+    expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
+  })
+
+  it('isola criações pendentes por página e ignora a confirmação antiga após navegar', async () => {
+    const first = deferred<typeof createdColumn>()
+    const second = deferred<typeof createdColumn>()
+    dependencies.createColumn.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const { result, rerender } = renderHook(({ pageId }) => usePageDatabase(pageId), {
+      initialProps: { pageId: PAGE_ID }, wrapper: createWrapper(),
+    })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    act(() => result.current.handlers.onAddColumn())
+    rerender({ pageId: OTHER_PAGE_ID })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.addingColumn).toBe(false)
+    act(() => result.current.handlers.onAddColumn())
+    await act(async () => first.resolve(createdColumn))
+    expect(result.current.addingColumn).toBe(true)
+    expect(result.current.database?.headerCols).toHaveLength(1)
+    await act(async () => second.resolve({ ...createdColumn, parent_id: OTHER_PAGE_ID }))
+    expect(result.current.addingColumn).toBe(false)
+    expect(result.current.database?.headerCols).toHaveLength(2)
+    expect(dependencies.createColumn.mock.calls.map(([pageId]) => pageId)).toEqual([PAGE_ID, OTHER_PAGE_ID])
+  })
+
   it('mescla resposta e eco sem refetch, sem duplicar e sem criar células', async () => {
     const createRequest = deferred<{
       id: string
@@ -373,6 +548,83 @@ describe('usePageDatabase — criação de coluna', () => {
     await act(async () => createRequest.resolve(column))
     expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
     expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('usePageDatabase — lixeira em lote', () => {
+  it('aguarda confirmação HTTP, ignora ids externos e bloqueia envio duplicado', async () => {
+    const request = deferred<{ deletedRowIds: string[]; failures: [] }>()
+    dependencies.deleteRows.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+    act(() => {
+      result.current.handlers.onDeleteRows([ROW_ID, ROW_ID, 'externa'])
+      result.current.handlers.onDeleteRows([ROW_ID])
+    })
+    await waitFor(() => expect(result.current.deletingRows).toBe(true))
+    expect(dependencies.deleteRows).toHaveBeenCalledExactlyOnceWith([ROW_ID])
+    expect(result.current.database?.rows).toHaveLength(1)
+    await act(async () => request.resolve({ deletedRowIds: [ROW_ID], failures: [] }))
+    await waitFor(() => expect(result.current.deletingRows).toBe(false))
+    expect(result.current.database?.rows).toHaveLength(0)
+    expect(dependencies.feedback).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ variant: 'success' }))
+  })
+
+  it('mantém falhas parciais e alterações concorrentes; aceita eco realtime sem duplicar', async () => {
+    const initial = database('inicial')
+    initial.rows.push({ id: NEW_ROW_ID, cells: { [COLUMN_ID]: { value: 'preservar' } } })
+    dependencies.loadPage.mockResolvedValueOnce(initial)
+    const request = deferred<{ deletedRowIds: string[]; failures: Array<{ rowId: string; error: unknown }> }>()
+    dependencies.deleteRows.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database?.rows).toHaveLength(2))
+    act(() => result.current.handlers.onDeleteRows([ROW_ID, NEW_ROW_ID]))
+    await waitFor(() => expect(dependencies.deleteRows).toHaveBeenCalled())
+    act(() => {
+      result.current.realtimeOptions.onStructureChanged?.({ type: 'row-deleted', payload: {
+        pageId: PAGE_ID, rowId: ROW_ID, updatedAt: '2026-10-04T10:00:00.000Z', originUserId: 'eu',
+      } })
+      result.current.realtimeOptions.onStructureChanged?.({ type: 'row-created', payload: {
+        pageId: PAGE_ID, rowId: 'remota', updatedAt: '2026-10-04T10:00:01.000Z', originUserId: 'outro',
+      } })
+    })
+    await act(async () => request.resolve({
+      deletedRowIds: [ROW_ID],
+      failures: [{ rowId: NEW_ROW_ID, error: new AppError('api', 'negado', { status: 403 }) }],
+    }))
+    expect(result.current.database?.rows.map(({ id }) => id)).toEqual([NEW_ROW_ID, 'remota'])
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('preservar')
+    expect(dependencies.feedback).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ variant: 'warning' }))
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('mantém a base intacta se nenhuma exclusão for autorizada', async () => {
+    dependencies.deleteRows.mockResolvedValueOnce({ deletedRowIds: [], failures: [{ rowId: ROW_ID, error: new AppError('api', 'negado', { status: 403 }) }] })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+    act(() => result.current.handlers.onDeleteRows([ROW_ID]))
+    await waitFor(() => expect(dependencies.feedback).toHaveBeenCalled())
+    expect(result.current.database?.rows).toHaveLength(1)
+    expect(dependencies.feedback).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ variant: 'error' }))
+  })
+
+  it('não aplica o resultado antigo a outra página nem envia lote vazio', async () => {
+    const request = deferred<{ deletedRowIds: string[]; failures: [] }>()
+    dependencies.deleteRows.mockReturnValueOnce(request.promise)
+    const { result, rerender } = renderHook(({ pageId }) => usePageDatabase(pageId), {
+      initialProps: { pageId: PAGE_ID }, wrapper: createWrapper(),
+    })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+    act(() => result.current.handlers.onDeleteRows([]))
+    expect(dependencies.deleteRows).not.toHaveBeenCalled()
+    act(() => result.current.handlers.onDeleteRows([ROW_ID]))
+    await waitFor(() => expect(dependencies.deleteRows).toHaveBeenCalledTimes(1))
+    dependencies.loadPage.mockResolvedValueOnce(database('outra base'))
+    rerender({ pageId: OTHER_PAGE_ID })
+    await waitFor(() => expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('outra base'))
+    await act(async () => request.resolve({ deletedRowIds: [ROW_ID], failures: [] }))
+    expect(result.current.database?.rows).toHaveLength(1)
+    expect(dependencies.feedback).not.toHaveBeenCalled()
   })
 })
 
@@ -722,6 +974,42 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
 })
 
 describe('usePageDatabase — snapshot da view', () => {
+  it('salva o tamanho da Grade via PATCH, preserva outras views e restaura após falha', async () => {
+    const viewId = '01KXVZ0000VIEW00000000001'
+    const otherViewId = '01KXVZ0000VIEW00000000002'
+    const view = { view: 'grid' as const, name: 'Grade', urlKey: { key: 'grade', aliases: [] }, filters: emptyFilters(), orderedHeaderCols: [COLUMN_ID], tileSize: 'medium' as const }
+    const other = { ...view, tileSize: 'small' as const }
+    const original = { ...database('inicial'), settings: { [viewId]: view, [otherViewId]: other } }
+    dependencies.loadPage.mockResolvedValue(original)
+    const request = deferred<unknown>()
+    dependencies.patchView.mockReturnValueOnce(request.promise)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    act(() => result.current.handlers.onGridConfigChange(viewId, { tileSize: 'large' }))
+    expect(result.current.database?.settings[viewId].tileSize).toBe('large')
+    expect(result.current.database?.settings[otherViewId]).toEqual(other)
+    await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledExactlyOnceWith(PAGE_ID, viewId, { tileSize: 'large' }))
+    await act(async () => request.reject(new AppError('api', 'falhou', { status: 500 })))
+    await waitFor(() => expect(result.current.database?.settings[viewId].tileSize).toBe('medium'))
+    expect(dependencies.feedback).toHaveBeenCalledTimes(1)
+  })
+
+  it('materializa a view fallback antes de salvar tamanho dos cards', async () => {
+    const savedId = '01KXVZ0000VIEW00000000009'
+    const view = { view: 'table' as const, name: 'Tabela', urlKey: { key: 'tabela', aliases: [] }, filters: emptyFilters(), orderedHeaderCols: [COLUMN_ID] }
+    dependencies.loadPage.mockResolvedValueOnce({ ...database('inicial'), settings: { [FALLBACK_VIEW_ID]: view } })
+    dependencies.createView.mockResolvedValueOnce({ viewId: savedId, view })
+    dependencies.patchView.mockResolvedValueOnce({ viewId: savedId, view: { ...view, tileSize: 'large' } })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+    act(() => result.current.handlers.onGridConfigChange(FALLBACK_VIEW_ID, { tileSize: 'large' }))
+    await waitFor(() => expect(result.current.database?.settings[savedId]?.tileSize).toBe('large'))
+    expect(dependencies.createView).toHaveBeenCalledTimes(1)
+    expect(dependencies.patchView).toHaveBeenCalledExactlyOnceWith(PAGE_ID, savedId, { tileSize: 'large' })
+    expect(result.current.database?.settings[FALLBACK_VIEW_ID]).toBeUndefined()
+  })
+
   it('duplica e remove a view na coleção local após confirmação HTTP', async () => {
     const originalId = '01KXVZ0000VIEW00000000001'
     const copyId = '01KXVZ0000VIEW00000000002'
@@ -772,6 +1060,49 @@ describe('usePageDatabase — snapshot da view', () => {
       PAGE_ID, 'calendar', 'pages.app.cubs-database.views.calendar', undefined,
     )
     expect(result.current.database?.settings).toEqual({ [oldId]: oldView, [newId]: newView })
+  })
+
+  it('só cria Form com uma coluna Flow e envia a configuração inicial', async () => {
+    const oldId = '01KXVZ0000VIEW00000000001'
+    const formId = '01KXVZ0000VIEW00000000002'
+    const flowId = '01KXVZ0000FLOW00000000001'
+    const oldView = {
+      view: 'table' as const,
+      name: 'Principal',
+      urlKey: { key: 'principal', aliases: [] },
+      filters: emptyFilters(),
+      orderedHeaderCols: [],
+    }
+    const form = {
+      version: 1 as const,
+      flowColumnId: flowId,
+      submitButton: { label: 'Enviar', icon: 'lucide:send' as const },
+    }
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: { [oldId]: oldView },
+      headerCols: [
+        { id: COLUMN_ID, title: 'Texto', type: 'text' },
+        { id: flowId, title: 'Enviar', type: 'flow' },
+      ],
+    })
+    dependencies.createView.mockResolvedValueOnce({
+      viewId: formId,
+      view: { ...oldView, view: 'form', name: 'pages.app.cubs-database.views.form', form },
+    })
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database).not.toBeNull())
+
+    await act(async () => { await result.current.handlers.onAddView('form', oldId) })
+
+    expect(dependencies.createView).toHaveBeenCalledWith(
+      PAGE_ID,
+      'form',
+      'pages.app.cubs-database.views.form',
+      undefined,
+      form,
+    )
+    expect(result.current.database?.settings[formId].form).toEqual(form)
   })
 
   it('preserva a tabela fallback ao adicionar a primeira view diferente', async () => {

@@ -7,6 +7,7 @@ export interface GuidedAddControlProps {
   axis: 'horizontal' | 'vertical'
   label: string
   onClick: () => void
+  busy?: boolean
   className?: string
 }
 
@@ -18,7 +19,7 @@ const INDICATOR_RADIUS = 14
  * no eixo útil, sem escapar pelas extremidades. Em repouso, ambos os eixos
  * começam no `start`, independentemente do tamanho atual da base.
  */
-export function GuidedAddControl({ axis, label, onClick, className }: GuidedAddControlProps) {
+export function GuidedAddControl({ axis, label, onClick, busy, className }: GuidedAddControlProps) {
   const [position, setPosition] = useState(INDICATOR_RADIUS)
 
   const handlePointerMove = useCallback(
@@ -44,6 +45,8 @@ export function GuidedAddControl({ axis, label, onClick, className }: GuidedAddC
     <button
       type="button"
       aria-label={label}
+      aria-busy={busy || undefined}
+      disabled={busy}
       onClick={onClick}
       onPointerMove={handlePointerMove}
       onPointerLeave={() => setPosition(INDICATOR_RADIUS)}
@@ -51,6 +54,7 @@ export function GuidedAddControl({ axis, label, onClick, className }: GuidedAddC
         'group/guided-add relative block cursor-pointer overflow-hidden bg-background text-p-purple transition-colors hover:bg-p-purple-50 dark:hover:bg-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple-500/30',
         axis === 'horizontal' ? 'h-9 w-full border-t border-divider' : 'h-full w-9 border-l border-divider',
         className,
+        busy && 'cursor-wait opacity-60',
       )}
     >
       <span
@@ -68,7 +72,7 @@ export function GuidedAddControl({ axis, label, onClick, className }: GuidedAddC
         style={indicatorStyle}
         className="pointer-events-none absolute z-10 grid size-7 place-items-center rounded-full border border-p-purple/40 bg-contrast text-p-purple shadow-sm transition-[background-color,box-shadow] group-hover/guided-add:bg-p-purple-500 group-hover/guided-add:text-light-100 group-hover/guided-add:shadow-md group-hover/guided-add:shadow-p-purple/30"
       >
-        <Icon icon="lucide:plus" fontSize={16} />
+        <Icon icon={busy ? 'lucide:loader-circle' : 'lucide:plus'} className={busy ? 'animate-spin' : undefined} fontSize={16} />
       </span>
     </button>
   )

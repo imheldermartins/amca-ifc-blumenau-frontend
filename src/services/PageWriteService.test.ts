@@ -15,6 +15,63 @@ const rowId = '01KXVZ0000ROW000000000001'
 const columnId = '01KXVZ0000COLUMN00000001'
 const url = `/pages/${rowId}/column/${columnId}/value`
 
+describe('PageWriteService — tamanho da Grade', () => {
+  it('sends only changed Board preferences', async () => {
+    await new PageWriteService().patchView('parent', 'view', { board: { showPropertyLabels: false } })
+    expect(api.patch).toHaveBeenCalledWith('/pages/parent/views/view', { board: { showPropertyLabels: false } })
+  })
+  beforeEach(() => vi.resetAllMocks())
+  it('envia só tileSize ao PATCH da visualização', async () => {
+    const viewId = 'view-1'
+    await new PageWriteService().patchView('parent-1', viewId, { tileSize: 'large' })
+    expect(api.patch).toHaveBeenCalledExactlyOnceWith('/pages/parent-1/views/view-1', { tileSize: 'large' })
+  })
+})
+
+describe('PageWriteService.deleteRows', () => {
+  beforeEach(() => vi.resetAllMocks())
+
+  it('usa DELETE autorizado de cada linha, elimina duplicatas e relata falhas parciais', async () => {
+    const error = new Error('Acesso não permitido')
+    api.delete.mockImplementation((path: string) => path.endsWith('/negada')
+      ? Promise.reject(error) : Promise.resolve(undefined))
+
+    await expect(new PageWriteService().deleteRows([rowId, 'negada', rowId, 'outra'])).resolves.toEqual({
+      deletedRowIds: [rowId, 'outra'],
+      failures: [{ rowId: 'negada', error }],
+    })
+    expect(api.delete.mock.calls).toEqual([[`/pages/${rowId}`], ['/pages/negada'], ['/pages/outra']])
+  })
+
+  it('não excede quatro requisições simultâneas e processa o restante do lote', async () => {
+    let active = 0
+    let maximum = 0
+    const releases: Array<() => void> = []
+    api.delete.mockImplementation(() => {
+      active++
+      maximum = Math.max(maximum, active)
+      return new Promise<void>((resolve) => releases.push(() => { active--; resolve() }))
+    })
+    const ids = Array.from({ length: 10 }, (_, index) => `row-${index}`)
+    const request = new PageWriteService().deleteRows(ids)
+    expect(api.delete).toHaveBeenCalledTimes(4)
+    while (releases.length > 0) {
+      releases.shift()!()
+      await Promise.resolve()
+      await Promise.resolve()
+    }
+
+    expect((await request).deletedRowIds).toEqual(ids)
+    expect(maximum).toBe(4)
+    expect(api.delete).toHaveBeenCalledTimes(10)
+  })
+
+  it('não faz requisição para seleção vazia', async () => {
+    await expect(new PageWriteService().deleteRows([])).resolves.toEqual({ deletedRowIds: [], failures: [] })
+    expect(api.delete).not.toHaveBeenCalled()
+  })
+})
+
 describe('PageWriteService.createRow', () => {
   beforeEach(() => vi.resetAllMocks())
 
@@ -166,6 +223,27 @@ describe('PageWriteService — views atômicas', () => {
     const pageId = '01KXVZ0000PAGE00000000001'
     await new PageWriteService().createView(pageId, 'table', 'Tabela')
     expect(api.post).toHaveBeenCalledWith(`/pages/${pageId}/views`, { name: 'Tabela' })
+  })
+
+  it('envia a configuração coesa ao criar e editar uma view form', async () => {
+    const pageId = '01KXVZ0000PAGE00000000001'
+    const viewId = '01KXVZ0000VIEW00000000001'
+    const form = {
+      version: 1 as const,
+      flowColumnId: columnId,
+      submitButton: { label: 'Enviar inscrição', icon: 'lucide:send' as const },
+    }
+    const service = new PageWriteService()
+
+    await service.createView(pageId, 'form', 'Inscrição', undefined, form)
+    await service.patchView(pageId, viewId, { form })
+
+    expect(api.post).toHaveBeenCalledWith(`/pages/${pageId}/views`, {
+      type: 'form',
+      name: 'Inscrição',
+      form,
+    })
+    expect(api.patch).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}`, { form })
   })
 
   it('usa as rotas semânticas para duplicar e excluir uma view', async () => {

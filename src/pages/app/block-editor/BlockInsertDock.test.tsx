@@ -91,5 +91,23 @@ describe('BlockInsertDock', () => {
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
     expect(screen.getByText('Compressão máxima')).toBeTruthy()
     expect(screen.getByText('Data URL base64 no bloco')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Enviar formulário' })).toBeNull()
+  })
+
+  it('só oferece e insere o bloco de formulário quando existe uma view form', () => {
+    vi.useFakeTimers()
+    const currentEditor = createEditor()
+    render(<BlockInsertDock editor={currentEditor} forms={[{
+      viewId: '01KXVZ00000000000000000001',
+      label: 'Enviar inscrição',
+      icon: 'lucide:send',
+    }]} />)
+    const addButton = screen.getByRole('button', { name: 'Adicionar bloco de texto' })
+    fireEvent.pointerEnter(addButton.closest('[data-block-insert-control]')!)
+    act(() => vi.advanceTimersByTime(2_000))
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar formulário' }))
+    const column = currentEditor.state.doc.firstChild?.firstChild
+    expect(column?.child(1).attrs.kind).toBe('formSubmit')
+    expect(column?.child(1).attrs.formViewId).toBe('01KXVZ00000000000000000001')
   })
 })

@@ -27,25 +27,21 @@ describe('DatabaseService.loadPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     dependencies.get.mockImplementation((url: string) => {
-      if (url === `/pages/${PAGE_ID}`) return Promise.resolve({ id: PAGE_ID, title: 'Raiz' })
-      if (url === `/pages/parent/${PAGE_ID}/columns`) return Promise.resolve([])
-      if (url === `/pages/${PAGE_ID}/page`) return Promise.resolve([])
+      if (url === `/pages/${PAGE_ID}/view-metadata`) return Promise.resolve({ page: { id: PAGE_ID, title: 'Raiz' }, columns: [] })
       return Promise.reject(new Error(`URL inesperada: ${url}`))
     })
     dependencies.parseDatabase.mockReturnValue({ rows: [], settings: {}, headerCols: [] })
   })
 
-  it('mantém as três leituras por pageId, inclusive quando a página é uma folha', async () => {
+  it('carrega apenas metadados, inclusive quando a página é uma folha', async () => {
     await expect(databaseService.loadPage(PAGE_ID)).resolves.toEqual({
       rows: [],
       settings: {},
       headerCols: [],
     })
 
-    expect(dependencies.get).toHaveBeenCalledTimes(3)
-    expect(dependencies.get).toHaveBeenCalledWith(`/pages/${PAGE_ID}`)
-    expect(dependencies.get).toHaveBeenCalledWith(`/pages/parent/${PAGE_ID}/columns`)
-    expect(dependencies.get).toHaveBeenCalledWith(`/pages/${PAGE_ID}/page`)
+    expect(dependencies.get).toHaveBeenCalledTimes(1)
+    expect(dependencies.get).toHaveBeenCalledWith(`/pages/${PAGE_ID}/view-metadata`)
     expect(dependencies.parseDatabase).toHaveBeenCalledWith({
       page: { id: PAGE_ID, title: 'Raiz' },
       columns: [],

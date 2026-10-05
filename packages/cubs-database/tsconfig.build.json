@@ -12,5 +12,6 @@
     "rootDir": "../../src/shared/cubs-database",
     "outDir": "dist"
   },
-  "include": ["../../src/shared/cubs-database"]
+  "include": ["../../src/shared/cubs-database"],
+  "exclude": ["../../src/shared/cubs-database/**/*.test.ts", "../../src/shared/cubs-database/**/*.test.tsx"]
 }

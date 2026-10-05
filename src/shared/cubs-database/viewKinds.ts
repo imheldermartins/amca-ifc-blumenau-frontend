@@ -8,6 +8,7 @@ export const DATA_VIEW_KINDS = [
   'calendar',
   'timeline',
   'graph',
+  'form',
 ] as const satisfies readonly DataViewKind[]
 
 export const VIEW_KIND_ICON: Record<DataViewKind, string> = {
@@ -17,6 +18,7 @@ export const VIEW_KIND_ICON: Record<DataViewKind, string> = {
   calendar: 'lucide:calendar-days',
   timeline: 'lucide:gantt-chart',
   graph: 'lucide:network',
+  form: 'lucide:clipboard-list',
 }
 
 export function isDataViewKind(value: unknown): value is DataViewKind {

@@ -23,6 +23,7 @@ const dependencies = vi.hoisted(() => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
+vi.mock('@/pages/access/AccessMembersPanel', () => ({ AccessMembersPanel: ({scope,id,onMembersChanged}:{scope:string;id:string;onMembersChanged?:()=>void}) => <div data-testid="members-panel" data-scope={scope} data-id={id}><button onClick={onMembersChanged}>Atualizar colaboradores</button></div> }))
 vi.mock('@/hooks/usePageAccess', () => ({ usePageAccess: () => ({data: {permissions: dependencies.permissions}}) }))
 
 vi.mock('@/hooks/usePageRealtime', () => ({
@@ -387,8 +388,8 @@ describe('PageShell — visualizações de conteúdo', () => {
     expect(screen.getByText('editor de blocos atual')).toBeTruthy()
     expect(screen.getByRole('tabpanel').id).toBe('page-content-document')
 
-    fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.workflow.label' }))
-    expect(screen.getByText('pages.app.pagina.views.workflow.title')).toBeTruthy()
+    expect(screen.queryByRole('tab', { name: 'pages.app.pagina.views.workflow.label' })).toBeNull()
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('tab', { name: 'pages.app.pagina.views.files' }))
     expect(screen.getByText('base atual')).toBeTruthy()
@@ -420,9 +421,10 @@ describe('PageShell — colaboradores e deep-link', () => {
     const dialog = await screen.findByRole('dialog', {
       name: 'pages.app.page-settings.title',
     })
-    expect(within(dialog).getAllByRole('img')).toHaveLength(2)
-    expect(within(dialog).getAllByText('Pessoa Atual')).toHaveLength(1)
-    expect(within(dialog).getAllByText('Outra Pessoa')).toHaveLength(1)
+    expect(within(dialog).getByTestId('members-panel').dataset).toMatchObject({scope:'page',id:PAGE_ID})
+    dependencies.listCollaborators.mockResolvedValue([])
+    fireEvent.click(within(dialog).getByRole('button', {name:'Atualizar colaboradores'}))
+    await waitFor(() => expect(trigger.dataset.participants).toBe('1'))
   })
 
   it('carrega #collaborators diretamente e ao fechar remove somente seu fragmento', async () => {

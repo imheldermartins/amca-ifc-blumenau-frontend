@@ -1,6 +1,6 @@
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
@@ -16,17 +16,17 @@ import { PageShell } from '@components/PageShell'
 import { SchedulePinRequestDialog, type SchedulePinRequestTarget } from '@/components/SchedulePinRequestDialog'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
+import { FormPublicationDialog } from '@components/FormPublicationDialog'
 import { PageBlockEditor } from './PageBlockEditor'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
 import { useColumnLocks, usePageTitleLock } from '@/hooks/useColumnLocks'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
+import { useDatabasePagination, type DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
 import { useSchedule } from '@/hooks/useSchedule'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
-import { parseRows } from '@/lib/databaseParser'
-import { databaseService } from '@/services/DatabaseService'
 
 export interface PageProps {
   /** Identidade canônica da página, resolvida pelo TanStack Router. */
@@ -61,8 +61,11 @@ const EMPTY_ROWS: RowData[] = []
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
 export function Page({ pageId, initialTitle }: PageProps) {
+  const projectionBridge = useRef<DatabaseProjectionBridge | null>(null)
   const [contentView, setContentView] = useState<PageContentView>('files')
-  const databasePageId = contentView === 'files' ? pageId : undefined
+  // O documento resolve blocos de formulário contra o mesmo catálogo de views;
+  // por isso a base permanece carregada também fora da tab `files`.
+  const databasePageId = pageId
   const permissions = usePageAccess(pageId)
   const mayEdit = can(permissions.data, 'write', 'update')
   const mayEditRows = mayEdit && can(permissions.data, 'write', 'edit_subpages')
@@ -76,19 +79,26 @@ export function Page({ pageId, initialTitle }: PageProps) {
     database,
     loading,
     failed,
+    deletingRows,
+    addingColumn,
     cellErrors,
     columnWidthPreviews,
     realtimeOptions,
     handlers,
-  } = usePageDatabase(databasePageId)
+    replaceLoadedRows,
+  } = usePageDatabase(databasePageId, projectionBridge)
   const addView = handlers.onAddView
   const duplicateView = handlers.onDuplicateView
   const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
   const [pinRequestTarget, setPinRequestTarget] = useState<SchedulePinRequestTarget | null>(null)
-  const settings = contentView === 'files' ? database?.settings ?? EMPTY_SETTINGS : EMPTY_SETTINGS
-  const columns = contentView === 'files' ? database?.headerCols ?? EMPTY_COLUMNS : EMPTY_COLUMNS
+  const [publicationViewId, setPublicationViewId] = useState<string | null>(null)
+  const settings = database?.settings ?? EMPTY_SETTINGS
+  const columns = database?.headerCols ?? EMPTY_COLUMNS
+  const lockedColumnKeys = useMemo(() => columnLocks.isPending || columnLocks.isError
+    ? new Set(columns.map((column) => column.key === 'title' ? 'title' : column.id))
+    : columnLocks.lockedColumnKeys, [columns, columnLocks.isPending, columnLocks.isError, columnLocks.lockedColumnKeys])
   const viewQuery = useDatabaseViewQuery({
     settings,
     columns,
@@ -97,6 +107,8 @@ export function Page({ pageId, initialTitle }: PageProps) {
     onPersistFilters: mayEdit ? handlers.onViewFiltersChange : async () => undefined,
   })
   const changeView = viewQuery.changeView
+  const paged = useDatabasePagination({ pageId, viewId: viewQuery.activeViewId, view: settings[viewQuery.activeViewId], columns, filters: viewQuery.effectiveFilters, enabled: contentView === 'files' && Boolean(database) && !failed, onRows: replaceLoadedRows })
+  projectionBridge.current = paged.bridge
   const pinnedCalendarPageIds = useMemo(() => new Set(schedule.pins.map((pin) => pin.pageId)), [schedule.pins])
 
   const handleCalendarPin = useCallback((input: CalendarPinInput) => {
@@ -141,7 +153,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
     setPendingCreatedView(null)
   }, [changeView, pageId, pendingCreatedView, settings])
 
-  const broken = failed
+  const broken = failed || (!paged.pagination.projection && Boolean(paged.error))
   // `currentLang` na lista de dependências é PROPOSITAL, e o linter reclama
   // porque não consegue ver a ligação: `i18n()` lê do singleton do i18next,
   // não de uma variável do escopo. Trocar de idioma muda o slug da rota, e é
@@ -160,6 +172,8 @@ export function Page({ pageId, initialTitle }: PageProps) {
       moveDown: i18n('pages.app.cubs-database.mover-para-baixo'),
       moveToTrash: i18n('pages.app.cubs-database.mover-para-lixeira'),
       confirmMoveToTrash: i18n('pages.app.cubs-database.confirmar-lixeira'),
+      moveSelectedToTrash: (count: number) => i18n('pages.app.cubs-database.lixeira-selecionadas', { count }),
+      confirmSelectedToTrash: (count: number) => i18n('pages.app.cubs-database.confirmar-lixeira-selecionadas', { count }),
       dragOption: i18n('pages.app.cubs-database.arrastar-option'),
       datePicker: {
         chooseDate: i18n('pages.app.cubs-database.date-picker.escolher'),
@@ -210,6 +224,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
       currencyBRL: i18n('pages.app.cubs-database.coluna.brl'),
       none: i18n('pages.app.cubs-database.coluna.nenhum'),
       addOption: i18n('pages.app.cubs-database.coluna.adicionar-opcao'),
+      selectOption: i18n('pages.app.cubs-database.coluna.selecionar-opcao'),
       deleteOption: i18n('pages.app.cubs-database.coluna.excluir-opcao'),
       optionColor: i18n('pages.app.cubs-database.coluna.cor-opcao'),
       optionNamePlaceholder: i18n('pages.app.cubs-database.coluna.nome-opcao'),
@@ -242,6 +257,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
         calendar: i18n('pages.app.cubs-database.views.calendar'),
         timeline: i18n('pages.app.cubs-database.views.timeline'),
         graph: i18n('pages.app.cubs-database.views.graph'),
+        form: i18n('pages.app.cubs-database.views.form'),
       },
       presets: i18n('pages.app.cubs-database.predefinicoes'),
       closePresets: i18n('pages.app.cubs-database.fechar-predefinicoes'),
@@ -280,6 +296,16 @@ export function Page({ pageId, initialTitle }: PageProps) {
       columnLockEmpty: i18n('pages.app.cubs-database.lock.empty'),
       columnLockAllowed: i18n('pages.app.cubs-database.lock.allowed'),
       columnLocked: i18n('pages.app.cubs-database.lock.locked'),
+      formFlow: i18n('pages.app.cubs-database.form.flow'),
+      formButtonLabel: i18n('pages.app.cubs-database.form.button-label'),
+      formButtonIcon: i18n('pages.app.cubs-database.form.button-icon'),
+      formIconPicker: {
+        choose: i18n('pages.app.cubs-database.form.icon-choose'),
+        search: i18n('pages.app.cubs-database.form.icon-search'),
+        empty: i18n('pages.app.cubs-database.form.icon-empty'),
+        loading: i18n('pages.app.cubs-database.form.icon-loading'),
+        loadMore: i18n('pages.app.cubs-database.form.icon-more'),
+      },
       conditions: {
         equals: i18n('pages.app.cubs-database.filtros.condicoes.igual'),
         contains: i18n('pages.app.cubs-database.filtros.condicoes.contem'),
@@ -298,6 +324,25 @@ export function Page({ pageId, initialTitle }: PageProps) {
       changeView(viewId)
     },
     [changeView],
+  )
+
+  const formLabels = useMemo(
+    () => ({
+      builder: i18n('pages.app.cubs-database.form.builder'),
+      preview: i18n('pages.app.cubs-database.form.preview'),
+      fields: i18n('pages.app.cubs-database.form.fields'),
+      noFields: i18n('pages.app.cubs-database.form.no-fields'),
+      noFlow: i18n('pages.app.cubs-database.form.no-flow'),
+      hideField: i18n('pages.app.cubs-database.form.hide-field'),
+      showField: i18n('pages.app.cubs-database.form.show-field'),
+      hiddenField: i18n('pages.app.cubs-database.form.hidden-field'),
+      submitUnavailable: i18n('pages.app.cubs-database.form.submit-unavailable'),
+      submitError: i18n('pages.app.cubs-database.form.submit-error'),
+      submitSuccess: i18n('pages.app.cubs-database.form.submit-success'),
+      datePicker: labels.datePicker,
+    }),
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [currentLang],
   )
 
   const handleContentViewChange = useCallback((next: PageContentView) => {
@@ -361,15 +406,6 @@ export function Page({ pageId, initialTitle }: PageProps) {
     [navigate, currentLang],
   )
 
-  const loadGraphChildren = useCallback(async (targetPageId: string): Promise<RowData[]> => {
-    return parseRows(await databaseService.getChildren(targetPageId))
-  }, [])
-
-  // Terreno do batchRealtimeUpdate: agir sobre N páginas de uma vez (a
-  // seleção já sobe completa como array de ids).
-  const handleSelectionChange = useCallback((selectedPagesIds: string[]) => {
-    console.log('[cubs-database] selection-change', selectedPagesIds)
-  }, [])
 
   // Mesma razão do `labels` acima: os rótulos saem do i18next, que o linter
   // não relaciona com o slug de idioma da rota.
@@ -387,6 +423,12 @@ export function Page({ pageId, initialTitle }: PageProps) {
         icon: 'lucide:copy',
         onSelect: () => { void handleDuplicateView(viewId) },
       },
+      ...(settings[viewId]?.view === 'form' ? [{
+        id: 'publish-form',
+        label: 'Publicar formulário',
+        icon: 'lucide:send',
+        onSelect: () => setPublicationViewId(viewId),
+      }] : []),
       {
         id: 'delete',
         label: i18n('pages.app.cubs-database.menu.excluir'),
@@ -396,7 +438,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
       },
     ],
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [currentLang, handleDeleteView, handleDuplicateView],
+    [currentLang, handleDeleteView, handleDuplicateView, settings],
   )
 
   return (
@@ -413,7 +455,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
             <CubsDatabase
               pageId={pageId}
               pageTitle={database?.pageTitle ?? initialTitle ?? undefined}
-              onLoadGraphChildren={loadGraphChildren}
+              pagination={paged.pagination}
               settings={settings}
               headerCols={columns}
               rows={database?.rows ?? EMPTY_ROWS}
@@ -427,10 +469,14 @@ export function Page({ pageId, initialTitle }: PageProps) {
               )}
               placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
               onOpenRow={handleOpenRow}
-              {...(mayEdit ? handlers : {})}
-              onCellChange={mayEditRows ? handlers.onCellChange : undefined}
+              {...(mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers : {})}
+              onCellChange={mayEditRows && !columnLocks.isPending && !columnLocks.isError ? handlers.onCellChange : undefined}
               onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
+              onDeleteRows={permissions.data?.isOwner ? handlers.onDeleteRows : undefined}
+              deletingRows={deletingRows}
+              addingColumn={addingColumn}
               onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
+              onBoardCreateRow={pageId && !broken && !columnLocks.isPending && !columnLocks.isError && can(permissions.data, 'write', 'create') ? handlers.onBoardCreateRow : undefined}
               onViewChange={handleViewChange}
               onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}
               addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
@@ -443,19 +489,26 @@ export function Page({ pageId, initialTitle }: PageProps) {
               onCalendarRequestPin={workspaceId ? handleCalendarRequestPin : undefined}
               columnLocks={columnLocks.locks}
               columnLockEditors={columnLocks.editors}
-              lockedColumnKeys={columnLocks.lockedColumnKeys}
+              lockedColumnKeys={lockedColumnKeys}
               canManageColumnLocks={columnLocks.canManage}
               currentUserId={columnLocks.currentUserId}
               onColumnLockChange={columnLocks.canManage ? columnLocks.save : undefined}
-              onSelectionChange={handleSelectionChange}
               onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
               labels={labels}
               toolbarLabels={toolbarLabels}
+              formLabels={formLabels}
               viewMenuItems={mayEdit ? viewMenuItems : undefined}
               onRenameView={mayEdit ? handlers.onRenameView : undefined}
             />
           ),
-          document: <PageBlockEditor key={pageId} />,
+          document: <PageBlockEditor
+            key={pageId}
+            pageId={pageId}
+            settings={settings}
+            columns={columns}
+            lockedColumnKeys={lockedColumnKeys}
+            onSubmit={mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers.onFormSubmit : undefined}
+          />,
         }}
         {...realtimeOptions}
       />
@@ -469,6 +522,13 @@ export function Page({ pageId, initialTitle }: PageProps) {
         onOpenChange={(open) => { if (!open) setPinRequestTarget(null) }}
         workspaceId={workspaceId}
         target={pinRequestTarget}
+      />
+      <FormPublicationDialog
+        open={Boolean(publicationViewId)}
+        onOpenChange={(open) => { if (!open) setPublicationViewId(null) }}
+        pageId={pageId}
+        viewId={publicationViewId}
+        lang={currentLang}
       />
     </>
   )

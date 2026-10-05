@@ -37,6 +37,8 @@
   /* No light, mais matéria e reflexo preservam a leitura do blur sobre o
      background claro. O dark mantém a transparência histórica. */
   --glass: rgb(215 215 215 / 72%);
+  /* polished: rgba(lighten(0.08, '#d7d7d7'), 0.88). Campo elevado sobre glass. */
+  --floating-input: rgba(235, 235, 235, 0.88);
   --glow-purple-background: theme(--color-violet-400);
 
   /* Tom "cheio" (bare) de cada cor de destaque, JÁ theme-aware: 600 no light.
@@ -63,6 +65,8 @@
   --divider-contrast: var(--color-dark-600);
   --foreground: var(--color-light-300);
   --glass: rgb(55 55 55 / 60%);
+  /* polished: rgba(darken(0.075, '#373737'), 0.88). Campo recuado no dark. */
+  --floating-input: rgba(36, 36, 36, 0.88);
   --glow-purple-background: theme(--color-violet-400);
 
   /* No dark, o tom cheio cai para 500 (regra de superfície/borda da palette). */
@@ -114,6 +118,7 @@
   --color-divider-contrast: var(--divider-contrast);
   --color-foreground: var(--foreground);
   --color-glass: var(--glass);
+  --color-floating-input: var(--floating-input);
 
   /* Tom cheio (bare) theme-aware -> gera bg-p-red, text-p-red, border-p-red,
      shadow-p-red (idem blue/purple/green). Ex.: `bg-p-red text-light-100` para um

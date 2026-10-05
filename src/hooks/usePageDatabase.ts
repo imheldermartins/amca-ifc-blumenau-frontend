@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
   cellErrorKey,
+  type BoardViewConfig,
+  type BoardMoveInput,
+  type BoardCreateInput,
+  type RowData,
+  createDefaultFormViewConfig,
   type CellChange,
   type CellEditConflict,
   type ColumnConfigPatch,
@@ -13,6 +18,8 @@ import {
   type FlowDefinition,
   type FlowExecutionResult,
   type FlowMacroOption,
+  type FormViewConfig,
+  type FormSubmissionInput,
   type PageTitleColumn,
   type ViewFiltersV2,
 } from 'cubs-database'
@@ -43,6 +50,9 @@ import type {
 } from '@/services/PageRealtimeChannel'
 import { pageWriteService } from '@/services/PageWriteService'
 import { flowService } from '@/services/FlowService'
+import { formService } from '@/services/FormService'
+import type { DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
+import type { DatabaseRowMove } from 'cubs-database'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
 
@@ -71,9 +81,12 @@ function pageTitleClockKey(pageId: string): string {
 }
 
 export interface UsePageDatabaseResult {
+  replaceLoadedRows: (rows: RowData[]) => void
   database: ParsedDatabase | null
   loading: boolean
   failed: boolean
+  deletingRows: boolean
+  addingColumn: boolean
   /** Repasse para o `<PageShell>`: é ele quem assina a sala. */
   realtimeOptions: UsePageRealtimeOptions
   /** Larguras efêmeras recebidas; não fazem parte do snapshot persistido. */
@@ -85,6 +98,9 @@ export interface UsePageDatabaseResult {
   cellErrors: Set<string>
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
+    onBoardConfigChange: (viewId: string, patch: BoardViewConfig) => void
+    onBoardMove: (viewId: string, input: BoardMoveInput) => Promise<void>
+    onBoardCreateRow: (input: BoardCreateInput) => Promise<RowData | undefined>
     onAddRow: () => void
     onAddColumn: () => void
     onCellChange: (change: CellChange) => void
@@ -98,11 +114,16 @@ export interface UsePageDatabaseResult {
     onFlowLoadMacros: (input: { columnId: string; rowId?: string }) => Promise<FlowMacroOption[]>
     onFlowExecute: (input: { columnId: string; rowId: string }) => Promise<FlowExecutionResult>
     onDeleteRow: (rowId: string) => void
+    onDeleteRows: (rowIds: string[]) => void
     onColumnDelete: (columnId: string) => void
     onRowOrderChange: (viewId: string, orderedRows: string[]) => void
+    onRowMove: (viewId: string, input: DatabaseRowMove) => Promise<void>
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
     onCalendarConfigChange: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds'>) => void
+    onGridConfigChange: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
+    onFormConfigChange: (viewId: string, form: FormViewConfig) => void
+    onFormSubmit: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
     onViewKindChange: (viewId: string, view: DataViewKind) => void
     onAddView: (view: DataViewKind, sourceViewId: string) => Promise<string>
@@ -132,11 +153,13 @@ export interface UsePageDatabaseResult {
  * merge já está isolada num redutor puro — migrar para chaves por célula vira
  * um passo mecânico, sem tocar em componente.
  */
-export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResult {
+export function usePageDatabase(pageId: string | undefined, paginationBridge?: RefObject<DatabaseProjectionBridge | null>): UsePageDatabaseResult {
   const feedback = useFeedback()
   const [database, setDatabase] = useState<ParsedDatabase | null>(null)
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
+  const [columnCreationPageIds, setColumnCreationPageIds] = useState<Set<string>>(() => new Set())
+  const columnCreationsInFlightRef = useRef<Set<string>>(new Set())
   // Células em atenção — escrita falhou ou edição foi interrompida pelo receiver.
   const [cellErrors, setCellErrors] = useState<Set<string>>(() => new Set())
   const [columnWidthPreviews, setColumnWidthPreviews] = useState<
@@ -164,6 +187,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   // Snapshot síncrono para o contexto das mutações destrutivas otimistas.
   const databaseRef = useRef(database)
   databaseRef.current = database
+  const rowBatchDeleteInFlightRef = useRef(false)
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
   // e não state: ele decide se um evento entra, mas não desenha nada — virar
@@ -250,7 +274,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       loadedPageIdRef.current = pageId
       settingsRef.current = loaded.settings
       setFailed(false)
-      setDatabase(loaded)
+      setDatabase((current) => paginationBridge && !exposesLoading && current ? { ...loaded, rows: current.rows } : loaded)
 
       if (
         loaded.needsFilterKeyReconcile &&
@@ -294,7 +318,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     } finally {
       if (isCurrent() && exposesLoading) setLoading(false)
     }
-  }, [pageId])
+  }, [pageId, paginationBridge])
 
   /**
    * Coalescência autoritativa: eventos estruturais/ACKs durante uma leitura
@@ -339,6 +363,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
 
   const handleRealtimeEvent = useCallback<NonNullable<UsePageRealtimeOptions['onEvent']>>(
     (event) => {
+      paginationBridge?.current?.onEvent(event)
       // Qualquer snapshot confirmado substitui os previews: ele é a verdade
       // durável, inclusive quando o resize acabou ou sua escrita foi superada.
       if (event.type === 'view-updated') clearColumnWidthPreviews()
@@ -361,7 +386,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         return result.database
       })
     },
-    [clearColumnWidthPreviews],
+    [clearColumnWidthPreviews, paginationBridge],
   )
 
   const handlePageUpdated = useCallback<
@@ -438,6 +463,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     NonNullable<UsePageRealtimeOptions['onStructureChanged']>
   >(
     (event) => {
+      paginationBridge?.current?.onStructure(event)
       // Também invalida qualquer snapshot completo que tenha começado antes
       // deste fato. Se já houver uma leitura em voo, o coalescer agenda uma
       // passagem silenciosa depois dela para não reintroduzir estado velho.
@@ -446,7 +472,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         [structureClockKey(event)]: event.payload.updatedAt,
       }
 
-      if (event.type === 'row-created') {
+      if (event.type === 'row-created' && !paginationBridge) {
         setDatabase((current) => {
           if (!current || current.rows.some((row) => row.id === event.payload.rowId)) {
             return current
@@ -486,7 +512,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       // resposta anterior ao evento não vença o merge incremental.
       if (loadedPageIdRef.current !== pageId || loadInFlightRef.current) reload()
     },
-    [pageId, reload],
+    [pageId, reload, paginationBridge],
   )
 
   // Traduz o erro HTTP numa notificação. A CLASSE do erro (`classifyWriteError`,
@@ -559,7 +585,7 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       if (!current) return
       const settings = {
         ...settingsRef.current,
-        [viewId]: { ...current, ...patch },
+        [viewId]: { ...current, ...patch, ...(patch.board && { board: { ...current.board, ...patch.board } }) },
       }
       settingsRef.current = settings
       setDatabase((database) => (database ? { ...database, settings } : database))
@@ -609,7 +635,13 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
           const names = new Set(Object.values(settingsRef.current).map((view) => view.name))
           let name = label
           for (let suffix = 2; names.has(name); suffix += 1) name = `${label} ${suffix}`
-          const created = await pageWriteService.createView(pageId, kind, name, sourceTitle)
+          const form = kind === 'form'
+            ? createDefaultFormViewConfig(databaseRef.current?.headerCols ?? [])
+            : undefined
+          if (kind === 'form' && !form) throw new Error('Crie uma coluna Flow antes do formulário')
+          const created = form
+            ? await pageWriteService.createView(pageId, kind, name, sourceTitle, form)
+            : await pageWriteService.createView(pageId, kind, name, sourceTitle)
           rememberView(created.viewId, created.view)
           return created.viewId
         })
@@ -749,6 +781,43 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     },
   })
 
+  const rowBatchDeleteMutation = useMutation({
+    mutationFn: ({ rowIds }: { pageId: string; rowIds: string[] }) => pageWriteService.deleteRows(rowIds),
+    onSuccess: (result, scope) => {
+      if (!mountedRef.current || currentPageIdRef.current !== scope.pageId) return
+      // Só retira o que a API confirmou. Falhas preservam linha, edição e seleção.
+      setDatabase((current) => {
+        if (!current) return current
+        const next = result.deletedRowIds.reduce(applyLocalRowDeleted, current)
+        databaseRef.current = next
+        return next
+      })
+      const deleted = new Set(result.deletedRowIds)
+      setCellErrors((current) => new Set([...current].filter((key) => !deleted.has(key.split(':')[0]))))
+      const succeeded = result.deletedRowIds.length
+      const failed = result.failures.length
+      feedback({
+        title: i18n(`feedback.lixeira.${failed ? 'falha' : 'sucesso'}`, { count: failed || succeeded }),
+        ...(failed > 0 && {
+          description: i18n('feedback.lixeira.resultado', { deleted: succeeded, failed }) + ' ' +
+            i18n(`feedback.escrita.${classifyWriteError(result.failures[0].error)}`),
+        }),
+        variant: failed ? (succeeded ? 'warning' : 'error') : 'success',
+      })
+    },
+    onError: notifyWriteError,
+    onSettled: () => { rowBatchDeleteInFlightRef.current = false },
+  })
+
+  const deleteSelectedRows = useCallback((rowIds: string[]) => {
+    if (!pageId || rowBatchDeleteInFlightRef.current) return
+    const available = new Set(databaseRef.current?.rows.map(({ id }) => id))
+    const selected = [...new Set(rowIds)].filter((id) => available.has(id))
+    if (selected.length === 0) return
+    rowBatchDeleteInFlightRef.current = true
+    rowBatchDeleteMutation.mutate({ pageId, rowIds: selected })
+  }, [pageId, rowBatchDeleteMutation.mutate])
+
   const columnDeleteMutation = useMutation({
     mutationFn: (columnId: string) => {
       if (!pageId || columnId === TITLE_COLUMN_ID) return Promise.resolve(null)
@@ -812,7 +881,62 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
     [feedback],
   )
 
+  const mutateCell = cellMutation.mutateAsync
+  const replaceLoadedRows = useCallback((rows: RowData[]) => {
+    setDatabase((current) => {
+      if (!current || current.rows === rows || (current.rows.length === rows.length && current.rows.every((row, index) => row === rows[index]))) return current
+      const next = { ...current, rows }
+      databaseRef.current = next
+      return next
+    })
+  }, [])
+  useEffect(() => { if (database) paginationBridge?.current?.onLocalRows(database.rows) }, [database, paginationBridge])
   const handlers = {
+    onBoardConfigChange: useCallback((viewId: string, board: BoardViewConfig) => saveViewPatch(viewId, { board }), [saveViewPatch]),
+    onBoardMove: useCallback(async (viewId: string, input: BoardMoveInput) => {
+      if (!pageId) return
+      const row = databaseRef.current?.rows.find((entry) => entry.id === input.rowId)
+      if (!row) throw new Error('Página não encontrada')
+      const previousValue = row.cells[input.selectColumnId]?.value
+      if (paginationBridge) {
+        try {
+          await pageWriteService.moveRow(pageId, viewId, {
+            rowId: input.rowId, beforeId: input.beforeId, afterId: input.afterId, boundary: input.boundary,
+            expectedOrderRevision: paginationBridge.current?.orderRevision ?? 0,
+            ...((previousValue ?? null) !== input.optionId ? { targetOptionId: input.optionId, previousOptionId: typeof previousValue === 'string' ? previousValue : null } : {}),
+          })
+          paginationBridge.current?.onResync()
+        } catch (error) { paginationBridge.current?.onResync(); handleWriteError(error); throw error }
+        return
+      }
+      if ((previousValue ?? null) !== input.optionId) {
+        await mutateCell({ rowId: input.rowId, columnId: input.selectColumnId, value: input.optionId, previousValue })
+      }
+      if (currentPageIdRef.current !== pageId) return
+      try {
+        const response = await enqueueViewWrite(() => pageWriteService.patchView(pageId, viewId, { orderedRows: input.orderedRows }))
+        rememberView(viewId, response.view)
+      } catch (error) { handleWriteError(error); throw error }
+    }, [pageId, mutateCell, enqueueViewWrite, rememberView, handleWriteError, paginationBridge]),
+    onBoardCreateRow: useCallback(async (input: BoardCreateInput): Promise<RowData | undefined> => {
+      if (!pageId) return undefined
+      let created
+      try { created = await pageWriteService.createRow(pageId) }
+      catch (error) { handleWriteError(error); throw error }
+      if (currentPageIdRef.current !== pageId) return undefined
+      let row: RowData = { id: created.id, cells: {} }
+      setDatabase((current) => current && !current.rows.some((entry) => entry.id === row.id)
+        ? { ...current, rows: [...current.rows, row] } : current)
+      if (input.optionId !== null) {
+        try {
+          await mutateCell({ rowId: row.id, columnId: input.selectColumnId, value: input.optionId, previousValue: undefined })
+          row = { ...row, cells: { [input.selectColumnId]: { value: input.optionId } } }
+        } catch { /* The page remains available in Sem valor after a failed assignment. */ }
+      }
+      if (currentPageIdRef.current !== pageId) return undefined
+      paginationBridge?.current?.onCreatedRow(row)
+      return row
+    }, [pageId, mutateCell, handleWriteError, paginationBridge]),
     onAddRow: useCallback(() => {
       if (!pageId) return
 
@@ -834,15 +958,19 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
         .catch(handleWriteError)
     }, [handleWriteError, pageId]),
     onAddColumn: useCallback(() => {
-      if (!pageId) return
+      if (!pageId || columnCreationsInFlightRef.current.has(pageId)) return
+      // A guarda é síncrona: duas ativações antes do próximo render precisam
+      // compartilhar a mesma criação, mesmo se o eco chegar antes do HTTP.
+      columnCreationsInFlightRef.current.add(pageId)
+      setColumnCreationPageIds((current) => toggleKey(current, pageId, true))
 
       // A resposta HTTP e o eco carregam a mesma coluna completa. Ambos usam
       // merge idempotente, então não importa qual chega primeiro e nenhuma
       // linha ganha um value artificial para fazer o header aparecer.
-      pageWriteService
-        .createColumn(pageId, i18n('pages.app.cubs-database.nova-coluna'))
-        .then((created) => {
-          if (currentPageIdRef.current !== pageId) return
+      void (async () => {
+        try {
+          const created = await pageWriteService.createColumn(pageId, i18n('pages.app.cubs-database.nova-coluna'))
+          if (!mountedRef.current || currentPageIdRef.current !== pageId) return
           setDatabase((current) =>
             current
               ? applyLocalColumnCreated(
@@ -852,13 +980,19 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
                 )
               : current,
           )
-        })
-        .catch(handleWriteError)
+        } catch (error) {
+          if (mountedRef.current && currentPageIdRef.current === pageId) handleWriteError(error)
+        } finally {
+          columnCreationsInFlightRef.current.delete(pageId)
+          if (mountedRef.current) setColumnCreationPageIds((current) => toggleKey(current, pageId, false))
+        }
+      })()
     }, [handleWriteError, pageId]),
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
     onCellChange: cellMutation.mutate,
     onDeleteRow: rowDeleteMutation.mutate,
+    onDeleteRows: deleteSelectedRows,
     onColumnDelete: columnDeleteMutation.mutate,
     onCellEditConflict: handleCellEditConflict,
     onColumnOptionsChange: useCallback(
@@ -965,6 +1099,13 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [saveViewPatch],
     ),
+    onRowMove: useCallback(async (viewId: string, input: DatabaseRowMove) => {
+      if (!pageId) return
+      try {
+        await pageWriteService.moveRow(pageId, viewId, { ...input, expectedOrderRevision: paginationBridge?.current?.orderRevision ?? 0 })
+        paginationBridge?.current?.onResync()
+      } catch (error) { paginationBridge?.current?.onResync(); handleWriteError(error); throw error }
+    }, [pageId, paginationBridge, handleWriteError]),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
         saveViewPatch(viewId, { orderedHeaderCols })
@@ -983,6 +1124,30 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       },
       [saveViewPatch],
     ),
+    onGridConfigChange: useCallback(
+      (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => saveViewPatch(viewId, patch),
+      [saveViewPatch],
+    ),
+    onFormConfigChange: useCallback(
+      (viewId: string, form: FormViewConfig) => {
+        saveViewPatch(viewId, { form })
+      },
+      [saveViewPatch],
+    ),
+    onFormSubmit: useCallback(
+      async (viewId: string, input: FormSubmissionInput) => {
+        if (!pageId) throw new Error('Página não disponível')
+        const result = await formService.submitPreview(
+          pageId,
+          viewId,
+          input.clientRequestId,
+          input.fields,
+        )
+        reload()
+        return result
+      },
+      [pageId, reload],
+    ),
     onColumnWidthPreview: useCallback(
       (viewId: string, columnId: string, width: number) => {
         pageRealtimeChannelRef.current?.previewColumnResize({ viewId, columnId, width })
@@ -993,6 +1158,20 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       (viewId: string, view: DataViewKind) => {
         // Troca somente a projeção da view: o dataset atual permanece montado
         // e a confirmação autoritativa chega pelo `view-updated` habitual.
+        if (view === 'form') {
+          const current = settingsRef.current[viewId]
+          const flowColumnIds = new Set(
+            (databaseRef.current?.headerCols ?? [])
+              .filter((column) => column.type === 'flow')
+              .map((column) => column.id),
+          )
+          const form = current?.form && flowColumnIds.has(current.form.flowColumnId)
+            ? current.form
+            : createDefaultFormViewConfig(databaseRef.current?.headerCols ?? [])
+          if (!form) return
+          saveViewPatch(viewId, { view, form })
+          return
+        }
         saveViewPatch(viewId, { view })
       },
       [saveViewPatch],
@@ -1023,9 +1202,12 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
   }
 
   return {
+    replaceLoadedRows,
     database,
     loading,
     failed,
+    deletingRows: rowBatchDeleteMutation.isPending,
+    addingColumn: Boolean(pageId && columnCreationPageIds.has(pageId)),
     cellErrors,
     columnWidthPreviews,
     realtimeOptions: {
@@ -1033,7 +1215,9 @@ export function usePageDatabase(pageId: string | undefined): UsePageDatabaseResu
       onPageUpdated: handlePageUpdated,
       onStructureChanged: handleStructureChanged,
       onColumnResize: handleRemoteColumnResize,
-      onResync: reload,
+      onResync: () => { reload(); paginationBridge?.current?.onResync() },
+      onRowOrder: (payload) => paginationBridge?.current?.onRowOrder(payload),
+      onAccessDenied: () => { paginationBridge?.current?.onAccessDenied(); setDatabase(null); setFailed(true); setLoading(false) },
       onChannelChange: handleRealtimeChannelChange,
     },
     handlers,

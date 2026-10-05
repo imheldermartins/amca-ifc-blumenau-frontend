@@ -29,6 +29,16 @@ const mappedPropertyValues: Record<ColumnDataType, PropertyValueFormatter> = {
   flow: () => undefined,
 }
 
+export function databaseCardProperties(row: RowData, columns: readonly HeaderCol[], includeEmpty = false): DatabaseCalendarProperty[] {
+  return columns.flatMap((column) => {
+    const raw = row.cells[column.id]?.value
+    if (!includeEmpty && column.type !== 'flow' && (raw === undefined || raw === null || raw === '')) return []
+    const type = column.type ?? inferColumnType([raw])
+    const display = mappedPropertyValues[type](raw, column)
+    return [{ id: column.id, label: column.title, type, value: display ?? '—', rawValue: raw, column }]
+  })
+}
+
 /** Read-only projection; the host persists the selected columns and their per-view order. */
 export function databaseCalendarItems(rows: RowData[], columns: HeaderCol[], dateColumnId?: string, colorColumnId?: string | null, calendarPropertyIds?: string[]): CalendarItem<DatabaseCalendarItemTypes>[] {
   const dateColumn = dateColumnId ? columns.find((column) => column.id === dateColumnId && column.type === 'date') : columns.find((column) => column.type === 'date')

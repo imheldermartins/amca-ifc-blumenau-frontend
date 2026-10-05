@@ -20,6 +20,31 @@ const rows = [
 ]
 
 describe('Grid mock', () => {
+  it('persiste tamanho por view e adota alterações do snapshot sem preferência local stale', async () => {
+    const onGridConfigChange = vi.fn()
+    const settings = {
+      grid: { view: 'grid' as const, name: 'Grade', urlKey: { key: 'grade', aliases: [] }, filters: emptyViewFilters(), orderedHeaderCols: [], tileSize: 'large' as const },
+      other: { view: 'grid' as const, name: 'Outra grade', urlKey: { key: 'outra', aliases: [] }, filters: emptyViewFilters(), orderedHeaderCols: [], tileSize: 'small' as const },
+    }
+    const props = { settings, headerCols: [{ id: 'page_title', key: 'title' as const, title: 'Nome', type: 'text' as const }], rows, onGridConfigChange }
+    const { rerender } = render(<CubsDatabase {...props} />)
+    expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(320px,1fr)')
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações da view' }))
+    const drawer = screen.getByRole('dialog', { name: 'Configurações da view' })
+    fireEvent.click(within(drawer).getByRole('combobox', { name: 'Tamanho dos cards' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Médio' }))
+    expect(onGridConfigChange).toHaveBeenCalledExactlyOnceWith('grid', { tileSize: 'medium' })
+    fireEvent.keyDown(drawer, { key: 'Escape' })
+    rerender(<CubsDatabase {...props} settings={{ ...settings, grid: { ...settings.grid, tileSize: 'medium' } }} />)
+    expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(240px,1fr)')
+    fireEvent.click(screen.getByText('Outra grade'))
+    expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(180px,1fr)')
+    fireEvent.click(screen.getByRole('button', { name: 'Grade' }))
+    expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(240px,1fr)')
+    rerender(<CubsDatabase {...props} settings={{ ...settings, grid: { ...settings.grid, tileSize: 'small' } }} />)
+    expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(180px,1fr)')
+  })
+
   it('mostra tiles separados no fundo do sistema e abre a página', () => {
     const onOpenRow = vi.fn()
     render(<CubsDatabase

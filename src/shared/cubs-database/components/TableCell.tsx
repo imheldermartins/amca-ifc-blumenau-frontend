@@ -14,6 +14,7 @@ import type {
 import { formatCellValue, formatNumericValue, inferColumnType, resolveColumnWidth } from '../utils'
 import { CELL_EDITORS } from './cells'
 import { OptionChip } from './cells/OptionChip'
+import { FlowActionButton } from './FlowActionButton'
 
 function CellValue({
   type,
@@ -26,11 +27,13 @@ function CellValue({
 }) {
   if (type === 'checkbox') {
     return (
-      <Icon
-        icon={value ? 'lucide:circle-check' : 'lucide:circle'}
-        fontSize={16}
-        className={cn('shrink-0', value ? 'text-p-green' : 'opacity-40')}
-      />
+      <span className="flex w-full flex-1 items-center justify-center">
+        <Icon
+          icon={value ? 'lucide:circle-check' : 'lucide:circle'}
+          fontSize={16}
+          className={cn('shrink-0', value ? 'text-p-green' : 'opacity-40')}
+        />
+      </span>
     )
   }
   if (type === 'select') {
@@ -191,21 +194,14 @@ export const TableCell = memo(function TableCell({
           {nodes.length > shown.length && <span className="shrink-0 text-xs opacity-45">+{nodes.length - shown.length}</span>}
         </div>
         {canExecute && (
-          <button
-            type="button"
-            onClick={() => onFlowOpen?.(row, column)}
-            className="ml-2 inline-flex shrink-0 items-center gap-1 rounded-md border border-p-purple bg-p-purple-500/5 px-2 py-1 text-[11px] font-semibold text-foreground transition-[background-color,color,box-shadow] hover:bg-p-purple hover:text-white hover:shadow-sm hover:shadow-p-purple-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-purple-500/35"
-          >
-            <Icon icon="lucide:play" className="size-3 fill-current" />
-            Executar
-          </button>
+          <FlowActionButton column={column} onClick={() => onFlowOpen?.(row, column)} />
         )}
         {locked && <Icon icon="lucide:lock-keyhole" className="ml-2 size-3 shrink-0 opacity-40" aria-label="Coluna bloqueada" />}
       </div>
     )
   }
 
-  if (Editor && onCellChange) {
+  if (Editor && onCellChange && !locked) {
     return (
       <div
         role="cell"
@@ -218,6 +214,7 @@ export const TableCell = memo(function TableCell({
         // desloca o layout (`ring-inset`). O `aria-invalid` vai no editor.
         className={cn(
           'flex shrink-0 items-stretch border-l border-divider',
+          type === 'checkbox' && 'items-center justify-center',
           isLast && 'border-r',
           hasError && 'bg-p-red-500/10 ring-1 ring-inset ring-p-red dark:bg-p-red-500/15',
         )}
@@ -243,6 +240,7 @@ export const TableCell = memo(function TableCell({
       title={locked ? 'Coluna bloqueada' : undefined}
       className={cn(
         'flex shrink-0 items-center border-l border-divider px-2.5 py-1.5 text-sm',
+        type === 'checkbox' && 'justify-center',
         isLast && 'border-r',
       )}
       style={{ width: resolveColumnWidth(width) }}

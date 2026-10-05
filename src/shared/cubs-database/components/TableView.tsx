@@ -36,6 +36,7 @@ import type {
 import { buildTableGroups } from '../tableGroups'
 import { resolveColumnTypes, resolveColumnWidth } from '../utils'
 import { ColumnHeaderMenu } from './ColumnHeaderMenu'
+import { BatchRowActionsMenu } from './BatchRowActionsMenu'
 import { GuidedAddControls } from './GuidedAddControls'
 import { CONTROL_CELL_WIDTH, TableRow, TableRowDragOverlay } from './TableRow'
 import type { TableRowLabels } from './TableRow'
@@ -46,6 +47,9 @@ import { TYPE_ICON } from './columnTypeIcons'
 import { useSortableSensors } from './dndSensors'
 import { useShiftKey } from './useShiftKey'
 import { FlowEditorDialog } from './FlowEditorDialog'
+import type { DatabasePagination, DatabaseRowMove } from '../pagination'
+import { VirtualInfiniteList } from './VirtualInfiniteList'
+import { ServerTableGroups } from './ServerTableGroups'
 import {
   EMPTY_SELECTION,
   inShiftRange,
@@ -53,6 +57,8 @@ import {
 } from './selectionReducer'
 
 export interface TableViewProps {
+  pagination?: DatabasePagination
+  onRowMove?: (move: DatabaseRowMove) => void | Promise<void>
   columns: HeaderCol[]
   rows: RowData[]
   /** Colunas de agrupamento, da prioridade externa para a interna. */
@@ -80,10 +86,13 @@ export interface TableViewProps {
   onRowOrderChange?: (orderedRows: string[]) => void
   /** Drag de COLUNA solto → ids na nova ordem (incl. a coluna sintética). */
   onColumnOrderChange?: (orderedHeaderCols: string[]) => void
-  /** Seleção mudou → `selectedPagesIds` completo (futuro batch do realtime). */
+  /** Seleção mudou → `selectedPagesIds` completo. */
   onSelectionChange?: (selectedPagesIds: string[]) => void
   /** Envia uma página/linha para a lixeira. */
   onDeleteRow?: (rowId: string) => void
+  /** Envia todas as páginas selecionadas para a lixeira após confirmação. */
+  onDeleteRows?: (rowIds: string[]) => void
+  deletingRows?: boolean
   /** Renomear coluna pelo menu do header (payload do `column-renamed`). */
   onColumnRename?: (columnId: string, name: string) => void
   /** Trocar o TIPO da coluna (menu). Não-destrutivo — ver o backend. */
@@ -105,6 +114,7 @@ export interface TableViewProps {
   onAddRow?: () => void
   /** Clique no trilho vertical de adição — UI somente nesta etapa. */
   onAddColumn?: () => void
+  addingColumn?: boolean
   labels?: TableRowLabels
 }
 
@@ -324,7 +334,10 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
  * virou parâmetro — a closure é montada DENTRO da linha, onde não cruza
  * fronteira de memo e sai de graça.
  */
-export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, lockedColumnKeys, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onColumnOrderChange, onSelectionChange, onDeleteRow, onColumnRename, onColumnTypeChange, onColumnConfigChange, onFlowConfigChange, onFlowLoadMacros, buildFlowMacroSections, onFlowExecute, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, labels }: TableViewProps) {
+export function TableView({ columns, rows, groupBy = [], columnWidths, cellErrors, lockedColumnKeys, loading, emptyLabel = 'Nenhum registro.', onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onRowOrderChange, onRowMove, pagination, onColumnOrderChange, onSelectionChange, onDeleteRow, onDeleteRows, deletingRows, onColumnRename, onColumnTypeChange, onColumnConfigChange, onFlowConfigChange, onFlowLoadMacros, buildFlowMacroSections, onFlowExecute, onColumnDelete, onColumnWidthChange, onColumnWidthPreview, onAddRow, onAddColumn, addingColumn, labels }: TableViewProps) {
+  const isPaginated = Boolean(pagination)
+  const pinRow = pagination?.pinRow
+  const onInteractionChange = pagination?.onInteractionChange
   const containerRef = useRef<HTMLDivElement>(null)
   const tableScrollRef = useRef<HTMLDivElement>(null)
   const tableContentRef = useRef<HTMLDivElement>(null)
@@ -386,13 +399,14 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     [groupBy, localColumns],
   )
   const displayRows = useMemo(() => {
+    if (isPaginated) return localRows
     if (validGroupBy.length === 0) return localRows
     const flatten = (groups: ReturnType<typeof buildTableGroups>): RowData[] =>
       groups.flatMap((group) =>
         group.children.length > 0 ? flatten(group.children) : group.rows,
       )
     return flatten(buildTableGroups(localRows, validGroupBy))
-  }, [localRows, validGroupBy])
+  }, [localRows, validGroupBy, isPaginated])
   const rowIds = useMemo(() => displayRows.map((row) => row.id), [displayRows])
   const rowIndexById = useMemo(
     () => new Map(displayRows.map((row, index) => [row.id, index])),
@@ -409,7 +423,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
     [localColumns, localRows],
   )
 
-  const rowsSortable = Boolean(onRowOrderChange) && validGroupBy.length === 0
+  const rowsSortable = Boolean(pagination ? onRowMove : onRowOrderChange) && validGroupBy.length === 0
   const columnsSortable = Boolean(onColumnOrderChange)
   const columnsResizable = Boolean(onColumnWidthChange)
 
@@ -419,8 +433,25 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
   // é "a seleção mudou".
   const mountedRef = useRef(false)
   useEffect(() => {
-    dispatch({ type: 'reconcile', rowIds })
-  }, [rowIds])
+    if (!isPaginated) dispatch({ type: 'reconcile', rowIds })
+  }, [rowIds, isPaginated])
+  useEffect(() => {
+    if (!activeRowId) return
+    pinRow?.(activeRowId, true)
+    onInteractionChange?.(true)
+    return () => { pinRow?.(activeRowId, false); onInteractionChange?.(false) }
+  }, [activeRowId, pinRow, onInteractionChange])
+  const flowRowId = flowDialog?.rowId
+  const flowDialogOpen = Boolean(flowDialog)
+  useEffect(() => {
+    if (!flowDialogOpen) return
+    if (flowRowId) pinRow?.(flowRowId, true)
+    onInteractionChange?.(true)
+    return () => { if (flowRowId) pinRow?.(flowRowId, false); onInteractionChange?.(false) }
+  }, [flowDialogOpen, flowRowId, pinRow, onInteractionChange])
+  const deletedRowIds = pagination?.deletedRowIds
+  const revoked = pagination?.revoked
+  useEffect(() => { if (revoked || (flowRowId && deletedRowIds?.includes(flowRowId))) setFlowDialog(null) }, [flowRowId, deletedRowIds, revoked])
 
   useEffect(() => {
     if (!mountedRef.current) {
@@ -445,12 +476,12 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
    * última. `indeterminate` é o caso "algumas" (estado de apresentação de um
    * agregado, exatamente o que o Checkbox do pacote reserva ao modo state).
    */
-  const allSelected = displayRows.length > 0 && selection.ids.size === displayRows.length
+  const allSelected = displayRows.length > 0 && displayRows.every((row) => selection.ids.has(row.id))
   const headerCheckedState: CheckedState = allSelected ? true : 'indeterminate'
 
   const toggleSelectAll = useCallback(
-    (checked: boolean) => dispatch({ type: 'select-all', checked, rowIds }),
-    [rowIds],
+    (checked: boolean) => dispatch({ type: 'select-all', checked, rowIds, preserveOutside: isPaginated }),
+    [rowIds, isPaginated],
   )
 
   const handleRowSelectedChange = useCallback(
@@ -490,16 +521,15 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       suppressRowHandleMenuAfterDrag(String(active.id))
       setActiveRowId(null)
       if (!over || active.id === over.id) return
-      setLocalRows((current) => {
-        const from = current.findIndex((row) => row.id === active.id)
-        const to = current.findIndex((row) => row.id === over.id)
-        if (from < 0 || to < 0) return current
-        const next = arrayMove(current, from, to)
-        onRowOrderChange?.(next.map((row) => row.id))
-        return next
-      })
+      const from = localRows.findIndex((row) => row.id === active.id)
+      const to = localRows.findIndex((row) => row.id === over.id)
+      if (from < 0 || to < 0) return
+      const next = arrayMove(localRows, from, to)
+      setLocalRows(next)
+      if (pagination) void onRowMove?.({ rowId: String(active.id), beforeId: next[to + 1]?.id, afterId: next[to - 1]?.id })
+      else onRowOrderChange?.(next.map((row) => row.id))
     },
-    [onRowOrderChange, suppressRowHandleMenuAfterDrag],
+    [localRows, onRowOrderChange, onRowMove, pagination, suppressRowHandleMenuAfterDrag],
   )
 
   const handleRowHandleClick = useCallback(
@@ -514,15 +544,14 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
 
   const handleRowMove = useCallback(
     (rowIndex: number, direction: -1 | 1) => {
-      setLocalRows((current) => {
-        const targetIndex = rowIndex + direction
-        if (rowIndex < 0 || targetIndex < 0 || targetIndex >= current.length) return current
-        const next = arrayMove(current, rowIndex, targetIndex)
-        onRowOrderChange?.(next.map((row) => row.id))
-        return next
-      })
+      const targetIndex = rowIndex + direction
+      if (rowIndex < 0 || targetIndex < 0 || targetIndex >= localRows.length) return
+      const next = arrayMove(localRows, rowIndex, targetIndex)
+      setLocalRows(next)
+      if (pagination) void onRowMove?.({ rowId: localRows[rowIndex].id, beforeId: next[targetIndex + 1]?.id, afterId: next[targetIndex - 1]?.id })
+      else onRowOrderChange?.(next.map((row) => row.id))
     },
-    [onRowOrderChange],
+    [localRows, onRowOrderChange, onRowMove, pagination],
   )
 
   const handleColumnDragEnd = useCallback(
@@ -730,6 +759,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       <GuidedAddControls
         onAddRow={onAddRow}
         onAddColumn={onAddColumn}
+        addingColumn={addingColumn}
         addRowLabel={labels?.addRow ?? 'Adicionar linha'}
         addColumnLabel={labels?.addColumn ?? 'Adicionar coluna'}
       >
@@ -749,16 +779,26 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                   (o alinhamento com as linhas depende da MESMA largura) e caixa de
                   "selecionar todas" a partir da primeira linha marcada. */}
               <div
-                className={cn('flex shrink-0 items-center px-2', CONTROL_CELL_WIDTH)}
+                className={cn('flex shrink-0 items-center gap-2 px-2', CONTROL_CELL_WIDTH)}
                 aria-hidden={selection.ids.size === 0}
               >
                 {selection.ids.size > 0 && (
-                  <Checkbox
-                    aria-label={labels?.selectAll ?? 'Selecionar todas'}
-                    checked={headerCheckedState}
-                    onCheckedChange={toggleSelectAll}
-                    className="cursor-pointer"
-                  />
+                  <>
+                    <Checkbox
+                      aria-label={labels?.selectAll ?? 'Selecionar todas'}
+                      checked={headerCheckedState}
+                      onCheckedChange={toggleSelectAll}
+                      className="cursor-pointer"
+                    />
+                    {onDeleteRows && (
+                      <BatchRowActionsMenu
+                        rowIds={rowIds.filter((id) => selection.ids.has(id))}
+                        pending={deletingRows}
+                        onDelete={onDeleteRows}
+                        labels={labels}
+                      />
+                    )}
+                  </>
                 )}
               </div>
               <DndContext
@@ -809,14 +849,16 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                   </div>
                 ))}
               </div>
-            ) : localRows.length === 0 ? (
+            ) : pagination?.projection?.groups?.length ? (
+              <ServerTableGroups pagination={pagination} columns={localColumns} renderRow={renderTableRow} />
+            ) : localRows.length === 0 && !pagination ? (
               <div className="flex">
                 <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
                 <div className="flex-1 border-l border-divider px-3 py-6 text-center text-sm opacity-60">
                   {emptyLabel}
                 </div>
               </div>
-            ) : validGroupBy.length > 0 ? (
+            ) : validGroupBy.length > 0 && !pagination ? (
               <TableGroupAccordion
                 rows={localRows}
                 groupBy={validGroupBy}
@@ -840,11 +882,13 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                 onDragEnd={handleRowDragEnd}
               >
                 <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
-                  {localRows.map((row) => renderTableRow(row))}
+                  {pagination ? <VirtualInfiniteList items={localRows} itemKey={(row) => row.id} renderItem={(row) => renderTableRow(row)}
+                    pagination={pagination} scope={{ type: 'root' }} stream={pagination.streams.root} estimateSize={36}
+                    pinnedIds={activeRowId ? [activeRowId] : []} disabled={Boolean(activeRowId)} /> : localRows.map((row) => renderTableRow(row))}
                 </SortableContext>
                 {typeof document !== 'undefined'
                   ? createPortal(
-                      <DragOverlay adjustScale={false}>
+                      <DragOverlay adjustScale={false} dropAnimation={null}>
                         {activeRow ? (
                           <TableRowDragOverlay
                             row={activeRow}
@@ -901,6 +945,8 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
         />
       ) : null}
       <FlowEditorDialog
+        readOnly={Boolean(flowDialog && localColumns.some((column) => column.id === flowDialog.columnId && isColumnLocked(column)))}
+        onButtonChange={flowDialog && localColumns.some((column) => column.id === flowDialog.columnId && isColumnLocked(column)) ? undefined : onColumnConfigChange}
         open={Boolean(flowDialog)}
         mode={flowDialog?.mode ?? 'execute'}
         column={flowDialog ? localColumns.find((column) => column.id === flowDialog.columnId) ?? null : null}
@@ -909,8 +955,8 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
         onOpenChange={(open) => { if (!open) setFlowDialog(null) }}
         loadMacros={onFlowLoadMacros}
         buildMacroSections={buildFlowMacroSections}
-        onSave={onFlowConfigChange}
-        onExecute={onFlowExecute}
+        onSave={flowDialog && localColumns.some((column) => column.id === flowDialog.columnId && isColumnLocked(column)) ? undefined : onFlowConfigChange}
+        onExecute={flowDialog && localColumns.some((column) => column.id === flowDialog.columnId && isColumnLocked(column)) ? undefined : onFlowExecute}
       />
     </div>
   )

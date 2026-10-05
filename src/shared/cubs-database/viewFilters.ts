@@ -425,8 +425,12 @@ const checkboxEquals: FilterConditionDefinition = {
   input: 'checkbox',
   arity: 1,
   accepts: (values) => oneValue(values) && parseBoolean(values[0]!) !== null,
-  predicate: (cellValue, values) =>
-    typeof cellValue === 'boolean' && cellValue === parseBoolean(values[0] ?? ''),
+  predicate: (cellValue, values) => {
+    // Checkbox sem valor é desmarcado na UI e também corresponde a "Não".
+    // Normalize apenas na comparação, sem materializar false no dado da célula.
+    const checked = cellValue ?? false
+    return typeof checked === 'boolean' && checked === parseBoolean(values[0] ?? '')
+  },
 }
 
 const dateEquals: FilterConditionDefinition = {

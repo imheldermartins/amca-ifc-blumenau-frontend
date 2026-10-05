@@ -32,11 +32,14 @@ import { Route as LangAuthenticatedAppScheduleRouteImport } from './routes/$lang
 import { Route as LangAuthenticatedAppMyChatRouteImport } from './routes/$lang/_authenticated/_app/my-chat'
 import { Route as LangAuthenticatedAppColaborandoRouteImport } from './routes/$lang/_authenticated/_app/colaborando'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdRouteRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/route'
+import { Route as LangPublicFormsPublicationIdIndexRouteImport } from './routes/$lang/_public/forms/$publicationId/index'
+import { Route as LangPublicFormsPublicationIdReviewRouteImport } from './routes/$lang/_public/forms/$publicationId/review'
 import { Route as LangAuthenticatedAppPagePageIdRouteImport } from './routes/$lang/_authenticated/_app/page/$pageId'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/route'
 import { Route as LangAuthenticatedAccessScopeScopeIdRouteRouteImport } from './routes/$lang/_authenticated/access/$scope/$scopeId/route'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/index'
 import { Route as LangAuthenticatedAccessScopeScopeIdIndexRouteImport } from './routes/$lang/_authenticated/access/$scope/$scopeId/index'
+import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/members'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/general'
 import { Route as LangAuthenticatedAccessScopeScopeIdRolesRouteImport } from './routes/$lang/_authenticated/access/$scope/$scopeId/roles'
@@ -169,6 +172,18 @@ const LangAuthenticatedWorkspacesWorkspaceIdRouteRoute =
     path: '/$workspaceId',
     getParentRoute: () => LangAuthenticatedWorkspacesRouteRoute,
   } as any)
+const LangPublicFormsPublicationIdIndexRoute =
+  LangPublicFormsPublicationIdIndexRouteImport.update({
+    id: '/forms/$publicationId/',
+    path: '/forms/$publicationId/',
+    getParentRoute: () => LangPublicRouteRoute,
+  } as any)
+const LangPublicFormsPublicationIdReviewRoute =
+  LangPublicFormsPublicationIdReviewRouteImport.update({
+    id: '/forms/$publicationId/review',
+    path: '/forms/$publicationId/review',
+    getParentRoute: () => LangPublicRouteRoute,
+  } as any)
 const LangAuthenticatedAppPagePageIdRoute =
   LangAuthenticatedAppPagePageIdRouteImport.update({
     id: '/page/$pageId',
@@ -199,6 +214,13 @@ const LangAuthenticatedAccessScopeScopeIdIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => LangAuthenticatedAccessScopeScopeIdRouteRoute,
+  } as any)
+const LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute =
+  LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRouteImport.update({
+    id: '/permissions',
+    path: '/permissions',
+    getParentRoute: () =>
+      LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRoute,
   } as any)
 const LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute =
   LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRouteImport.update({
@@ -262,9 +284,12 @@ export interface FileRoutesByFullPath {
   '/$lang/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdRouteRouteWithChildren
   '/$lang/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/forms/$publicationId/': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
+  '/$lang/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
   '/$lang/access/$scope/$scopeId/': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings/': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -290,9 +315,12 @@ export interface FileRoutesByTo {
   '/$lang/organizations': typeof LangAuthenticatedOrganizationsIndexRoute
   '/$lang/workspaces': typeof LangAuthenticatedWorkspacesIndexRoute
   '/$lang/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/forms/$publicationId': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
+  '/$lang/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
   '/$lang/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -327,9 +355,12 @@ export interface FileRoutesById {
   '/$lang/_authenticated/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdRouteRouteWithChildren
   '/$lang/_authenticated/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/_authenticated/_app/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/_public/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/_public/forms/$publicationId/': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/_authenticated/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
+  '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
   '/$lang/_authenticated/access/$scope/$scopeId/': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/_authenticated/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -361,9 +392,12 @@ export interface FileRouteTypes {
     | '/$lang/access/$scope/$scopeId'
     | '/$lang/workspaces/$workspaceId/settings'
     | '/$lang/page/$pageId'
+    | '/$lang/forms/$publicationId/review'
+    | '/$lang/forms/$publicationId/'
     | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
+    | '/$lang/workspaces/$workspaceId/settings/permissions'
     | '/$lang/access/$scope/$scopeId/'
     | '/$lang/workspaces/$workspaceId/settings/'
     | '/$lang/access/$scope/$scopeId/member/$memberId'
@@ -389,9 +423,12 @@ export interface FileRouteTypes {
     | '/$lang/organizations'
     | '/$lang/workspaces'
     | '/$lang/page/$pageId'
+    | '/$lang/forms/$publicationId/review'
+    | '/$lang/forms/$publicationId'
     | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
+    | '/$lang/workspaces/$workspaceId/settings/permissions'
     | '/$lang/access/$scope/$scopeId'
     | '/$lang/workspaces/$workspaceId/settings'
     | '/$lang/access/$scope/$scopeId/member/$memberId'
@@ -425,9 +462,12 @@ export interface FileRouteTypes {
     | '/$lang/_authenticated/access/$scope/$scopeId'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings'
     | '/$lang/_authenticated/_app/page/$pageId'
+    | '/$lang/_public/forms/$publicationId/review'
+    | '/$lang/_public/forms/$publicationId/'
     | '/$lang/_authenticated/access/$scope/$scopeId/roles'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/general'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/members'
+    | '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
     | '/$lang/_authenticated/access/$scope/$scopeId/'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/'
     | '/$lang/_authenticated/access/$scope/$scopeId/member/$memberId'
@@ -603,6 +643,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdRouteRouteImport
       parentRoute: typeof LangAuthenticatedWorkspacesRouteRoute
     }
+    '/$lang/_public/forms/$publicationId/': {
+      id: '/$lang/_public/forms/$publicationId/'
+      path: '/forms/$publicationId'
+      fullPath: '/$lang/forms/$publicationId/'
+      preLoaderRoute: typeof LangPublicFormsPublicationIdIndexRouteImport
+      parentRoute: typeof LangPublicRouteRoute
+    }
+    '/$lang/_public/forms/$publicationId/review': {
+      id: '/$lang/_public/forms/$publicationId/review'
+      path: '/forms/$publicationId/review'
+      fullPath: '/$lang/forms/$publicationId/review'
+      preLoaderRoute: typeof LangPublicFormsPublicationIdReviewRouteImport
+      parentRoute: typeof LangPublicRouteRoute
+    }
     '/$lang/_authenticated/_app/page/$pageId': {
       id: '/$lang/_authenticated/_app/page/$pageId'
       path: '/page/$pageId'
@@ -637,6 +691,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lang/access/$scope/$scopeId/'
       preLoaderRoute: typeof LangAuthenticatedAccessScopeScopeIdIndexRouteImport
       parentRoute: typeof LangAuthenticatedAccessScopeScopeIdRouteRoute
+    }
+    '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions': {
+      id: '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
+      path: '/permissions'
+      fullPath: '/$lang/workspaces/$workspaceId/settings/permissions'
+      preLoaderRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRouteImport
+      parentRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRoute
     }
     '/$lang/_authenticated/workspaces/$workspaceId/settings/members': {
       id: '/$lang/_authenticated/workspaces/$workspaceId/settings/members'
@@ -706,6 +767,7 @@ const LangAuthenticatedAppRouteRouteWithChildren =
 interface LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteChildren {
   LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
+  LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
   LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
 }
 
@@ -715,6 +777,8 @@ const LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteChildren: LangAuth
       LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute,
     LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute:
       LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute,
+    LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute:
+      LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute,
     LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute:
       LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute,
   }
@@ -837,12 +901,18 @@ interface LangPublicRouteRouteChildren {
   LangPublicGuestRouteRoute: typeof LangPublicGuestRouteRouteWithChildren
   LangPublicInviteTokenRoute: typeof LangPublicInviteTokenRoute
   LangPublicVerifyEmailTokenRoute: typeof LangPublicVerifyEmailTokenRoute
+  LangPublicFormsPublicationIdReviewRoute: typeof LangPublicFormsPublicationIdReviewRoute
+  LangPublicFormsPublicationIdIndexRoute: typeof LangPublicFormsPublicationIdIndexRoute
 }
 
 const LangPublicRouteRouteChildren: LangPublicRouteRouteChildren = {
   LangPublicGuestRouteRoute: LangPublicGuestRouteRouteWithChildren,
   LangPublicInviteTokenRoute: LangPublicInviteTokenRoute,
   LangPublicVerifyEmailTokenRoute: LangPublicVerifyEmailTokenRoute,
+  LangPublicFormsPublicationIdReviewRoute:
+    LangPublicFormsPublicationIdReviewRoute,
+  LangPublicFormsPublicationIdIndexRoute:
+    LangPublicFormsPublicationIdIndexRoute,
 }
 
 const LangPublicRouteRouteWithChildren = LangPublicRouteRoute._addFileChildren(

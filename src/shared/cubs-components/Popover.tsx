@@ -19,6 +19,8 @@ export interface PopoverProps {
   collisionPadding?: number
   /** `always` desloca o painel inteiro para dentro do viewport. */
   sticky?: 'partial' | 'always'
+  /** Mantém o portal dentro da área de foco de uma modal/drawer, quando necessário. */
+  portalContainer?: HTMLElement | null
   /** Classe da ÁREA DE CONTEÚDO (o painel flutuante). */
   className?: string
 }
@@ -46,12 +48,13 @@ export function Popover({
   sideOffset = 4,
   collisionPadding,
   sticky,
+  portalContainer,
   className,
 }: PopoverProps) {
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
-      <RadixPopover.Portal>
+      <RadixPopover.Portal container={portalContainer}>
         <RadixPopover.Content
           side={side}
           align={align}

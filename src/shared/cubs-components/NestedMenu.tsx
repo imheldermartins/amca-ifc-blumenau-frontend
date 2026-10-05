@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { Icon } from '@iconify/react'
 
 import { Popover } from './Popover'
-import { MENU_ROW_CLASSES } from './menuStyles'
+import { MENU_DANGER_ROW_CLASSES, MENU_ROW_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 
 /**
@@ -79,7 +79,7 @@ function MenuRow({ node }: { node: MenuNode }) {
   } else if (confirming && node.confirm) {
     // 3) Segundo passo destrutivo: só o ícone executa a ação.
     row = (
-      <div className={cn(MENU_ROW_CLASSES, 'text-p-red')}>
+      <div className={cn(MENU_DANGER_ROW_CLASSES, 'bg-p-red/10')}>
         {node.icon && <Icon icon={node.icon} fontSize={15} className="shrink-0" />}
         <span className="flex-1 whitespace-nowrap">{node.name}</span>
         <button
@@ -88,7 +88,7 @@ function MenuRow({ node }: { node: MenuNode }) {
           autoFocus
           aria-label={node.confirm.label}
           onClick={node.onSelect}
-          className="glow-purple-hover -my-0.5 rounded p-0.5 text-p-red hover:bg-active focus-visible:outline-none"
+          className="-my-0.5 rounded p-0.5 text-p-red hover:bg-p-red/10 focus-visible:bg-p-red/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-red/25"
         >
           <Icon icon={node.confirm.icon ?? 'lucide:triangle-alert'} fontSize={16} />
         </button>
@@ -103,8 +103,7 @@ function MenuRow({ node }: { node: MenuNode }) {
         disabled={node.disabled}
         onClick={node.confirm ? () => setConfirming(true) : node.onSelect}
         className={cn(
-          MENU_ROW_CLASSES,
-          node.danger && 'text-p-red',
+          node.danger ? MENU_DANGER_ROW_CLASSES : MENU_ROW_CLASSES,
           node.disabled && 'cursor-not-allowed opacity-35 hover:bg-transparent hover:shadow-none',
         )}
       >

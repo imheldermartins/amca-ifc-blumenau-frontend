@@ -1,6 +1,7 @@
 import axios, {
   type AxiosError,
   type AxiosInstance,
+  type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios'
 
@@ -44,6 +45,7 @@ export interface RefreshResponse {
  */
 export class ApiService {
   private readonly http: AxiosInstance
+  private readonly publicHttp: AxiosInstance
   private refreshInFlight: Promise<string> | null = null
 
   constructor() {
@@ -53,6 +55,15 @@ export class ApiService {
       // O cookie `HttpOnly` do refresh só viaja com isto ligado.
       withCredentials: true,
     })
+    this.publicHttp = axios.create({
+      baseURL: connection.apiBaseUrl,
+      timeout: 10_000,
+      withCredentials: false,
+    })
+    this.publicHttp.interceptors.response.use(
+      (response) => response,
+      (error: AxiosError) => Promise.reject(reportError('api', error)),
+    )
 
     this.http.interceptors.request.use((config) => {
       const accessToken = sessionStore.get()
@@ -132,8 +143,8 @@ export class ApiService {
     return this.http.get<T>(url).then((response) => response.data)
   }
 
-  post<T>(url: string, body?: unknown): Promise<T> {
-    return this.http.post<T>(url, body).then((response) => response.data)
+  post<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.http.post<T>(url, body, config).then((response) => response.data)
   }
 
   put<T>(url: string, body?: unknown): Promise<T> {
@@ -146,6 +157,14 @@ export class ApiService {
 
   delete<T>(url: string): Promise<T> {
     return this.http.delete<T>(url).then((response) => response.data)
+  }
+
+  getPublic<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    return this.publicHttp.get<T>(url, config).then((response) => response.data)
+  }
+
+  postPublic<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+    return this.publicHttp.post<T>(url, body, config).then((response) => response.data)
   }
 
   /** POST que carrega o header de cliente — só para as rotas de cookie. */

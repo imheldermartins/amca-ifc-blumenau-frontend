@@ -24,8 +24,9 @@ afterEach(() => cleanup())
 describe('TableCell — flow', () => {
   it('recorta o preview e abre a execução pelo botão outlined', () => {
     const onFlowOpen = vi.fn()
+    const labeledColumn = { ...column, flowButton: { label: 'Executar', icon: 'lucide:play' } }
     render(<TableCell
-      column={column}
+      column={labeledColumn}
       row={row}
       columnType="flow"
       onFlowOpen={onFlowOpen}
@@ -35,10 +36,17 @@ describe('TableCell — flow', () => {
     const execute = screen.getByRole('button', { name: 'Executar' })
     expect(cell.classList.contains('overflow-clip')).toBe(true)
     expect(execute.classList.contains('border-p-purple')).toBe(true)
-    expect(execute.classList.contains('bg-p-purple-500/5')).toBe(true)
+    expect(execute.classList.contains('bg-p-purple/10')).toBe(true)
 
     fireEvent.click(execute)
-    expect(onFlowOpen).toHaveBeenCalledWith(row, column)
+    expect(onFlowOpen).toHaveBeenCalledWith(row, labeledColumn)
+  })
+
+  it('usa o botão circular padrão quando não há label', () => {
+    render(<TableCell column={column} row={row} columnType="flow" onFlowOpen={vi.fn()} />)
+    const execute = screen.getByRole('button', { name: 'Executar Aprovação' })
+    expect(execute.classList.contains('rounded-full')).toBe(true)
+    expect(execute.textContent).toBe('')
   })
 
   it('não oferece execução quando a coluna está bloqueada', () => {
@@ -50,7 +58,7 @@ describe('TableCell — flow', () => {
       onFlowOpen={vi.fn()}
     />)
 
-    expect(screen.queryByRole('button', { name: 'Executar' })).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
     expect(screen.getByRole('cell').getAttribute('title')).toBe('Coluna bloqueada')
   })
 })

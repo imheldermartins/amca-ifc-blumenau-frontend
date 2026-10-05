@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react'
 import { useController, useFormContext, type RegisterOptions } from 'react-hook-form'
 
 import { PALETTE } from './lib/palette'
-import { FLOATING_SURFACE_CLASSES } from './menuStyles'
+import { FLOATING_SURFACE_CLASSES, SOFT_SELECTION_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 import { Tooltip } from './Tooltip'
 
@@ -70,7 +70,7 @@ function SelectView({
               aria-hidden="true"
               icon={selectedOption.icon}
               fontSize={16}
-              className="shrink-0 text-p-purple"
+              className="shrink-0"
             />
           ) : null}
           <RadixSelect.Value className="min-w-0 flex-1 truncate text-left whitespace-nowrap" placeholder={placeholder} />
@@ -99,7 +99,8 @@ function SelectView({
                 disabled={option.disabled}
                 className={cn(
                   'flex cursor-pointer select-none items-center justify-between gap-2 rounded px-2 py-1 text-sm',
-                  'outline-none transition-colors data-[highlighted]:bg-active',
+                  'outline-none transition-colors',
+                  option.value === value ? SOFT_SELECTION_CLASSES : 'data-[highlighted]:bg-active',
                   'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
                 )}
               >
@@ -122,7 +123,7 @@ function SelectView({
                   </span>
                 </Tooltip>
                 <RadixSelect.ItemIndicator asChild>
-                  <Icon icon="lucide:check" fontSize={14} className="shrink-0 text-p-purple" />
+                  <Icon icon="lucide:check" fontSize={14} className="shrink-0" />
                 </RadixSelect.ItemIndicator>
               </RadixSelect.Item>
             ))}

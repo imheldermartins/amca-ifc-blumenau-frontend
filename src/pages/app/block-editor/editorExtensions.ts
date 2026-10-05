@@ -27,6 +27,7 @@ const BLOCK_KINDS = new Set<EditorBlockKind>([
   'enumerateList',
   'checkList',
   'image',
+  'formSubmit',
 ])
 
 function normalizeIndent(value: unknown): number {
@@ -342,6 +343,11 @@ export const EditableBlock = Node.create({
         default: 0,
         parseHTML: (element) => normalizeIndent(element.getAttribute('data-block-indent')),
         renderHTML: ({ indent }) => ({ 'data-block-indent': normalizeIndent(indent) }),
+      },
+      formViewId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-form-view-id'),
+        renderHTML: ({ formViewId }) => formViewId ? { 'data-form-view-id': formViewId } : {},
       },
     }
   },

@@ -1,12 +1,21 @@
 export { CubsDatabase } from './CubsDatabase'
 export type { CubsDatabaseProps } from './CubsDatabase'
+export type { DatabasePagination, DatabasePageStream, DatabaseRowMove } from './pagination'
+export * from './pageViewQueryContract'
+export type { BoardViewConfig, BoardMoveInput, BoardCreateInput, FlowButtonConfig } from './types'
 
 export { ViewTabsBar } from './components/ViewTabsBar'
 export type { ViewTabsBarProps } from './components/ViewTabsBar'
+export { FormView } from './components/FormView'
+export type { FormViewLabels, FormViewMode, FormViewProps } from './components/FormView'
+export { FormFieldControl } from './components/FormFieldControl'
+export type { FormInputField } from './formView'
 export { TableView } from './components/TableView'
 export type { TableViewProps } from './components/TableView'
 export { GridView, GridContainer, GridTile } from './components/GridView'
 export { CalendarView, type CalendarViewLabels, type CalendarViewProps } from './components/CalendarView'
+export { BoardView, type BoardViewProps } from './components/BoardView'
+export { BOARD_UNASSIGNED, parseBoardConfig } from './boardView'
 export { ColumnLockSettings, type ColumnLockSettingsLabels } from './components/ColumnLockSettings'
 export { FlowEditorDialog } from './components/FlowEditorDialog'
 export { createDefaultFlowDefinition } from './flowDefinition'
@@ -66,6 +75,14 @@ export { VirtualScroller } from './components/VirtualScroller'
 export type { VirtualScrollerProps } from './components/VirtualScroller'
 export { TYPE_ICON } from './components/columnTypeIcons'
 export { DATA_VIEW_KINDS, VIEW_KIND_ICON, isDataViewKind } from './viewKinds'
+export {
+  createDefaultFormViewConfig,
+  DEFAULT_FORM_SUBMIT_ICON,
+  DEFAULT_FORM_SUBMIT_LABEL,
+  flowColumns,
+  formFieldColumns,
+  formInputFieldFromColumn,
+} from './formView'
 export { ColumnHeaderMenu } from './components/ColumnHeaderMenu'
 export type { ColumnHeaderMenuLabels, ColumnHeaderMenuProps } from './components/ColumnHeaderMenu'
 export { useShiftKey } from './components/useShiftKey'
@@ -105,12 +122,15 @@ export type {
   ColumnMask,
   ColumnOption,
   CurrencyCode,
+  CatalogIcon,
   DataViewKind,
   DataViewSettings,
   DataViewType,
   FlowCallbackNode,
   FlowConditionOperator,
   FlowDefinition,
+  FlowDefinitionV1,
+  FlowDefinitionV2,
   FlowDialogTarget,
   FlowEmailNode,
   FlowExecutionResult,
@@ -120,10 +140,15 @@ export type {
   FlowMacroSection,
   FlowMacroSectionsBuilder,
   FlowNode,
+  FlowNodeV2,
   FlowNodeType,
+  FlowStepV2,
   FlowSetValueNode,
   FlowStartNode,
   FlowSwitchNode,
+  FormFieldAnswer,
+  FormSubmissionInput,
+  FormViewConfig,
   HeaderCol,
   NumberFormat,
   OptionColor,

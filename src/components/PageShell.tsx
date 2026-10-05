@@ -1,4 +1,3 @@
-import { useNavigate } from '@tanstack/react-router'
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -17,7 +16,6 @@ import {
   type PageSettingsFragment,
 } from '@components/PageSettingsModal'
 import { useAuth } from '@/contexts/AuthContext'
-import { useLanguage } from '@/contexts/LanguageContext'
 import { useDialog } from '@/hooks/useDialog'
 import { usePageRealtime, type UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import { i18n } from '@/lib/i18n'
@@ -94,8 +92,6 @@ export function PageShell({
   ...realtimeOptions
 }: PageShellProps) {
   const auth = useAuth()
-  const { slug: lang } = useLanguage()
-  const navigate = useNavigate()
   const permission = usePageAccess(pageId)
   const {
     isOpen: pageSettingsOpen,
@@ -120,7 +116,7 @@ export function PageShell({
   const [failed, setFailed] = useState(false)
   const [collaborators, setCollaborators] = useState<ApiPageCollaborator[]>([])
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false)
-  const [collaboratorsFailed, setCollaboratorsFailed] = useState(false)
+  const [collaboratorsRevision, setCollaboratorsRevision] = useState(0)
   const [pageSettingsFragment, setPageSettingsFragment] = useState<PageSettingsFragment>(
     () => readPageSettingsFragment(window.location.hash) ?? DEFAULT_PAGE_SETTINGS_FRAGMENT,
   )
@@ -215,20 +211,11 @@ export function PageShell({
     () => assignUserVisualIdentities(participants),
     [participants],
   )
-  const visualCurrentUser = useMemo(
-    () => visualParticipants.find((participant) => participant.id === auth.user?.id) ?? null,
-    [auth.user?.id, visualParticipants],
-  )
-  const visualCollaborators = useMemo(
-    () => visualParticipants.filter((participant) => participant.id !== auth.user?.id),
-    [auth.user?.id, visualParticipants],
-  )
   const contentViewLabels = useMemo<PageContentViewLabels>(
     () => ({
       navigation: i18n('pages.app.pagina.views.navigation'),
       files: i18n('pages.app.pagina.views.files'),
       document: i18n('pages.app.pagina.views.document.label'),
-      workflow: i18n('pages.app.pagina.views.workflow.label'),
     }),
     [],
   )
@@ -386,20 +373,18 @@ export function PageShell({
     if (!pageId) {
       setCollaborators([])
       setCollaboratorsLoading(false)
-      setCollaboratorsFailed(false)
       return
     }
     let active = true
     setCollaborators([])
     setCollaboratorsLoading(true)
-    setCollaboratorsFailed(false)
     sharedPagesService
       .listCollaborators(pageId)
       .then((loaded) => {
         if (active) setCollaborators(loaded)
       })
       .catch(() => {
-        if (active) setCollaboratorsFailed(true)
+        if (active) setCollaborators([])
       })
       .finally(() => {
         if (active) setCollaboratorsLoading(false)
@@ -407,7 +392,7 @@ export function PageShell({
     return () => {
       active = false
     }
-  }, [pageId])
+  }, [pageId, collaboratorsRevision])
 
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
@@ -434,7 +419,7 @@ export function PageShell({
         onCancelTitle={cancelTitleEdit}
         onContentViewChange={changeContentView}
         onOpenCollaborators={
-          can(permission.data, 'read', 'members') || can(permission.data, 'write', 'add_members')
+          can(permission.data, 'read', 'members') || ['add_members', 'promote_members', 'remove_members'].some((action) => can(permission.data, 'write', action))
             ? () => openPageSettings('#collaborators')
             : undefined
         }
@@ -449,19 +434,7 @@ export function PageShell({
         onFragmentChange={openPageSettings}
         pageId={pageId}
         pageTitle={displayedTitle}
-        currentUser={visualCurrentUser}
-        collaborators={visualCollaborators}
-        loading={collaboratorsLoading}
-        failed={collaboratorsFailed}
-        onOpenPermissions={() => {
-          if (!pageId) return
-          handlePageSettingsOpenChange(false)
-          void navigate({
-            to: '/$lang/access/$scope/$scopeId',
-            params: { lang, scope: 'page', scopeId: pageId },
-            search: {},
-          })
-        }}
+        onMembersChanged={() => setCollaboratorsRevision((revision) => revision + 1)}
       />
     </div>
   )

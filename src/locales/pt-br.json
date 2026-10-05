@@ -50,6 +50,13 @@
       "servidor": "Erro no servidor. Tente de novo em instantes.",
       "generico": "Não foi possível salvar a alteração. Tente de novo."
     },
+    "lixeira": {
+      "sucesso_one": "{{count}} linha movida para lixeira",
+      "sucesso_other": "{{count}} linhas movidas para lixeira",
+      "falha_one": "Não foi possível excluir {{count}} linha",
+      "falha_other": "Não foi possível excluir {{count}} linhas",
+      "resultado": "{{deleted}} movidas para lixeira; {{failed}} continuam selecionadas."
+    },
     "realtime": {
       "titulo": "Atualização simultânea recebida",
       "edicao-interrompida": "A edição de “{{column}}” foi cancelada por uma atualização simultânea. Valor recebido: “{{value}}”."
@@ -63,6 +70,7 @@
         "enumerate-list": "Lista numerada",
         "check-list": "Checklist",
         "image": "Imagem",
+        "form-submit": "Enviar formulário",
         "custom-node": "Nó customizado"
       },
       "editor": {
@@ -96,7 +104,8 @@
           "image": "Seleciona uma imagem, comprime no navegador e grava o Data URL diretamente no bloco.",
           "bullet-list": "Lista não ordenada com marcadores.",
           "numbered-list": "Lista ordenada com numeração.",
-          "check-list": "Lista de tarefas com itens marcáveis."
+          "check-list": "Lista de tarefas com itens marcáveis.",
+          "form-submit": "Botão conectado a uma visualização de formulário desta página."
         },
         "compression": {
           "light": {
@@ -256,7 +265,16 @@
         "personal-section": "Meus espaços de trabalho",
         "organization-section": "Espaços de trabalho das organizações",
         "organizations-link": "Ir para organizações",
-        "owner-unknown": "Criador indisponível"
+        "owner-unknown": "Criador indisponível",
+        "greeting": "Olá, <name>{{firstName}}</name>!",
+        "organization-workspaces-prefix": "Espaços de trabalho da organização",
+        "toggle-organization": "Expandir ou recolher {{name}}",
+        "new-in-organization": "Criar espaço de trabalho em {{name}}",
+        "organization-empty": "Esta organização ainda não tem espaços de trabalho disponíveis para você.",
+        "organizations-error": "Não foi possível carregar suas organizações.",
+        "personal-missing": "Sua área pessoal não está disponível. Tente carregar a página novamente.",
+        "shared-personal": "Espaços pessoais compartilhados",
+        "unnamed": "Sem nome"
       },
       "access": {
         "title": "Criar espaço de trabalho",
@@ -328,11 +346,23 @@
         "title": "Configurar espaço de trabalho",
         "back": "Voltar para espaços de trabalho",
         "navigation": "Configurações",
+        "workspace": "Espaço de trabalho",
+        "breadcrumb": "Caminho das configurações",
+        "permissions": "Permissões",
+        "personal": "Seu espaço pessoal",
+        "personal-space": "Espaço pessoal",
+        "organization-space": "Espaço da organização",
+        "back-to-workspace": "Voltar para o espaço de trabalho",
+        "open": "Abrir",
+        "discard": "Descartar",
+        "name-required": "Informe o nome do espaço de trabalho.",
+        "starting-point": "Seu ponto de partida",
+        "preferred-help": "Pule a seleção após o login. Esta preferência vale para você neste navegador.",
         "general": "Geral",
-        "members": "Usuários",
+        "members": "Colaboradores",
         "general-description": "Atualize a identidade exibida para esta área de trabalho.",
-        "name": "Nome do Espaço de trabalho",
-        "icon": "Ícone do Espaço de trabalho",
+        "name": "Nome do espaço de trabalho",
+        "icon": "Ícone do espaço de trabalho",
         "save": "Salvar alterações",
         "saving": "Salvando...",
         "saved": "Alterações salvas.",
@@ -344,8 +374,8 @@
         "role-member": "member",
         "members-error": "Não foi possível carregar os usuários.",
         "role-error": "Não foi possível alterar a role.",
-        "loading": "Carregando workspace...",
-        "load-error": "Não foi possível carregar esta workspace.",
+        "loading": "Carregando espaço de trabalho...",
+        "load-error": "Não foi possível carregar este espaço de trabalho.",
         "exit": "Selecionar outro espaço de trabalho"
       },
       "icons": {
@@ -448,7 +478,7 @@
         "navigation": "Seções das configurações da página",
         "general": "Geral",
         "collaborators": "Colaboradores",
-        "open-collaborators": "Abrir colaboradores da página ({{count}} pessoas com acesso)",
+        "open-collaborators": "Abrir colaboradores da página ({{count}} colaboradores)",
         "active-connections": "Conexões ativas nesta página: {{count}}",
         "page-name": "Nome da página",
         "page-id": "ID da página",
@@ -519,11 +549,6 @@
             "label": "Editor de blocos",
             "title": "Editor de blocos em breve",
             "description": "Esta visualização será conectada ao editor de blocos da página."
-          },
-          "workflow": {
-            "label": "Workflow",
-            "title": "Canvas em breve",
-            "description": "Esta visualização receberá o fluxo visual composto por nós."
           }
         }
       },
@@ -546,7 +571,8 @@
           "board": "Quadros",
           "calendar": "Calendário",
           "timeline": "Cronograma",
-          "graph": "Grafos"
+          "graph": "Grafos",
+          "form": "Formulário"
         },
         "calendar": {
           "propriedade-data": "Propriedade de data",
@@ -557,6 +583,27 @@
           "mostrar-propriedade": "Mostrar propriedade",
           "mostrar-labels": "Mostrar nomes das propriedades",
           "ocultar-todas": "Ocultar todas"
+        },
+        "form": {
+          "builder": "Criar formulário",
+          "preview": "Visualizar formulário",
+          "fields": "Campos do formulário",
+          "no-fields": "Não há campos visíveis para preenchimento.",
+          "no-flow": "O Flow vinculado não está disponível.",
+          "hide-field": "Ocultar do preenchimento",
+          "show-field": "Mostrar no preenchimento",
+          "hidden-field": "Oculto no preenchimento",
+          "flow": "Flow executado no envio",
+          "button-label": "Texto do botão",
+          "button-icon": "Ícone do botão",
+          "icon-choose": "Escolher ícone",
+          "icon-search": "Buscar ícone",
+          "icon-empty": "Nenhum ícone encontrado",
+          "icon-loading": "Carregando ícones…",
+          "icon-more": "Carregar mais",
+          "submit-unavailable": "O envio não está disponível.",
+          "submit-error": "Não foi possível enviar o formulário.",
+          "submit-success": "Resposta enviada com sucesso."
         },
         "lock": {
           "title": "Bloqueio de colunas",
@@ -578,6 +625,8 @@
         "mover-para-baixo": "Mover para baixo",
         "mover-para-lixeira": "Mover para lixeira",
         "confirmar-lixeira": "Confirmar mover para lixeira",
+        "lixeira-selecionadas": "Mover selecionadas para lixeira ({{count}})",
+        "confirmar-lixeira-selecionadas": "Confirmar envio para lixeira ({{count}})",
         "arrastar-linha": "Arrastar linha",
         "arrastar-option": "Arrastar option",
         "arrastar-coluna": "Arrastar coluna",
@@ -608,6 +657,7 @@
           "brl": "Real (BRL)",
           "nenhum": "Nenhum",
           "adicionar-opcao": "Adicionar opção",
+          "selecionar-opcao": "Selecionar opção",
           "excluir-opcao": "Excluir opção",
           "cor-opcao": "Cor da opção",
           "nome-opcao": "Nome da opção",
@@ -713,8 +763,8 @@
   "access": {
     "back": "Voltar",
     "navigation": "Gestão de acesso",
-    "members": "Membros",
-    "member": "Membro",
+    "members": "Colaboradores",
+    "member": "Colaborador",
     "roles": "Templates de roles",
     "role": "Role vinculada",
     "template": "Template",
@@ -724,7 +774,12 @@
     "no-role": "Sem template",
     "owner-help": "O owner administra esta área pela propriedade. Seu acesso não depende de um template e não pode ser reduzido por outros membros.",
     "add-member": "Adicionar membro",
-    "invite-title": "Convidar pessoas",
+    "add-user": "Adicionar usuário",
+    "invite-person": "Convidar colaborador",
+    "exact-email-help": "Para convidar, informe o e-mail completo.",
+    "user-not-found": "Conta não encontrada. Use a opção de convite por e-mail.",
+    "invite-created": "Convite criado. O colaborador precisa aceitar para entrar.",
+    "invite-title": "Convidar colaboradores",
     "invite-type": "Forma do convite",
     "invite-email": "Convite por e-mail",
     "invite-link": "Link genérico",
@@ -756,9 +811,9 @@
     "delete-role": "Excluir role",
     "show-org-roles": "Ver roles da organização",
     "hide-org-roles": "Ocultar roles da organização",
-    "organization-workspace-roles": "Roles das workspaces desta organização",
-    "organization-workspace-roles-help": "Estas roles são somente leitura aqui. Copie uma delas para editar uma versão independente nesta workspace.",
-    "copy-to-workspace": "Copiar para esta workspace",
+    "organization-workspace-roles": "Roles dos espaços de trabalho desta organização",
+    "organization-workspace-roles-help": "Estas roles são somente leitura aqui. Copie uma delas para editar uma versão independente neste espaço de trabalho.",
+    "copy-to-workspace": "Copiar para este espaço de trabalho",
     "edit-template": "Editar o template vinculado",
     "new-role": "Novo template",
     "role-name": "Nome do template",
@@ -779,7 +834,7 @@
     "decided-at": "Decidida em {{date}}",
     "scope": {
       "organization": "Organização",
-      "workspace": "Workspace",
+      "workspace": "Espaço de trabalho",
       "page": "Página"
     },
     "permission": {
@@ -795,6 +850,7 @@
           "create": "Criar e vincular workspaces",
           "add_members": "Adicionar e aceitar membros",
           "promote_members": "Alterar roles dos membros",
+          "remove_members": "Remover colaboradores",
           "create_org_roles": "Criar e editar templates da organização",
           "manage_workspaces": "Administrar todas as workspaces"
         }
@@ -810,7 +866,8 @@
           "create": "Criar páginas",
           "add_members": "Adicionar e aceitar membros",
           "promote_members": "Alterar roles dos membros",
-          "create_wk_roles": "Criar e editar templates da workspace",
+          "remove_members": "Remover colaboradores",
+          "create_wk_roles": "Criar e editar templates do espaço de trabalho",
           "manage_pages": "Administrar todas as páginas"
         }
       },
@@ -826,6 +883,7 @@
           "create": "Criar subpáginas",
           "add_members": "Adicionar e aceitar membros",
           "promote_members": "Alterar roles dos membros",
+          "remove_members": "Remover colaboradores",
           "edit_subpages": "Editar subpáginas",
           "delete": "Excluir esta página",
           "create_page_roles": "Criar e editar templates da página",
@@ -834,7 +892,31 @@
       }
     },
     "manage-permissions": "Gerenciar membros e permissões",
-    "template-permissions": "Permissões do template vinculado"
+    "template-permissions": "Permissões do template vinculado",
+    "breadcrumb": "Navegação das configurações",
+    "search-collaborators": "Buscar colaboradores",
+    "search-placeholder": "Buscar por nome ou e-mail",
+    "clear-search": "Limpar busca",
+    "account-found": "Conta encontrada",
+    "invite-accept-help": "O colaborador aparece na lista depois de aceitar.",
+    "invite-by-link": "Convidar por link",
+    "link-copied": "Link copiado.",
+    "invites": "Convites",
+    "invite-status": "Status dos convites",
+    "all-invites": "Todos",
+    "empty-invites": "Nenhum convite neste status.",
+    "empty-search": "Nenhum colaborador encontrado.",
+    "expiration-day": "24 horas",
+    "expiration-week": "7 dias",
+    "acceptance-count": "{{count}} / {{limit}} aceites",
+    "expires-at": "Expira em {{date}}",
+    "collaborator-count": "{{count}} colaboradores",
+    "collaborator-count_one": "{{count}} colaborador",
+    "member-permissions": "Permissões de {{name}}",
+    "member-actions": "Ações de {{name}}",
+    "remove-collaborator": "Remover colaborador",
+    "remove-confirmation": "Remover o vínculo de {{name}} com esta área? O conteúdo criado permanece preservado. Outros acessos concedidos continuam válidos.",
+    "cancel": "Cancelar"
   },
   "organization": {
     "title": "Organizações",
@@ -850,6 +932,7 @@
     "create-error": "Não foi possível criar a organização. Confira o nome e tente novamente.",
     "workspaces": "Workspaces",
     "new-workspace": "Nova workspace",
+    "view-organizations": "Visualizar organizações",
     "empty-workspaces": "Esta organização ainda não possui workspaces.",
     "enter": "Entrar",
     "request": "Solicitar acesso",

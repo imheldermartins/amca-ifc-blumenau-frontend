@@ -63,6 +63,27 @@ const PAGE_LISTENER_NAMES = [
 ] as const
 
 describe('PageRealtimeChannel', () => {
+  it('recebe ordem compacta e revogação apenas da página assinada', () => {
+    const socket = new FakeSocket()
+    const onRowOrder = vi.fn()
+    const onAccessDenied = vi.fn()
+    const onJoinedChanged = vi.fn()
+    const channel = new PageRealtimeChannel(socket as unknown as CubsSocket, PAGE_ID, {
+      onRowOrder, onAccessDenied, onJoinedChanged,
+    })
+    channel.subscribe()
+    const order = { pageId: PAGE_ID, viewId: 'view-1', rowId: 'row-1', orderRevision: 7, ...META }
+    socket.receive('row-order-updated', { ...order, pageId: OTHER_PAGE_ID })
+    socket.receive('row-order-updated', order)
+    expect(onRowOrder).toHaveBeenCalledExactlyOnceWith(order)
+    socket.receive('page-database-denied', { pageId: OTHER_PAGE_ID })
+    expect(onAccessDenied).not.toHaveBeenCalled()
+    socket.receive('page-database-denied', { pageId: PAGE_ID })
+    expect(onAccessDenied).toHaveBeenCalledOnce()
+    expect(onJoinedChanged).toHaveBeenLastCalledWith(false)
+    channel.dispose()
+    expect(socket.listenerCount('row-order-updated')).toBe(0)
+  })
   it('centraliza join, filtros, eventos duráveis, estrutura e preview efêmero', () => {
     const socket = new FakeSocket()
     const onEvent = vi.fn()

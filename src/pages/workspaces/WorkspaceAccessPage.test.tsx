@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   querySet: vi.fn(),
   listMine: vi.fn(),
   listOrganizations: vi.fn(),
+  create: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
@@ -29,7 +30,7 @@ vi.mock('@/services/WorkspaceService', () => ({
   workspaceService: {
     listMine: mocks.listMine,
     listOrganizations: mocks.listOrganizations,
-    create: vi.fn(),
+    create: mocks.create,
   },
 }))
 
@@ -40,9 +41,12 @@ vi.mock('@iconify/react', () => ({
 }))
 
 import { WorkspaceAccessPage } from './WorkspaceAccessPage'
+import { workspaceQueryKey, workspacesQueryKey } from '@/lib/workspaceQueryKeys'
+import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.localStorage.clear()
   mocks.listOrganizations.mockResolvedValue([
     { id: 'organization-admin', name: 'IFC', data: {}, permissions: {read: ['view'], write: ['create']}, workspaceCount: 1 },
   ])
@@ -77,5 +81,28 @@ describe('WorkspaceAccessPage', () => {
       const [organization] = screen.getAllByRole('combobox')
       expect(organization.textContent).toContain('IFC')
     })
+  })
+
+  it('mantém a criação separada e atualiza o cache antes de abrir as configurações', async () => {
+    const workspace = {
+      id: 'workspace-new', name: 'Nova equipe', organizationId: 'organization-admin',
+      organizationName: 'IFC', isPersonal: false, data: {}, pageRootId: 'workspace-new',
+      owner: { id: 'user-1', name: 'Helder', email: 'helder@ifc.edu.br' },
+    }
+    mocks.create.mockResolvedValue(workspace)
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    queryClient.setQueryData(workspacesQueryKey('user-1'), [{ id: 'personal', isPersonal: true }])
+    render(<QueryClientProvider client={queryClient}><WorkspaceAccessPage /></QueryClientProvider>)
+    await waitFor(() => expect(screen.getByRole('combobox').textContent).toContain('IFC'))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nome da área de trabalho' }), { target: { value: 'Nova equipe' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Criar espaço de trabalho' }))
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({
+      to: '/$lang/workspaces/$workspaceId/settings/general',
+      params: { lang: 'pt-br', workspaceId: 'workspace-new' },
+    }))
+    expect(mocks.create).toHaveBeenCalledWith({ name: 'Nova equipe', organizationId: 'organization-admin' })
+    expect(queryClient.getQueryData(workspaceQueryKey('user-1', 'workspace-new'))).toEqual(workspace)
+    expect(queryClient.getQueryData(workspacesQueryKey('user-1'))).toEqual([{ id: 'personal', isPersonal: true }, workspace])
+    expect(currentWorkspaceSession.get('user-1')).toBe('workspace-new')
   })
 })

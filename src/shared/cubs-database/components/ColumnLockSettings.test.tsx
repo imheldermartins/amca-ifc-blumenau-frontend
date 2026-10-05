@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { Drawer } from 'cubs-components'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ColumnLockSettings, type ColumnLockSettingsLabels } from './ColumnLockSettings'
@@ -26,6 +27,28 @@ const editors = [
 afterEach(() => cleanup())
 
 describe('ColumnLockSettings', () => {
+  it('permite focar e pesquisar dentro da drawer, sem fechar a configuração', async () => {
+    render(<Drawer open onOpenChange={vi.fn()} accessibleTitle="Configurações da view" closeLabel="Fechar">
+      <ColumnLockSettings
+        columns={columns}
+        locks={{ 'status-column': { userIds: ['user-1'] } }}
+        editors={editors}
+        currentUserId="user-1"
+        onChange={vi.fn()}
+        labels={labels}
+      />
+    </Drawer>)
+
+    fireEvent.click(screen.getByRole('button', { name: /Permitidos/ }))
+    const search = await screen.findByRole('searchbox', { name: 'Buscar pessoa' })
+    act(() => search.focus())
+    expect(document.activeElement).toBe(search)
+    fireEvent.change(search, { target: { value: 'bruno@' } })
+    expect(screen.queryByText('Ana Lima')).toBeNull()
+    expect(screen.getByRole('checkbox', { name: 'Permitidos: Bruno Reis' })).not.toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Configurações da view' })).not.toBeNull()
+  })
+
   it('habilita e desabilita o lock usando a chave contratual da coluna', () => {
     const onChange = vi.fn()
     render(<ColumnLockSettings

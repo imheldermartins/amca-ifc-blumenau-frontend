@@ -10,6 +10,7 @@ import type {
   ColumnResizingPayload,
   DatabaseUpdatedPayload,
   PageUpdatedPayload,
+  RowOrderUpdatedPayload,
 } from '@/services/realtime-contract-v1'
 
 export interface UsePageRealtimeOptions {
@@ -30,6 +31,8 @@ export interface UsePageRealtimeOptions {
   onColumnResize?: (payload: ColumnResizingPayload) => void
   /** Refetch autoritativo depois do ACK de cada entrada/reentrada na sala. */
   onResync?: () => void
+  onRowOrder?: (payload: RowOrderUpdatedPayload) => void
+  onAccessDenied?: () => void
   /** Liga o produtor de previews ao channel ativo sem expor o socket. */
   onChannelChange?: (channel: PageRealtimeChannel | null) => void
 }
@@ -88,6 +91,8 @@ export function usePageRealtime(
         if (currentOptions()) setJoined(nextJoined)
       },
       onResync: () => currentOptions()?.onResync?.(),
+      onRowOrder: (payload) => currentOptions()?.onRowOrder?.(payload),
+      onAccessDenied: () => currentOptions()?.onAccessDenied?.(),
     })
 
     setJoined(false)

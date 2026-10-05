@@ -6,6 +6,7 @@ export type EditorBlockKind =
   | 'enumerateList'
   | 'checkList'
   | 'image'
+  | 'formSubmit'
 
 export interface EditorBlockActionProps {
   editor: Editor

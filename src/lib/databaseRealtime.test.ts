@@ -320,6 +320,7 @@ describe('handlers registrados de coluna e snapshot', () => {
               mask: 'cpf',
               format: 'currency',
               currency: 'BRL',
+              flowButton: { label: 'Conferir', icon: 'lucide:play' },
             },
           },
           updatedAt: '2026-07-21T10:00:00Z',
@@ -346,12 +347,14 @@ describe('handlers registrados de coluna e snapshot', () => {
       mask: 'cpf',
       format: 'currency',
       currency: 'BRL',
+      flowButton: { label: 'Conferir', icon: 'lucide:play' },
     })
     expect(result.clock[`column:${COLUNA}`]).toBe('2026-07-21T10:00:00Z')
   })
 
   it('substitui o snapshot completo mesmo quando a view atual pode ser outra', () => {
     const viewId = '01KXVZ0000VIEW000000000001'
+    const board = { selectColumnId: '01KXVZ00000000000000000001', optionOrder: ['__unassigned__'], collapsedOptionIds: ['__unassigned__'], propertyIds: ['01KXVZ00000000000000000001'], showPropertyLabels: false }
     const result = applyRealtimeEvent(
       base(),
       {},
@@ -363,6 +366,7 @@ describe('handlers registrados de coluna e snapshot', () => {
             [viewId]: {
               view: 'board',
               name: 'Quadro',
+              board,
               urlKey: { key: 'quadro', aliases: [] },
               filters: {
                 version: 2,
@@ -392,6 +396,7 @@ describe('handlers registrados de coluna e snapshot', () => {
       [viewId]: {
         view: 'board',
         name: 'Quadro',
+        board,
         urlKey: { key: 'quadro', aliases: [] },
         filters: {
           version: 2,

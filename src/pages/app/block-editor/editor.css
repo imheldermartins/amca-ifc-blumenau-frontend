@@ -312,7 +312,10 @@
 
 [data-editor-block].is-dragging {
   z-index: 30;
-  opacity: 0.2;
+}
+
+[data-editor-block].is-dragging > :not([data-drag-placeholder]) {
+  visibility: hidden;
 }
 
 .cubs-editor-drag-preview {
@@ -390,17 +393,11 @@
   bottom: -0.5rem;
 }
 
-.cubs-editor-row-drop-zone.is-over::after {
-  position: absolute;
-  right: 0;
-  left: 0;
-  top: 50%;
-  height: 0.2rem;
-  border-radius: 999px;
-  background: var(--p-purple);
-  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--p-purple) 14%, transparent);
-  content: '';
-  transform: translateY(-50%);
+.cubs-editor-row-drop-zone.is-over,
+.cubs-editor-item-drop-zone.is-over {
+  position: relative;
+  inset: auto;
+  margin-block: 0.25rem;
 }
 
 .cubs-editor-column-drop-zone {
@@ -417,23 +414,19 @@
   right: 0;
 }
 
-.cubs-editor-column-drop-zone.is-over::after {
-  position: absolute;
-  top: 8%;
-  bottom: 8%;
-  width: 0.2rem;
-  border-radius: 999px;
-  background: var(--p-purple);
-  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--p-purple) 14%, transparent);
-  content: '';
+.cubs-editor-column:has(> .cubs-editor-column-drop-zone.is-over) {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.cubs-editor-column-drop-zone.is-left.is-over::after {
-  left: -1rem;
+.cubs-editor-column:has(> .cubs-editor-column-drop-zone.is-over) > .cubs-editor-column-content {
+  flex: 1;
+  min-width: 0;
 }
 
-.cubs-editor-column-drop-zone.is-right.is-over::after {
-  right: -1rem;
+.cubs-editor-column-drop-zone.is-over {
+  position: relative;
+  inset: auto;
 }
 
 .cubs-editor-item-drop-zone {
@@ -450,28 +443,6 @@
 
 .cubs-editor-item-drop-zone.is-after {
   bottom: 0;
-}
-
-.cubs-editor-item-drop-zone.is-over::after {
-  position: absolute;
-  z-index: 1;
-  right: 0;
-  left: 0;
-  height: 0.16rem;
-  border-radius: 999px;
-  background: var(--p-purple);
-  box-shadow: 0 0 0 0.18rem color-mix(in oklab, var(--p-purple) 13%, transparent);
-  content: '';
-}
-
-.cubs-editor-item-drop-zone.is-before.is-over::after {
-  top: 0;
-  transform: translateY(-50%);
-}
-
-.cubs-editor-item-drop-zone.is-after.is-over::after {
-  bottom: 0;
-  transform: translateY(50%);
 }
 
 .cubs-editor-column-link {

@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { Button, Drawer, Select, Tooltip } from 'cubs-components'
+import { Button, Drawer, Select, Tooltip, type IconPickerLabels } from 'cubs-components'
 
-import type { ColumnLockEditor, ColumnLockMap, DataViewKind, DataViewType, HeaderCol, RowData } from '../types'
+import type { ColumnLockEditor, ColumnLockMap, DataViewKind, DataViewType, FormViewConfig, HeaderCol, RowData } from '../types'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
 import {
   parseViewFilters,
@@ -64,9 +64,15 @@ export interface DatabaseViewToolbarLabels {
   columnLockEmpty?: string
   columnLockAllowed?: string
   columnLocked?: string
+  formFlow?: string
+  formButtonLabel?: string
+  formButtonIcon?: string
+  formIconPicker?: IconPickerLabels
 }
 
 export interface DatabaseViewToolbarProps {
+  board?: DataViewType['board']
+  onBoardChange?: (patch: NonNullable<DataViewType['board']>) => void
   columns: HeaderCol[]
   rows: RowData[]
   viewKind: DataViewKind
@@ -74,6 +80,7 @@ export interface DatabaseViewToolbarProps {
   filters: ViewFiltersV2
   labels: DatabaseViewToolbarLabels
   onViewKindChange?: (view: DataViewKind) => void
+  availableViewKinds?: readonly DataViewKind[]
   onChange?: (filters: ViewFiltersV2) => void
   /** Estado de persistência/realtime já localizado pelo app host. */
   syncStatus?: DatabaseViewToolbarSyncStatus
@@ -85,6 +92,10 @@ export interface DatabaseViewToolbarProps {
   onCalendarChange?: (patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarShowPropertyLabels'>) => void
   calendarPropertyIds?: string[]
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
+  form?: FormViewConfig
+  onFormChange?: (form: FormViewConfig) => void
+  /** Slot no header principal para controles específicos da FormView. */
+  formHeaderPortalRef?: (node: HTMLDivElement | null) => void
   columnLocks?: ColumnLockMap
   columnLockEditors?: ColumnLockEditor[]
   canManageColumnLocks?: boolean
@@ -111,6 +122,7 @@ export function DatabaseViewToolbar({
   filters,
   labels,
   onViewKindChange,
+  availableViewKinds = DATA_VIEW_KINDS,
   onChange,
   syncStatus,
   onAddRow,
@@ -120,6 +132,11 @@ export function DatabaseViewToolbar({
   onCalendarChange,
   calendarPropertyIds,
   onCalendarPropertyIdsChange,
+  board,
+  onBoardChange,
+  form,
+  onFormChange,
+  formHeaderPortalRef,
   columnLocks = {},
   columnLockEditors = [],
   canManageColumnLocks = false,
@@ -144,12 +161,15 @@ export function DatabaseViewToolbar({
   )
   const viewOptions = useMemo(
     () =>
-      DATA_VIEW_KINDS.map((view) => ({
+      (availableViewKinds.includes(viewKind)
+        ? availableViewKinds
+        : [viewKind, ...availableViewKinds]
+      ).map((view) => ({
         value: view,
         label: labels.viewTypes[view],
         icon: VIEW_KIND_ICON[view],
       })),
-    [labels.viewTypes],
+    [availableViewKinds, labels.viewTypes, viewKind],
   )
 
   const changeGroups = (groupBy: string[]) =>
@@ -185,46 +205,51 @@ export function DatabaseViewToolbar({
         disabled={!onViewKindChange}
         onValueChange={(value) => onViewKindChange?.(value as DataViewKind)}
       />
-      <PrioritySelect
-        options={valueColumns.map((column) => ({ value: column.id, label: column.title }))}
-        value={validGroupBy}
-        onValueChange={changeGroups}
-        disabled={!onChange}
-        icon="lucide:group"
-        labels={{
-          trigger: labels.groupBy,
-          search: labels.searchColumns,
-          empty: labels.noColumns,
-          drag: labels.dragGroup,
-          select: labels.selectGroup,
-          priority: labels.priority,
-          clear: labels.clearGroups,
-        }}
-      />
-      <FilterPopover
-        columns={valueColumns}
-        columnTypes={columnTypes}
-        filterCount={document.clauses.length}
-        disabled={!onChange}
-        onAdd={addFilter}
-        onClear={onChange ? clearFilters : undefined}
-        labels={{
-          trigger: labels.filters,
-          where: labels.where,
-          column: labels.column,
-          condition: labels.condition,
-          value: labels.value,
-          valueFrom: labels.valueFrom,
-          valueTo: labels.valueTo,
-          add: labels.addFilter,
-          clear: labels.clearFilters,
-          true: labels.true,
-          false: labels.false,
-          conditions: labels.conditions,
-        }}
-      />
+      {includeSettingsButton && viewKind === 'form' ? (
+        <div ref={formHeaderPortalRef} className="min-h-9" data-form-view-header-controls />
+      ) : null}
+      {viewKind !== 'form' ? <>
+        {viewKind !== 'board' ? <PrioritySelect
+          options={valueColumns.map((column) => ({ value: column.id, label: column.title }))}
+          value={validGroupBy}
+          onValueChange={changeGroups}
+          disabled={!onChange}
+          icon="lucide:group"
+          labels={{
+            trigger: labels.groupBy,
+            search: labels.searchColumns,
+            empty: labels.noColumns,
+            drag: labels.dragGroup,
+            select: labels.selectGroup,
+            priority: labels.priority,
+            clear: labels.clearGroups,
+          }}
+        /> : null}
+        <FilterPopover
+          columns={valueColumns}
+          columnTypes={columnTypes}
+          filterCount={document.clauses.length}
+          disabled={!onChange}
+          onAdd={addFilter}
+          onClear={onChange ? clearFilters : undefined}
+          labels={{
+            trigger: labels.filters,
+            where: labels.where,
+            column: labels.column,
+            condition: labels.condition,
+            value: labels.value,
+            valueFrom: labels.valueFrom,
+            valueTo: labels.valueTo,
+            add: labels.addFilter,
+            clear: labels.clearFilters,
+            true: labels.true,
+            false: labels.false,
+            conditions: labels.conditions,
+          }}
+        />
+      </> : null}
 
-      {document.clauses.map((clause, index) => {
+      {viewKind !== 'form' ? document.clauses.map((clause, index) => {
         const column = columnsById.get(clause.columnId)
         const columnType = column ? columnTypes[column.id] : undefined
         if (!column || !columnType || columnType === 'flow') return null
@@ -243,11 +268,11 @@ export function DatabaseViewToolbar({
             }}
           />
         )
-      })}
+      }) : null}
 
-      {onAddRow || syncStatus ? (
+      {(onAddRow && viewKind !== 'form') || syncStatus ? (
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          {onAddRow ? (
+          {onAddRow && viewKind !== 'form' ? (
             <Tooltip content={labels.newPage} delayDuration={0}>
               <Button
                 type="button"
@@ -286,10 +311,23 @@ export function DatabaseViewToolbar({
           <div className="flex flex-wrap items-center gap-2">{renderControls(false)}</div>
         </div>
         <ViewSettingsForm type={viewKind} settings={settings} onChange={onSettingsChange ?? (() => {})}
+          board={board} onBoardChange={onBoardChange}
           columns={columns} calendar={calendar} onCalendarChange={onCalendarChange}
           calendarLabels={{ dateProperty: labels.dateProperty ?? 'Propriedade de data', colorProperty: labels.colorProperty ?? 'Propriedade de cor', defaultColor: labels.defaultColor ?? 'Automática (primeira seleção)', showPropertyLabels: labels.showPropertyLabels ?? 'Mostrar nomes das propriedades' }}
           calendarPropertyIds={calendarPropertyIds} onCalendarPropertyIdsChange={onCalendarPropertyIdsChange}
-          calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }} />
+          calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }}
+          form={form}
+          onFormChange={onFormChange}
+          formLabels={{
+            flow: labels.formFlow ?? 'Flow executado no envio',
+            buttonLabel: labels.formButtonLabel ?? 'Texto do botão',
+            buttonIcon: labels.formButtonIcon ?? 'Ícone do botão',
+            iconPicker: labels.formIconPicker ?? {
+              choose: 'Escolher ícone', search: 'Buscar ícone',
+              empty: 'Nenhum ícone encontrado', loading: 'Carregando ícones…',
+              loadMore: 'Carregar mais',
+            },
+          }} />
         {canManageColumnLocks && currentUserId && onColumnLockChange ? <ColumnLockSettings
           columns={columns}
           locks={columnLocks}

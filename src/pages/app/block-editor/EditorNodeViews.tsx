@@ -8,7 +8,7 @@ import {
   NodeViewWrapper,
   type NodeViewProps,
 } from '@tiptap/react'
-import { ContextMenu, cn, type ContextMenuItem } from 'cubs-components'
+import { ContextMenu, DragPlaceholder, dragPlaceholderStyle, cn, type ContextMenuItem } from 'cubs-components'
 import {
   useRef,
   useLayoutEffect,
@@ -24,7 +24,9 @@ import { i18n } from '@/lib/i18n'
 import { type EditorDropTarget } from './blockLayout'
 import { ColumnLayoutRules, MAX_COLUMNS } from './columnLayoutRules'
 import { type EditorDragData } from './EditorDnd'
+import { EditorDropPlaceholder } from './EditorDropPlaceholder'
 import { useEditorInteractions } from './EditorInteractionContext'
+import { useEditorEnvironment } from './editorEnvironmentContext'
 
 function stringAttribute(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
@@ -114,7 +116,6 @@ function commitRowWidths(
 export function BlockRowView({ node }: NodeViewProps) {
   const rowId = stringAttribute(node.attrs.id) ?? crypto.randomUUID()
   const { active } = useDndContext()
-  const { activeDropId } = useEditorInteractions()
   const activeData = active?.data.current as EditorDragData | undefined
   const disabled = Boolean(
     activeData &&
@@ -131,17 +132,9 @@ export function BlockRowView({ node }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="cubs-editor-row" data-editor-row="" data-row-id={rowId}>
-      <span
-        ref={before.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-row-drop-zone is-before', activeDropId === beforeId && 'is-over')}
-      />
+      <EditorDropPlaceholder id={beforeId} setNodeRef={before.setNodeRef} className="cubs-editor-row-drop-zone is-before" />
       <NodeViewContent className="cubs-editor-row-content" />
-      <span
-        ref={after.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-row-drop-zone is-after', activeDropId === afterId && 'is-over')}
-      />
+      <EditorDropPlaceholder id={afterId} setNodeRef={after.setNodeRef} className="cubs-editor-row-drop-zone is-after" />
     </NodeViewWrapper>
   )
 }
@@ -171,7 +164,6 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
   const hasNextColumn = nextColumn?.type.name === 'blockColumn'
   const { active } = useDndContext()
   const {
-    activeDropId,
     clearColumnWidthPreview,
     columnWidthPreview,
     setColumnWidthPreview,
@@ -314,17 +306,9 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
       data-column-id={columnId}
       data-column-width={width}
     >
-      <span
-        ref={leftDrop.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-column-drop-zone is-left', activeDropId === leftId && 'is-over')}
-      />
+      <EditorDropPlaceholder id={leftId} setNodeRef={leftDrop.setNodeRef} className="cubs-editor-column-drop-zone is-left" />
       <NodeViewContent className="cubs-editor-column-content" />
-      <span
-        ref={rightDrop.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-column-drop-zone is-right', activeDropId === rightId && 'is-over')}
-      />
+      <EditorDropPlaceholder id={rightId} setNodeRef={rightDrop.setNodeRef} className="cubs-editor-column-drop-zone is-right" />
 
       {hasNextColumn && (
         <button
@@ -353,6 +337,11 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
 export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
   const blockId = stringAttribute(node.attrs.id) ?? crypto.randomUUID()
   const kind = stringAttribute(node.attrs.kind) ?? 'richText'
+  const formViewId = stringAttribute(node.attrs.formViewId)
+  const environment = useEditorEnvironment()
+  const form = kind === 'formSubmit'
+    ? environment.forms.find((candidate) => candidate.viewId === formViewId)
+    : undefined
   const resolved = resolvedPosition({ editor, getPos })
   const rowDepth = ancestorDepth(resolved, 'blockRow')
   const columnDepth = ancestorDepth(resolved, 'blockColumn')
@@ -361,9 +350,8 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
   const columnIndex = rowDepth === null || !resolved ? -1 : resolved.index(rowDepth)
   const rowId = stringAttribute(rowNode?.attrs.id) ?? ''
   const columnId = stringAttribute(columnNode?.attrs.id) ?? ''
-  const { active } = useDndContext()
+  const { active, activeNodeRect } = useDndContext()
   const {
-    activeDropId,
     clearColumnWidthPreview,
   } = useEditorInteractions()
   const [layoutMenu, setLayoutMenu] = useState<{ left: number; top: number } | null>(null)
@@ -396,7 +384,8 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
     } satisfies EditorDragData,
   })
   const dragStyle: CSSProperties = {
-    transform: CSS.Translate.toString(drag.transform),
+    ...(drag.isDragging ? dragPlaceholderStyle(activeNodeRect) : undefined),
+    transform: drag.isDragging ? undefined : CSS.Translate.toString(drag.transform),
     transition: drag.isDragging
       ? undefined
       : 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
@@ -452,11 +441,8 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
       data-block-kind={kind}
       data-block-indent={node.attrs.indent ?? 0}
     >
-      <span
-        ref={beforeDrop.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-item-drop-zone is-before', activeDropId === beforeId && 'is-over')}
-      />
+      {drag.isDragging && <DragPlaceholder />}
+      <EditorDropPlaceholder id={beforeId} setNodeRef={beforeDrop.setNodeRef} className="cubs-editor-item-drop-zone is-before" />
       <button
         ref={drag.setActivatorNodeRef}
         type="button"
@@ -475,12 +461,20 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
           <span key={index} aria-hidden="true" />
         ))}
       </button>
-      <NodeViewContent className="cubs-editor-block-content min-h-9" />
-      <span
-        ref={afterDrop.setNodeRef}
-        contentEditable={false}
-        className={cn('cubs-editor-item-drop-zone is-after', activeDropId === afterId && 'is-over')}
-      />
+      {kind === 'formSubmit' ? (
+        <div contentEditable={false} className="cubs-editor-block-content flex min-h-20 items-center justify-center rounded-xl border border-divider bg-contrast/35 p-4">
+          <button
+            type="button"
+            disabled={!form}
+            onClick={() => { if (form) environment.openForm(form.viewId) }}
+            className="inline-flex items-center gap-2 rounded-lg bg-p-purple px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon icon={form?.icon ?? 'lucide:send'} className="size-4" />
+            {form?.label ?? 'Formulário indisponível'}
+          </button>
+        </div>
+      ) : <NodeViewContent className="cubs-editor-block-content min-h-9" />}
+      <EditorDropPlaceholder id={afterId} setNodeRef={afterDrop.setNodeRef} className="cubs-editor-item-drop-zone is-after" />
       <div contentEditable={false} className="pointer-events-none absolute inset-0 z-50">
         <ContextMenu
           open={Boolean(layoutMenu)}

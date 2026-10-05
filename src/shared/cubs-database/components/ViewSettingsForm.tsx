@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from 'react'
-import { Checkbox, Select, Switch } from 'cubs-components'
+import { Checkbox, IconPicker, Select, Switch, TextField, type IconPickerLabels } from 'cubs-components'
 
-import type { DataViewKind, DataViewType, HeaderCol } from '../types'
+import type { BoardViewConfig, CatalogIcon, DataViewKind, DataViewType, FormViewConfig, HeaderCol } from '../types'
+import { createDefaultFormViewConfig } from '../formView'
 import { mappedForm, type ViewMockSettings } from '../viewSettings'
 import { PrioritySelect, type PrioritySelectLabels } from './PrioritySelect'
 
@@ -70,6 +71,37 @@ function CalendarPropertyVisibility({
   </div>
 }
 
+function FormButtonLabelField({
+  value,
+  label,
+  disabled,
+  onCommit,
+}: {
+  value: string
+  label: string
+  disabled: boolean
+  onCommit: (value: string) => void
+}) {
+  const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [value])
+  const commit = () => {
+    const next = draft.trim()
+    if (next && next !== value) onCommit(next)
+    else if (!next) setDraft(value)
+  }
+  return (
+    <TextField
+      label={label}
+      value={draft}
+      maxLength={80}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+    />
+  )
+}
+
 export function ViewSettingsForm({
   type,
   settings,
@@ -81,8 +113,15 @@ export function ViewSettingsForm({
   calendarPropertyIds,
   onCalendarPropertyIdsChange,
   calendarPropertyLabels,
+  form,
+  onFormChange,
+  formLabels,
+  board,
+  onBoardChange,
 }: {
   type: DataViewKind
+  board?: BoardViewConfig
+  onBoardChange?: (patch: BoardViewConfig) => void
   settings: ViewMockSettings
   onChange: (patch: Partial<ViewMockSettings>) => void
   columns?: HeaderCol[]
@@ -92,14 +131,47 @@ export function ViewSettingsForm({
   calendarPropertyIds?: string[]
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
   calendarPropertyLabels?: PrioritySelectLabels
+  form?: FormViewConfig
+  onFormChange?: (form: FormViewConfig) => void
+  formLabels?: {
+    flow: string
+    buttonLabel: string
+    buttonIcon: string
+    iconPicker: IconPickerLabels
+  }
 }) {
   const dateColumns = columns.filter((column) => column.type === 'date')
   const colorColumns = columns.filter((column) => column.type === 'select')
   const activeDateColumnId = calendar?.dateColumnId ?? dateColumns[0]?.id
   const propertyColumns = columns.filter((column) => column.key !== 'title' && column.id !== activeDateColumnId && column.type !== 'flow')
   const visiblePropertyIds = calendarPropertyIds ?? propertyColumns.map((column) => column.id)
+  const defaultForm = createDefaultFormViewConfig(columns)
+  const activeForm = form ?? defaultForm
+  const flowColumns = columns.filter((column) => column.type === 'flow')
+  const updateForm = (patch: Partial<FormViewConfig>) => {
+    if (!activeForm || !onFormChange) return
+    onFormChange({ ...activeForm, ...patch })
+  }
+  const updateSubmitButton = (patch: Partial<FormViewConfig['submitButton']>) => {
+    if (!activeForm || !onFormChange) return
+    onFormChange({
+      ...activeForm,
+      submitButton: { ...activeForm.submitButton, ...patch },
+    })
+  }
   return (
     <div className="grid gap-4">
+      {type === 'board' ? <>
+        <Select label="Propriedade do Board" aria-label="Propriedade do Board" value={board?.selectColumnId ?? colorColumns[0]?.id ?? ''}
+          disabled={!onBoardChange} options={colorColumns.map((column) => ({ value: column.id, label: column.title }))}
+          onValueChange={(selectColumnId) => onBoardChange?.({ selectColumnId, optionOrder: [], collapsedOptionIds: [] })} />
+        <Checkbox label="Mostrar nomes das propriedades" checked={board?.showPropertyLabels !== false} disabled={!onBoardChange}
+          onCheckedChange={(showPropertyLabels) => onBoardChange?.({ showPropertyLabels })} />
+        <CalendarPropertyVisibility options={columns.filter((column) => column.key !== 'title').map((column) => ({ value: column.id, label: column.title }))}
+          value={board?.propertyIds ?? columns.filter((column) => column.key !== 'title').map((column) => column.id)}
+          onChange={onBoardChange ? (propertyIds) => onBoardChange({ propertyIds }) : undefined} disabled={!onBoardChange}
+          labels={calendarPropertyLabels ?? { trigger: 'Propriedades visíveis', search: 'Buscar propriedade', empty: 'Nenhuma propriedade', drag: 'Reordenar propriedade', select: 'Mostrar propriedade', priority: 'Posição', clear: 'Ocultar todas' }} />
+      </> : null}
       {type === 'calendar' ? <>
         <Select label={calendarLabels?.dateProperty ?? 'Propriedade de data'} aria-label={calendarLabels?.dateProperty ?? 'Propriedade de data'}
           value={calendar?.dateColumnId ?? dateColumns[0]?.id ?? ''}
@@ -123,6 +195,35 @@ export function ViewSettingsForm({
           onChange={onCalendarPropertyIdsChange}
           labels={calendarPropertyLabels ?? { trigger: 'Propriedades visíveis', search: 'Buscar propriedade', empty: 'Nenhuma propriedade', drag: 'Reordenar propriedade', select: 'Mostrar propriedade', priority: 'Posição', clear: 'Ocultar todas' }}
           disabled={!onCalendarPropertyIdsChange}
+        />
+      </> : null}
+      {type === 'form' && activeForm ? <>
+        <Select
+          label={formLabels?.flow ?? 'Flow executado no envio'}
+          aria-label={formLabels?.flow ?? 'Flow executado no envio'}
+          value={activeForm.flowColumnId}
+          options={flowColumns.map((column) => ({ value: column.id, label: column.title }))}
+          disabled={!onFormChange}
+          onValueChange={(flowColumnId) => updateForm({ flowColumnId })}
+        />
+        <FormButtonLabelField
+          label={formLabels?.buttonLabel ?? 'Texto do botão'}
+          value={activeForm.submitButton.label}
+          disabled={!onFormChange}
+          onCommit={(label) => updateSubmitButton({ label })}
+        />
+        <IconPicker
+          label={formLabels?.buttonIcon ?? 'Ícone do botão'}
+          labels={formLabels?.iconPicker ?? {
+            choose: 'Escolher ícone',
+            search: 'Buscar ícone',
+            empty: 'Nenhum ícone encontrado',
+            loading: 'Carregando ícones…',
+            loadMore: 'Carregar mais',
+          }}
+          value={activeForm.submitButton.icon ?? undefined}
+          disabled={!onFormChange}
+          onValueChange={(icon) => updateSubmitButton({ icon: icon as CatalogIcon })}
         />
       </> : null}
       {mappedForm[type].map((field) => (

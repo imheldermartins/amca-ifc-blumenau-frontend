@@ -23,13 +23,17 @@ import type {
   ColumnDataType,
   ColumnMask,
   ColumnOption,
+  CatalogIcon,
   CurrencyCode,
   DataViewKind,
   DataViewSettings,
   DataViewType,
   FlowConditionOperator,
   FlowDefinition,
+  FlowDefinitionV2,
   FlowNode,
+  FlowStepV2,
+  FormViewConfig,
   HeaderCol,
   NumberFormat,
   OptionColor,
@@ -40,6 +44,7 @@ import type {
 } from 'cubs-database'
 import {
   emptyViewFilters,
+  parseBoardConfig,
   getFilterCondition,
   isDataViewKind,
   parsePublicKeyMetadata,
@@ -61,6 +66,7 @@ export interface ApiSelectOption {
 }
 
 export interface ApiPageColumnData {
+  flowButton?: { label: string | null; icon: string }
   options?: ApiSelectOption[]
   format?: 'percentage' | 'currency'
   currency?: string
@@ -179,7 +185,70 @@ export function parseFlowDefinition(raw: unknown): FlowDefinition | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const value = raw as Record<string, unknown>
   const trigger = value.trigger as Record<string, unknown> | undefined
-  if (value.version !== 1 || trigger?.type !== 'manual' || !Array.isArray(value.nodes)) return undefined
+  if (trigger?.type !== 'manual' || !Array.isArray(value.nodes)) return undefined
+
+  if (value.version === 2) {
+    const parseStep = (rawStep: unknown): FlowStepV2 | null => {
+      if (!rawStep || typeof rawStep !== 'object' || Array.isArray(rawStep)) return null
+      const step = rawStep as Record<string, unknown>
+      const config = step.config as Record<string, unknown> | undefined
+      if (typeof step.id !== 'string' || !config) return null
+      if (step.type === 'email'
+        && typeof config.to === 'string'
+        && typeof config.subject === 'string'
+        && typeof config.body === 'string') {
+        return { id: step.id, type: 'email', config: { to: config.to, subject: config.subject, body: config.body } }
+      }
+      if (step.type === 'set_value' && typeof config.columnId === 'string') {
+        return { id: step.id, type: 'set_value', config: { columnId: config.columnId, value: config.value } }
+      }
+      if (step.type === 'switch'
+        && typeof config.columnId === 'string'
+        && typeof config.operator === 'string'
+        && FLOW_OPERATORS.includes(config.operator as FlowConditionOperator)
+        && Array.isArray(config.whenTrue)
+        && Array.isArray(config.whenFalse)) {
+        const whenTrue = config.whenTrue.map(parseStep)
+        const whenFalse = config.whenFalse.map(parseStep)
+        if (whenTrue.some((step) => !step) || whenFalse.some((step) => !step)) return null
+        const operator = config.operator as FlowConditionOperator
+        if (!['is_empty', 'is_not_empty'].includes(operator) && config.value === undefined) return null
+        return {
+          id: step.id,
+          type: 'switch',
+          config: {
+            columnId: config.columnId,
+            operator,
+            ...(!['is_empty', 'is_not_empty'].includes(operator) && { value: config.value }),
+            whenTrue: whenTrue as FlowStepV2[],
+            whenFalse: whenFalse as FlowStepV2[],
+          },
+        }
+      }
+      return null
+    }
+    if (value.nodes.length < 2) return undefined
+    const start = value.nodes[0] as Record<string, unknown> | undefined
+    const callback = value.nodes.at(-1) as Record<string, unknown> | undefined
+    const startConfig = start?.config as Record<string, unknown> | undefined
+    const callbackConfig = callback?.config as Record<string, unknown> | undefined
+    if (start?.type !== 'start' || typeof start.id !== 'string' || !startConfig
+      || callback?.type !== 'callback' || typeof callback.id !== 'string' || !callbackConfig
+      || (callbackConfig.message !== undefined && typeof callbackConfig.message !== 'string')) return undefined
+    const steps = value.nodes.slice(1, -1).map(parseStep)
+    if (steps.some((step) => !step)) return undefined
+    return {
+      version: 2,
+      trigger: { type: 'manual' },
+      nodes: [
+        { id: start.id, type: 'start', config: {} },
+        ...(steps as FlowStepV2[]),
+        { id: callback.id, type: 'callback', config: { ...(typeof callbackConfig.message === 'string' && { message: callbackConfig.message }) } },
+      ],
+    } satisfies FlowDefinitionV2
+  }
+
+  if (value.version !== 1) return undefined
 
   const nodes: FlowNode[] = []
   for (const rawNode of value.nodes) {
@@ -306,6 +375,9 @@ export function parseHeaderCols(
     const currency: CurrencyCode | undefined = column.data?.currency === 'BRL' ? 'BRL' : undefined
     const mask = isColumnMask(column.data?.mask) ? column.data.mask : undefined
     const flow = parseFlowDefinition(column.data?.flow)
+    const button = column.data?.flowButton
+    const flowButton = button && (button.label === null || typeof button.label === 'string') && typeof button.icon === 'string'
+      ? { label: button.label, icon: button.icon } : undefined
 
     return {
       id: column.id,
@@ -319,6 +391,7 @@ export function parseHeaderCols(
       ...(currency && { currency }),
       ...(mask && { mask }),
       ...(flow && { flow }),
+      ...(flowButton && { flowButton }),
     }
   })
 
@@ -404,6 +477,40 @@ function parsePageTitleColumn(raw: unknown): PageTitleColumn | undefined {
   }
 }
 
+const FORM_ICON_PATTERN = /^(?:cuida|lucide):[a-z0-9][a-z0-9-]*$/i
+
+function parseFormViewConfig(raw: unknown): FormViewConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const candidate = raw as Record<string, unknown>
+  const submitButton = candidate.submitButton
+  if (
+    candidate.version !== 1 ||
+    typeof candidate.flowColumnId !== 'string' ||
+    !submitButton ||
+    typeof submitButton !== 'object'
+  ) {
+    return undefined
+  }
+  const button = submitButton as Record<string, unknown>
+  const label = typeof button.label === 'string' ? button.label.trim() : ''
+  const icon = button.icon
+  const hiddenFieldIds = Array.isArray(candidate.hiddenFieldIds)
+    ? [...new Set(candidate.hiddenFieldIds.filter((id): id is string => typeof id === 'string'))]
+    : undefined
+  if (
+    !label ||
+    (icon !== null && (typeof icon !== 'string' || !FORM_ICON_PATTERN.test(icon)))
+  ) {
+    return undefined
+  }
+  return {
+    version: 1,
+    flowColumnId: candidate.flowColumnId,
+    ...(hiddenFieldIds && { hiddenFieldIds }),
+    submitButton: { label, icon: icon as CatalogIcon | null },
+  }
+}
+
 /** Uma entrada de `page.data` só vira view se tiver o formato esperado. */
 function parseView(raw: unknown): DataViewType | null {
   if (!raw || typeof raw !== 'object') return null
@@ -416,6 +523,9 @@ function parseView(raw: unknown): DataViewType | null {
   const calendarPropertyIds = parseIdList(candidate.calendarPropertyIds)
   const title = parsePageTitleColumn(candidate.title)
   const filters = parseViewFilters(candidate.filters as string | ViewFiltersV2 | null | undefined)
+  const form = parseFormViewConfig(candidate.form)
+  const rankConfig = candidate.rowOrder as { version?: unknown; revision?: unknown } | null | undefined
+  const rowOrder: DataViewType['rowOrder'] = rankConfig?.version === 2 && typeof rankConfig.revision === 'number' && Number.isSafeInteger(rankConfig.revision) && rankConfig.revision >= 0 ? { version: 2, revision: rankConfig.revision } : undefined
 
   return {
     view: candidate.view,
@@ -435,11 +545,17 @@ function parseView(raw: unknown): DataViewType | null {
     // Ausente e vazio são a MESMA coisa na leitura (ordem natural), então o
     // campo só entra quando tem conteúdo — snapshot enxuto.
     ...(orderedRows.length > 0 && { orderedRows }),
+    ...(rowOrder && { rowOrder }),
     ...(columnWidths && { columnWidths }),
+    ...(typeof candidate.tileSize === 'string' && ['small', 'medium', 'large'].includes(candidate.tileSize) && {
+      tileSize: candidate.tileSize as NonNullable<DataViewType['tileSize']>,
+    }),
     ...(typeof candidate.dateColumnId === 'string' && { dateColumnId: candidate.dateColumnId }),
     ...((typeof candidate.colorColumnId === 'string' || candidate.colorColumnId === null) && { colorColumnId: candidate.colorColumnId }),
     ...(Array.isArray(candidate.calendarPropertyIds) && { calendarPropertyIds }),
     ...(typeof candidate.calendarShowPropertyLabels === 'boolean' && { calendarShowPropertyLabels: candidate.calendarShowPropertyLabels }),
+    ...(form && { form }),
+    ...(parseBoardConfig(candidate.board) && { board: parseBoardConfig(candidate.board) }),
   }
 }
 

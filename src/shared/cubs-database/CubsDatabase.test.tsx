@@ -9,6 +9,36 @@ const VIEW_ID = '01KXVZ0000VIEW00000000001'
 
 afterEach(() => cleanup())
 
+describe('CubsDatabase — lixeira das linhas selecionadas', () => {
+  it('encaminha somente linhas visíveis após filtros e respeita envio em andamento', () => {
+    const onDeleteRows = vi.fn()
+    const props = {
+      settings: { [VIEW_ID]: {
+        view: 'table' as const, name: 'Tabela',
+        urlKey: { key: 'tabela', aliases: [] },
+        orderedHeaderCols: ['name'],
+        filters: { ...emptyViewFilters(), clauses: [{ columnId: 'name', condition: 'contains' as const, values: ['Ana'] }] },
+      } },
+      headerCols: [{ id: 'name', title: 'Nome', type: 'text' as const }],
+      rows: [
+        { id: 'ana-1', cells: { name: { value: 'Ana Martins' } } },
+        { id: 'bia', cells: { name: { value: 'Bia' } } },
+        { id: 'ana-2', cells: { name: { value: 'Ana Silva' } } },
+      ],
+      onDeleteRows,
+    }
+    const { rerender } = render(<CubsDatabase {...props} />)
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[0])
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar todas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mover selecionadas para lixeira (2)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover selecionadas para lixeira (2)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirmar envio para lixeira (2)' }))
+    expect(onDeleteRows).toHaveBeenCalledExactlyOnceWith(['ana-1', 'ana-2'])
+    rerender(<CubsDatabase {...props} deletingRows />)
+    expect(screen.getByRole('button', { name: 'Mover selecionadas para lixeira (2)' }).hasAttribute('disabled')).toBe(true)
+  })
+})
+
 describe('CubsDatabase — coluna mestra title', () => {
   it('usa o column_name da view e envia o rename para o snapshot', () => {
     const onPageTitleColumnChange = vi.fn()
@@ -192,6 +222,51 @@ describe('CubsDatabase — tipo da view atual', () => {
 
     expect(document.querySelector('[data-grid-container]')).toBeNull()
     expect(document.querySelector('[data-database-calendar]')).not.toBeNull()
+  })
+})
+
+describe('CubsDatabase — view formulário', () => {
+  it('projeta os modos no header e persiste campos ocultos na view ativa', () => {
+    const onFormConfigChange = vi.fn()
+    const fieldId = '01KXVZ00000000000000000001'
+    const flowId = '01KXVZ00000000000000000002'
+    const form = {
+      version: 1 as const,
+      flowColumnId: flowId,
+      submitButton: { label: 'Enviar', icon: 'lucide:send' as const },
+    }
+    render(
+      <CubsDatabase
+        settings={{
+          [VIEW_ID]: {
+            view: 'form',
+            name: 'Formulário',
+            urlKey: { key: 'formulario', aliases: [] },
+            filters: emptyViewFilters(),
+            orderedHeaderCols: [fieldId, flowId],
+            form,
+          },
+        }}
+        headerCols={[
+          { id: fieldId, title: 'E-mail', type: 'text' },
+          { id: flowId, title: 'Enviar flow', type: 'flow' },
+        ]}
+        rows={[]}
+        onFormConfigChange={onFormConfigChange}
+      />,
+    )
+
+    const target = document.querySelector('[data-form-view-header-controls]')
+    const viewContainer = document.querySelector('[data-database-view-container]')
+    const preview = screen.getByRole('button', { name: 'Visualizar formulário' })
+    expect(target?.contains(preview)).toBe(true)
+    expect(viewContainer?.contains(preview)).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ocultar do preenchimento: E-mail' }))
+    expect(onFormConfigChange).toHaveBeenCalledWith(VIEW_ID, {
+      ...form,
+      hiddenFieldIds: [fieldId],
+    })
   })
 })
 

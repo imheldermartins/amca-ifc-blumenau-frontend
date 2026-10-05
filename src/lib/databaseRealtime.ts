@@ -277,6 +277,7 @@ export function applyLocalColumnConfig(
   patch: ColumnConfigPatch,
 ): ParsedDatabase {
   const applied: Partial<HeaderCol> = {}
+  if (patch.flowButton !== undefined) applied.flowButton = patch.flowButton
   if ('format' in patch) applied.format = patch.format ?? undefined
   if ('currency' in patch) applied.currency = patch.currency ?? undefined
   if ('mask' in patch) applied.mask = patch.mask ?? undefined

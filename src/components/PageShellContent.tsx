@@ -14,8 +14,6 @@ export interface PageShellContentProps {
 }
 
 function PageContentPlaceholder({ view }: { view: Exclude<PageContentView, 'files'> }) {
-  const icon = view === 'document' ? 'lucide:file-text' : 'lucide:workflow'
-
   return (
     <section
       id={`page-content-${view}`}
@@ -24,7 +22,7 @@ function PageContentPlaceholder({ view }: { view: Exclude<PageContentView, 'file
       className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-dashed border-divider bg-contrast/40 px-6 text-center"
     >
       <span className="mb-3 rounded-xl bg-active p-3 text-dark-100 dark:text-light-900">
-        <Icon icon={icon} fontSize={28} aria-hidden="true" />
+        <Icon icon="lucide:file-text" fontSize={28} aria-hidden="true" />
       </span>
       <Typography variant="h3">
         {i18n(`pages.app.pagina.views.${view}.title`)}

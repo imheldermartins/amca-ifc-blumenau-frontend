@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DataViewSettings } from '../types'
@@ -22,6 +22,7 @@ const viewTypeLabels = {
   calendar: 'Calendário',
   timeline: 'Cronograma',
   graph: 'Grafos',
+  form: 'Formulário',
 }
 
 describe('ViewTabsBar — adicionar view', () => {
@@ -58,6 +59,24 @@ describe('ViewTabsBar — adicionar view', () => {
     )
     expect(screen.queryByRole('button', { name: 'Adicionar view' })).toBeNull()
   })
+
+  it('oculta Form quando o contexto não possui coluna Flow', () => {
+    render(
+      <ViewTabsBar
+        settings={settings}
+        activeViewId="01KXVZ0000VIEW00000000001"
+        onViewChange={vi.fn()}
+        onAddView={vi.fn()}
+        addViewLabel="Adicionar view"
+        viewTypeLabels={viewTypeLabels}
+        availableViewKinds={['table', 'grid', 'board', 'calendar', 'timeline', 'graph']}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar view' }))
+    expect(screen.queryByRole('menuitem', { name: 'Formulário' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Tabela' })).not.toBeNull()
+  })
 })
 
 describe('ViewTabsBar — renomear view', () => {
@@ -90,6 +109,33 @@ describe('ViewTabsBar — renomear view', () => {
 })
 
 describe('ViewTabsBar — ordem sortable', () => {
+  it('reserva as dimensões da aba e cancela sem persistir a ordem', async () => {
+    const firstId = '01KXVZ0000VIEW00000000001'
+    const secondId = '01KXVZ0000VIEW00000000002'
+    const onViewOrderChange = vi.fn()
+    render(<ViewTabsBar
+      settings={{ ...settings, [secondId]: { ...settings[firstId], name: 'Outra aba' } }}
+      activeViewId={firstId}
+      onViewChange={vi.fn()}
+      onViewOrderChange={onViewOrderChange}
+    />)
+    const tab = screen.getByRole('button', { name: 'Tabela' })
+    const source = tab.parentElement!
+    vi.spyOn(source, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 98, 30))
+    tab.focus()
+    fireEvent.keyDown(tab, { key: ' ', code: 'Space' })
+    await waitFor(() => expect(document.querySelector('[data-view-drag-overlay]')).not.toBeNull())
+    expect(source.querySelector('[data-drag-placeholder]')).not.toBeNull()
+    expect(source.style.width).toBe('98px')
+    expect(source.style.height).toBe('30px')
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(document.querySelector('[data-view-drag-overlay]')).toBeNull())
+    expect(source.querySelector('[data-drag-placeholder]')).toBeNull()
+    expect(source.style.width).toBe('')
+    expect(source.style.height).toBe('')
+    expect(onViewOrderChange).not.toHaveBeenCalled()
+  })
+
   it('ordena a renderização pelo campo persistido e só habilita drag com callback', () => {
     const secondId = '01KXVZ0000VIEW00000000002'
     const orderedSettings: DataViewSettings = {

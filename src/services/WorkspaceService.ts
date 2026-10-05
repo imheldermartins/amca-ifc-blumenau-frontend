@@ -34,6 +34,14 @@ export interface ApiOrganization extends Partial<ScopeAccess> {
   workspaceCount: number
 }
 
+export interface ApiOrganizationWorkspace {
+  id: string
+  name: string | null
+  icon: string | null
+  canEnter: boolean
+  isMember: boolean
+}
+
 export class WorkspaceService {
   listMine(): Promise<ApiWorkspace[]> {
     return apiService.get<ApiWorkspace[]>('/workspaces')

@@ -31,6 +31,7 @@ type BeforeLoad = (input: {
   context: { user: { id: string } }
   location: { search: Record<string, unknown> }
   params: { lang: string; pageId: string }
+  preload?: boolean
 }) => Promise<unknown> | unknown
 
 const beforeLoad = (Route as unknown as { options: { beforeLoad: BeforeLoad } }).options.beforeLoad
@@ -53,6 +54,18 @@ beforeEach(() => {
 })
 
 describe('rota de página — contexto da workspace', () => {
+  it('preserva a workspace ativa enquanto antecipa outra página', async () => {
+    await beforeLoad({
+      context: { user: { id: 'user-1' } },
+      location: { search: {} },
+      params: { lang: 'pt-br', pageId: 'page-b' },
+      preload: true,
+    })
+
+    expect(dependencies.getBreadcrumb).toHaveBeenCalledWith('page-b')
+    expect(dependencies.currentWorkspaceSession.set).not.toHaveBeenCalled()
+  })
+
   it('revalida a página mesmo quando a aba já tinha outra workspace', async () => {
     await beforeLoad({
       context: { user: { id: 'user-1' } },

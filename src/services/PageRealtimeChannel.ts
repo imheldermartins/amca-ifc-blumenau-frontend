@@ -19,6 +19,8 @@ export type PageStructureEvent =
   | { type: 'column-deleted'; payload: ColumnPayload }
 
 export interface PageRealtimeChannelCallbacks {
+  onAccessDenied?: () => void
+  onRowOrder?: (payload: import('@/services/realtime-contract-v1').RowOrderUpdatedPayload) => void
   onEvent?: (event: DatabaseRealtimeEvent) => void
   onStructureChanged?: (event: PageStructureEvent) => void
   onPageUpdated?: (payload: PageUpdatedPayload) => void
@@ -70,6 +72,7 @@ export class PageRealtimeChannel {
     this.socket.on('page-presence', this.handlePresence)
     this.socket.on('cell-updated', this.handleCellUpdated)
     this.socket.on('row-updated', this.handleRowUpdated)
+    this.socket.on('row-order-updated', this.handleRowOrder)
     this.socket.on('page-updated', this.handlePageUpdated)
     this.socket.on('database-updated', this.handleDatabaseUpdated)
     this.socket.on('column-updated', this.handleColumnUpdated)
@@ -98,6 +101,7 @@ export class PageRealtimeChannel {
     this.socket.off('page-presence', this.handlePresence)
     this.socket.off('cell-updated', this.handleCellUpdated)
     this.socket.off('row-updated', this.handleRowUpdated)
+    this.socket.off('row-order-updated', this.handleRowOrder)
     this.socket.off('page-updated', this.handlePageUpdated)
     this.socket.off('database-updated', this.handleDatabaseUpdated)
     this.socket.off('column-updated', this.handleColumnUpdated)
@@ -149,6 +153,11 @@ export class PageRealtimeChannel {
     if (!this.belongsHere(payload)) return
     this.callbacks.onJoinedChanged?.(false)
     this.callbacks.onPresenceChanged?.(0)
+    this.callbacks.onAccessDenied?.()
+  }
+
+  private readonly handleRowOrder = (payload: import('@/services/realtime-contract-v1').RowOrderUpdatedPayload) => {
+    if (this.belongsHere(payload)) this.callbacks.onRowOrder?.(payload)
   }
 
   private readonly handlePresence = (payload: { pageId: string; count: number }) => {

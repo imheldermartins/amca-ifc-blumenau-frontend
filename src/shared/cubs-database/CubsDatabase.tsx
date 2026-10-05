@@ -11,11 +11,16 @@ import { ViewTabsBar } from './components/ViewTabsBar'
 import { TableView } from './components/TableView'
 import { GridView } from './components/GridView'
 import { CalendarView } from './components/CalendarView'
+import { BoardView } from './components/BoardView'
 import { GraphView } from './components/GraphView'
+import { FormView, type FormViewLabels } from './components/FormView'
 import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from './viewSettings'
 import type { TableRowLabels } from './components/TableRow'
 import type {
   CalendarPinInput,
+  BoardCreateInput,
+  BoardMoveInput,
+  BoardViewConfig,
   CellChange,
   CellEditConflict,
   ColumnConfigPatch,
@@ -27,6 +32,8 @@ import type {
   FlowExecutionResult,
   FlowMacroOption,
   FlowMacroSectionsBuilder,
+  FormSubmissionInput,
+  FormViewConfig,
   DataViewKind,
   DataViewSettings,
   DataViewType,
@@ -36,9 +43,10 @@ import type {
   ViewFiltersV2,
 } from './types'
 import { reorderByIds } from './utils'
-import { VIEW_KIND_ICON } from './viewKinds'
+import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from './viewKinds'
 import { viewFiltersSemanticSignature } from './viewFilterUrl'
 import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
+import type { DatabasePagination, DatabaseRowMove } from './pagination'
 
 function useSemanticValue<T>(value: T, signature: string): T {
   const stableRef = useRef({ signature, value })
@@ -66,6 +74,7 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
     calendar: 'Calendário',
     timeline: 'Cronograma',
     graph: 'Grafos',
+    form: 'Formulário',
   },
   presets: 'Configurações da view',
   closePresets: 'Fechar configurações da view',
@@ -112,11 +121,16 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
 }
 
 export interface CubsDatabaseProps {
+  onBoardConfigChange?: (viewId: string, patch: BoardViewConfig) => void
+  onBoardMove?: (viewId: string, input: BoardMoveInput) => Promise<void>
+  onBoardCreateRow?: (input: BoardCreateInput) => Promise<RowData | undefined>
   /** Views salvas — chave é o ULID da view; cada uma vira uma tab da topbar. */
   settings: DataViewSettings
   /** Colunas na ordem natural de display (esq→dir); a view pode reordenar. */
   headerCols: HeaderCol[]
   rows: RowData[]
+  pagination?: DatabasePagination
+  onRowMove?: (viewId: string, move: DatabaseRowMove) => void | Promise<void>
   /**
    * Células em atenção (chave `cellErrorKey(rowId, columnId)`): falha de
    * escrita ou edição interrompida pelo receiver. A tabela só desenha a marca.
@@ -175,12 +189,14 @@ export interface CubsDatabaseProps {
    */
   onColumnOrderChange?: (viewId: string, orderedHeaderCols: string[]) => void
   /**
-   * A seleção de linhas mudou — `selectedPagesIds` completo. É o terreno do
-   * futuro batchRealtimeUpdate: agir sobre N páginas de uma vez.
+   * A seleção de linhas mudou — `selectedPagesIds` completo.
    */
   onSelectionChange?: (selectedPagesIds: string[]) => void
   /** Envia uma página/linha para a lixeira. */
   onDeleteRow?: (rowId: string) => void
+  /** Envia as páginas selecionadas para a lixeira após confirmação no header. */
+  onDeleteRows?: (rowIds: string[]) => void
+  deletingRows?: boolean
   /**
    * Renomear coluna pelo menu do header (botão direito). Payload já no
    * formato do futuro `column-renamed` do realtime. A presença da prop é o
@@ -228,6 +244,13 @@ export interface CubsDatabaseProps {
   onViewFiltersChange?: (viewId: string, filters: ViewFiltersV2) => void
   /** Persiste somente a configuração específica da view Calendar. */
   onCalendarConfigChange?: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds' | 'calendarShowPropertyLabels'>) => void
+  /** Persiste o tamanho dos cards no snapshot da view Grade. */
+  onGridConfigChange?: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
+  /** Persiste a configuração específica da view Form no snapshot. */
+  onFormConfigChange?: (viewId: string, form: FormViewConfig) => void
+  /** Envio condensado; a lib monta campos e o host decide o transporte. */
+  onFormSubmit?: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
+  formLabels?: Partial<FormViewLabels>
   /** Agenda é injetada pelo host; a lib não conhece API, usuário ou workspace. */
   pinnedCalendarPageIds?: ReadonlySet<string>
   calendarPendingPageId?: string | null
@@ -252,6 +275,7 @@ export interface CubsDatabaseProps {
   onAddRow?: () => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
   onAddColumn?: () => void
+  addingColumn?: boolean
   /** Fetch inicial em andamento → skeleton. */
   loading?: boolean
   emptyLabel?: string
@@ -273,6 +297,8 @@ export function CubsDatabase({
   settings = {},
   headerCols = [],
   rows = [],
+  pagination,
+  onRowMove,
   cellErrors,
   activeViewId,
   onViewChange,
@@ -291,10 +317,13 @@ export function CubsDatabase({
   onColumnOptionsChange,
   onAddRow,
   onAddColumn,
+  addingColumn,
   onRowOrderChange,
   onColumnOrderChange,
   onSelectionChange,
   onDeleteRow,
+  onDeleteRows,
+  deletingRows,
   onColumnRename,
   onPageTitleColumnChange,
   onColumnTypeChange,
@@ -310,6 +339,10 @@ export function CubsDatabase({
   filtersOverride,
   onViewFiltersChange,
   onCalendarConfigChange,
+  onGridConfigChange,
+  onFormConfigChange,
+  onFormSubmit,
+  formLabels,
   pinnedCalendarPageIds,
   calendarPendingPageId,
   onCalendarPin,
@@ -318,6 +351,9 @@ export function CubsDatabase({
   columnLocks,
   columnLockEditors,
   lockedColumnKeys,
+  onBoardConfigChange,
+  onBoardMove,
+  onBoardCreateRow,
   canManageColumnLocks,
   currentUserId,
   onColumnLockChange,
@@ -331,14 +367,24 @@ export function CubsDatabase({
 }: CubsDatabaseProps) {
   const [internalViewId, setInternalViewId] = useState(() => Object.keys(settings)[0] ?? '')
   const [mockSettingsByView, setMockSettingsByView] = useState<Record<string, ViewMockSettings>>({})
+  const [formHeaderPortalTarget, setFormHeaderPortalTarget] = useState<HTMLDivElement | null>(null)
   // A primeira personalização de uma página sem snapshot troca a sentinela
   // fallback por um ULID real. Se a view interna deixou de existir, acompanha
   // a primeira view salva em vez de cair num painel vazio até outro clique.
   const currentViewId =
     activeViewId ?? (settings[internalViewId] ? internalViewId : Object.keys(settings)[0] ?? '')
   const currentView = settings[currentViewId] ?? FALLBACK_VIEW
+  const [boardCreateRequest, setBoardCreateRequest] = useState(0)
+  const stableBoard = useSemanticValue(currentView.board, JSON.stringify(currentView.board ?? null))
   const mockSettingsKey = `${pageId ?? ''}:${currentViewId}`
-  const mockSettings = mockSettingsByView[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS
+  const localSettings = mockSettingsByView[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS
+  const mockSettings = { ...localSettings, tileSize: currentView.tileSize ?? localSettings.tileSize }
+  const availableViewKinds = useMemo(
+    () => headerCols.some((column) => column.type === 'flow')
+      ? DATA_VIEW_KINDS
+      : DATA_VIEW_KINDS.filter((kind) => kind !== 'form'),
+    [headerCols],
+  )
 
   // `view-updated` carrega o snapshot completo. HTTP e socket podem entregar
   // a mesma confirmação em momentos diferentes e cada parse cria arrays e
@@ -364,6 +410,10 @@ export function CubsDatabase({
   const stableCalendarPropertyIds = useSemanticValue(
     currentView.calendarPropertyIds,
     JSON.stringify(currentView.calendarPropertyIds ?? null),
+  )
+  const stableForm = useSemanticValue(
+    currentView.form,
+    JSON.stringify(currentView.form ?? null),
   )
 
   const basePageTitleColumn = useMemo(
@@ -412,8 +462,8 @@ export function CubsDatabase({
     [stableOrderedHeaderCols, viewHeaderCols],
   )
   const orderedRows = useMemo(
-    () => reorderByIds(rows, stableOrderedRows ?? []),
-    [rows, stableOrderedRows],
+    () => pagination ? rows : reorderByIds(rows, stableOrderedRows ?? []),
+    [rows, stableOrderedRows, pagination],
   )
   const effectiveFilters = filtersOverride ?? currentView.filters
   const parsedFilters = useMemo(() => parseViewFilters(effectiveFilters), [effectiveFilters])
@@ -422,8 +472,8 @@ export function CubsDatabase({
     viewFiltersSemanticSignature(parsedFilters),
   )
   const filteredRows = useMemo(
-    () => applyViewFilters(orderedRows, orderedColumns, tableFilters.clauses),
-    [orderedColumns, orderedRows, tableFilters.clauses],
+    () => pagination ? orderedRows : applyViewFilters(orderedRows, orderedColumns, tableFilters.clauses),
+    [orderedColumns, orderedRows, tableFilters.clauses, pagination],
   )
   const resolvedToolbarLabels = useMemo<DatabaseViewToolbarLabels>(
     () => ({
@@ -488,6 +538,7 @@ export function CubsDatabase({
 
   return (
     <section className={cn('w-full', className)}>
+      {pagination?.error && !pagination.projection ? <button type="button" className="w-full rounded-md border border-p-red/20 px-3 py-2 text-sm text-p-red" onClick={() => pagination.retry?.()}>Não foi possível carregar as páginas. Tentar novamente</button> : null}
       <ViewTabsBar
         settings={settings}
         activeViewId={currentViewId}
@@ -495,6 +546,7 @@ export function CubsDatabase({
         onAddView={onAddView}
         addViewLabel={addViewLabel}
         viewTypeLabels={resolvedToolbarLabels.viewTypes}
+        availableViewKinds={availableViewKinds}
         viewMenuItems={viewMenuItems}
         onRenameView={onRenameView}
         onViewOrderChange={onViewOrderChange}
@@ -508,25 +560,37 @@ export function CubsDatabase({
         labels={resolvedToolbarLabels}
         syncStatus={filterSyncStatus}
         settings={mockSettings}
-        onSettingsChange={(patch) => setMockSettingsByView((previous) => ({
-          ...previous,
-          [mockSettingsKey]: { ...(previous[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS), ...patch },
-        }))}
+        onSettingsChange={(patch) => {
+          if (patch.tileSize !== undefined && onGridConfigChange) {
+            onGridConfigChange(currentViewId, { tileSize: patch.tileSize })
+            return
+          }
+          setMockSettingsByView((previous) => ({
+            ...previous,
+            [mockSettingsKey]: { ...(previous[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS), ...patch },
+          }))
+        }}
         calendar={{ dateColumnId: currentView.dateColumnId, colorColumnId: currentView.colorColumnId, calendarShowPropertyLabels: currentView.calendarShowPropertyLabels }}
         onCalendarChange={onCalendarConfigChange ? (patch) => onCalendarConfigChange(currentViewId, patch) : undefined}
         calendarPropertyIds={stableCalendarPropertyIds}
         onCalendarPropertyIdsChange={onCalendarConfigChange ? (calendarPropertyIds) => onCalendarConfigChange(currentViewId, { calendarPropertyIds }) : undefined}
+        board={stableBoard}
+        onBoardChange={onBoardConfigChange ? (patch) => onBoardConfigChange(currentViewId, patch) : undefined}
+        form={stableForm}
+        onFormChange={onFormConfigChange ? (form) => onFormConfigChange(currentViewId, form) : undefined}
+        formHeaderPortalRef={setFormHeaderPortalTarget}
         columnLocks={columnLocks}
         columnLockEditors={columnLockEditors}
         canManageColumnLocks={canManageColumnLocks}
         currentUserId={currentUserId}
         onColumnLockChange={onColumnLockChange}
-        onAddRow={onAddRow}
+        onAddRow={currentView.view === 'board' ? onBoardCreateRow ? () => setBoardCreateRequest((value) => value + 1) : undefined : onAddRow}
         onViewKindChange={
           onViewKindChange
             ? (view) => onViewKindChange(currentViewId, view)
             : undefined
         }
+        availableViewKinds={availableViewKinds}
         onChange={
           onViewFiltersChange
             ? (filters) => onViewFiltersChange(currentViewId, filters)
@@ -540,6 +604,8 @@ export function CubsDatabase({
             key={currentViewId}
             columns={orderedColumns}
             rows={filteredRows}
+            pagination={pagination}
+            onRowMove={onRowMove ? (move) => onRowMove(currentViewId, move) : undefined}
             groupBy={tableFilters.groupBy}
             columnWidths={displayedColumnWidths}
             cellErrors={cellErrors}
@@ -558,6 +624,8 @@ export function CubsDatabase({
             }
             onSelectionChange={onSelectionChange}
             onDeleteRow={onDeleteRow}
+            onDeleteRows={onDeleteRows}
+            deletingRows={deletingRows}
             onColumnRename={
               onColumnRename || onPageTitleColumnChange ? handleColumnRename : undefined
             }
@@ -585,18 +653,34 @@ export function CubsDatabase({
             }
             onAddRow={onAddRow}
             onAddColumn={onAddColumn}
+            addingColumn={addingColumn}
             labels={labels}
           />
         ) : currentView.view === 'grid' ? (
           <GridView
             columns={orderedColumns}
             rows={filteredRows}
+            pagination={pagination}
             tileSize={mockSettings.tileSize}
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
+            onCellChange={onCellChange}
+            onCellEditConflict={onCellEditConflict}
+            cellErrors={cellErrors}
+            lockedColumnKeys={lockedColumnKeys}
           />
+        ) : currentView.view === 'board' ? (
+          <BoardView key={currentViewId} columns={orderedColumns} rows={filteredRows} allRows={orderedRows} config={stableBoard}
+            pagination={pagination}
+            onConfigChange={onBoardConfigChange ? (patch) => onBoardConfigChange(currentViewId, patch) : undefined}
+            onMove={onBoardMove ? (input) => onBoardMove(currentViewId, input) : undefined} onCreateRow={onBoardCreateRow}
+            createRequest={boardCreateRequest} onOpenRow={onOpenRow} onCellChange={onCellChange} onCellEditConflict={onCellEditConflict}
+            cellErrors={cellErrors} lockedColumnKeys={lockedColumnKeys} onColumnConfigChange={onColumnConfigChange}
+            onColumnOptionsChange={onColumnOptionsChange}
+            onFlowConfigChange={onFlowConfigChange} onFlowLoadMacros={onFlowLoadMacros} buildFlowMacroSections={buildFlowMacroSections} onFlowExecute={onFlowExecute} />
         ) : currentView.view === 'calendar' ? (
           <CalendarView key={currentViewId} columns={orderedColumns} rows={filteredRows}
+            pagination={pagination}
             dateColumnId={currentView.dateColumnId} colorColumnId={currentView.colorColumnId}
             calendarPropertyIds={stableCalendarPropertyIds}
             showPropertyLabels={currentView.calendarShowPropertyLabels !== false}
@@ -610,8 +694,21 @@ export function CubsDatabase({
             rootId={pageId ?? currentViewId}
             rootTitle={pageTitle || currentView.name || 'Página atual'}
             rows={filteredRows}
+            pagination={pagination}
             loadSubItems={mockSettings.loadSubItems}
             onLoadChildren={onLoadGraphChildren}
+          />
+        ) : currentView.view === 'form' ? (
+          <FormView
+            lockedColumnKeys={lockedColumnKeys}
+            key={currentViewId}
+            columns={orderedColumns}
+            config={stableForm}
+            labels={formLabels}
+            headerPortalTarget={formHeaderPortalTarget}
+            onConfigChange={onFormConfigChange ? (form) => onFormConfigChange(currentViewId, form) : undefined}
+            onFieldOrderChange={onColumnOrderChange ? (ids) => onColumnOrderChange(currentViewId, ids) : undefined}
+            onSubmit={onFormSubmit ? (input) => onFormSubmit(currentViewId, input) : undefined}
           />
         ) : (
           <div

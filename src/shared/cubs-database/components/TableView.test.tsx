@@ -240,6 +240,8 @@ describe('TableView — dropdown das páginas', () => {
     )
 
     const handle = screen.getAllByRole('button', { name: 'Ações da página' })[0]
+    const sourceRow = handle.closest<HTMLElement>('[role="row"]')!
+    vi.spyOn(sourceRow, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 32, 292, 34))
     const pointerDown = new MouseEvent('pointerdown', {
       bubbles: true,
       cancelable: true,
@@ -265,6 +267,9 @@ describe('TableView — dropdown das páginas', () => {
     )
 
     await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).not.toBeNull())
+    expect(sourceRow.querySelector('[data-drag-placeholder]')).not.toBeNull()
+    expect(sourceRow.style.width).toBe('292px')
+    expect(sourceRow.style.height).toBe('34px')
     fireEvent(
       document,
       new MouseEvent('pointerup', {
@@ -281,6 +286,9 @@ describe('TableView — dropdown das páginas', () => {
     // ultrapasse artificialmente os 50 ms do listener capture do PointerSensor.
     fireEvent.click(handle)
     await waitFor(() => expect(document.querySelector('[data-row-drag-overlay]')).toBeNull())
+    expect(sourceRow.querySelector('[data-drag-placeholder]')).toBeNull()
+    expect(sourceRow.style.width).toBe('')
+    expect(sourceRow.style.height).toBe('')
     expect(screen.queryByRole('menu')).toBeNull()
 
     // O PointerSensor conserva por 50 ms o listener capture que engole o
@@ -311,6 +319,91 @@ describe('TableView — dropdown das páginas', () => {
     expect(onDeleteRow).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Confirmar página na lixeira' }))
     expect(onDeleteRow).toHaveBeenCalledWith('row-1')
+  })
+})
+
+describe('TableView — lixeira da seleção no header', () => {
+  const columns = [{ id: 'name', title: 'Nome', type: 'text' as const }]
+  const rows = [
+    { id: 'row-1', cells: { name: { value: 'Ana' } } },
+    { id: 'row-2', cells: { name: { value: 'Bia' } } },
+    { id: 'row-3', cells: { name: { value: 'Caio' } } },
+  ]
+  const trigger = 'Mover selecionadas para lixeira (2)'
+  const confirmation = 'Confirmar envio para lixeira (2)'
+
+  it('só oferece a ação com seleção e handler autorizado', () => {
+    const { rerender } = render(<TableView columns={columns} rows={rows} onDeleteRows={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /Mover selecionadas/ })).toBeNull()
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[0])
+    expect(screen.getByRole('button', { name: /Mover selecionadas/ })).not.toBeNull()
+    rerender(<TableView columns={columns} rows={rows} />)
+    expect(screen.queryByRole('button', { name: /Mover selecionadas/ })).toBeNull()
+  })
+
+  it('confirma exatamente as selecionadas, incluindo todas via checkbox do header', () => {
+    const onDeleteRows = vi.fn()
+    render(<TableView columns={columns} rows={rows} onDeleteRows={onDeleteRows} />)
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'Selecionar linha' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[2])
+    fireEvent.click(screen.getByRole('button', { name: trigger }))
+    fireEvent.click(screen.getByRole('menuitem', { name: trigger }))
+    expect(onDeleteRows).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('menuitem', { name: confirmation }))
+    expect(onDeleteRows).toHaveBeenCalledExactlyOnceWith(['row-1', 'row-3'])
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar todas' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mover selecionadas para lixeira (3)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover selecionadas para lixeira (3)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Confirmar envio para lixeira (3)' }))
+    expect(onDeleteRows).toHaveBeenLastCalledWith(['row-1', 'row-2', 'row-3'])
+  })
+
+  it('descarta a confirmação se a seleção mudar, inclusive mantendo a quantidade', () => {
+    const onDeleteRows = vi.fn()
+    render(<TableView columns={columns} rows={rows} onDeleteRows={onDeleteRows} />)
+    const checkboxes = screen.getAllByRole('checkbox', { name: 'Selecionar linha' })
+    fireEvent.click(checkboxes[0])
+    fireEvent.click(checkboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: trigger }))
+    fireEvent.click(screen.getByRole('menuitem', { name: trigger }))
+    act(() => {
+      fireEvent.click(checkboxes[1])
+      fireEvent.click(checkboxes[2])
+    })
+    expect(screen.queryByRole('menuitem', { name: confirmation })).toBeNull()
+    fireEvent.click(screen.getByRole('menuitem', { name: trigger }))
+    fireEvent.click(screen.getByRole('menuitem', { name: confirmation }))
+    expect(onDeleteRows).toHaveBeenCalledExactlyOnceWith(['row-1', 'row-3'])
+  })
+
+  it('fechar a confirmação não exclui; durante o envio a ação fica bloqueada', () => {
+    const onDeleteRows = vi.fn()
+    const { rerender } = render(<TableView columns={columns} rows={rows} onDeleteRows={onDeleteRows} />)
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[0])
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[1])
+    fireEvent.click(screen.getByRole('button', { name: trigger }))
+    fireEvent.click(screen.getByRole('menuitem', { name: trigger }))
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' })
+    expect(onDeleteRows).not.toHaveBeenCalled()
+    expect(screen.queryByRole('menu')).toBeNull()
+    rerender(<TableView columns={columns} rows={rows} onDeleteRows={onDeleteRows} deletingRows />)
+    expect(screen.getByRole('button', { name: trigger }).hasAttribute('disabled')).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: trigger }))
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('preserva selecionadas as linhas que não foram removidas pela API', async () => {
+    const onDeleteRows = vi.fn()
+    const onSelectionChange = vi.fn()
+    const { rerender } = render(<TableView columns={columns} rows={rows} onDeleteRows={onDeleteRows} onSelectionChange={onSelectionChange} />)
+    fireEvent.click(screen.getAllByRole('checkbox', { name: 'Selecionar linha' })[0])
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar todas' }))
+    rerender(<TableView columns={columns} rows={[rows[1]]} onDeleteRows={onDeleteRows} onSelectionChange={onSelectionChange} />)
+    await waitFor(() => expect(onSelectionChange).toHaveBeenLastCalledWith(['row-2']))
+    expect(screen.getByRole('checkbox', { name: 'Selecionar linha' }).getAttribute('aria-checked')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Mover selecionadas para lixeira (1)' })).not.toBeNull()
   })
 })
 
@@ -456,6 +549,23 @@ describe('TableView — resize suave', () => {
 })
 
 describe('TableView — adição guiada', () => {
+  it('desabilita a adição de coluna durante HTTP e mantém a adição de linha disponível', () => {
+    const onAddColumn = vi.fn()
+    const onAddRow = vi.fn()
+    const props = { columns: [{ id: 'column-1', title: 'Nome', type: 'text' as const }], rows: [], onAddColumn, onAddRow }
+    const { rerender } = render(<TableView {...props} addingColumn />)
+    const button = screen.getByRole('button', { name: 'Adicionar coluna' })
+    expect(button).toHaveProperty('disabled', true)
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    fireEvent.click(button)
+    expect(onAddColumn).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar linha' }))
+    expect(onAddRow).toHaveBeenCalledOnce()
+    rerender(<TableView {...props} addingColumn={false} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar coluna' }))
+    expect(onAddColumn).toHaveBeenCalledOnce()
+  })
+
   it('expõe os dois eixos como botões e encaminha os cliques', () => {
     const onAddRow = vi.fn()
     const onAddColumn = vi.fn()

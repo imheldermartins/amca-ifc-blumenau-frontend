@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { TextField } from 'cubs-components'
+import { TextField, cn } from 'cubs-components'
 
 import type { CellEditorProps } from '../../types'
 import { useExternalDraft } from './useExternalDraft'
@@ -22,7 +22,11 @@ export const TextCellEditor = memo(function TextCellEditor({
   onCommit,
   onExternalConflict,
   hasError,
-}: CellEditorProps) {
+  className,
+  inputClassName,
+  autoFocus,
+  onEditingEnd,
+}: CellEditorProps & { className?: string; inputClassName?: string; autoFocus?: boolean; onEditingEnd?: () => void }) {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value)
   const field = useExternalDraft(text, {
     interruptOnExternalChange: true,
@@ -40,12 +44,14 @@ export const TextCellEditor = memo(function TextCellEditor({
 
   return (
     <TextField
+      autoFocus={autoFocus}
       aria-label={column.title}
       aria-invalid={hasError || undefined}
       surface="plain"
       size="sm"
       type={column.mask === 'email' ? 'email' : 'text'}
-      className="w-full"
+      className={cn('w-full', className)}
+      inputClassName={inputClassName}
       placeholder={column.key === 'title' ? 'Sem Título' : undefined}
       // A máscara da coluna (cpf/cep/...) formata a digitação; o valor commitado
       // já sai mascarado, e o read-only o mostra como está.
@@ -53,7 +59,7 @@ export const TextCellEditor = memo(function TextCellEditor({
       value={field.draft}
       onFocus={field.focus}
       onChange={(event) => field.change(event.target.value)}
-      onBlur={commit}
+      onBlur={() => { commit(); onEditingEnd?.() }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {

@@ -1,7 +1,7 @@
-import type { DataViewKind } from './types'
+import type { DataViewKind, DataViewType } from './types'
 
 export interface ViewMockSettings {
-  tileSize: 'small' | 'medium' | 'large'
+  tileSize: NonNullable<DataViewType['tileSize']>
   loadSubItems: boolean
 }
 
@@ -34,4 +34,5 @@ export const mappedForm: Record<DataViewKind, FormField[]> = {
   calendar: [],
   timeline: [],
   graph: [{ key: 'loadSubItems', control: 'switch', label: 'Carregar subitens' }],
+  form: [],
 }

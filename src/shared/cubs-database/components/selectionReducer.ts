@@ -28,7 +28,7 @@ export type SelectionAction =
   /** Checkbox de uma linha. Com `shiftKey` + âncora, vale para o intervalo. */
   | { type: 'set-row'; rowIndex: number; checked: boolean; shiftKey: boolean; rowIds: string[] }
   /** "Selecionar todas" do header (ou limpar tudo). */
-  | { type: 'select-all'; checked: boolean; rowIds: string[] }
+  | { type: 'select-all'; checked: boolean; rowIds: string[]; preserveOutside?: boolean }
   /** Remove ids que deixaram de estar visíveis após filtro/troca de view. */
   | { type: 'reconcile'; rowIds: string[] }
   | { type: 'hover'; rowIndex: number | null }
@@ -66,7 +66,8 @@ export function selectionReducer(
     case 'select-all': {
       // Clicar no indeterminado resolve para MARCADO (regra do Radix), então
       // "limpar tudo" acontece no clique seguinte, com todas já marcadas.
-      const ids = action.checked ? new Set(action.rowIds) : new Set<string>()
+      const retained = action.preserveOutside ? [...state.ids].filter((id) => !action.rowIds.includes(id)) : []
+      const ids = new Set(action.checked ? [...retained, ...action.rowIds] : retained)
       return { ids, anchorIndex: null, hoverIndex: state.hoverIndex }
     }
 

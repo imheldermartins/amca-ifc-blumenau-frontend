@@ -8,7 +8,7 @@ import { databaseService } from '@/services/DatabaseService'
 import { workspaceService } from '@/services/WorkspaceService'
 
 export const Route = createFileRoute('/$lang/_authenticated/_app/page/$pageId')({
-  beforeLoad: async ({ context, location, params }) => {
+  beforeLoad: async ({ context, location, params, preload }) => {
     const search = location.search as Record<string, unknown>
     const hasLegacyWorkspace = Object.prototype.hasOwnProperty.call(search, 'workspace')
 
@@ -21,7 +21,7 @@ export const Route = createFileRoute('/$lang/_authenticated/_app/page/$pageId')(
       databaseService.getBreadcrumb(params.pageId),
     ])
     const workspace = findPageWorkspace(workspaces, params.pageId, breadcrumbs)
-    if (workspace) currentWorkspaceSession.set(context.user.id, workspace.id)
+    if (workspace && !preload) currentWorkspaceSession.set(context.user.id, workspace.id)
 
     // Migração de URLs antigas: `workspace` nunca define o contexto. O valor
     // é descartado depois que a árvore da página foi resolvida.

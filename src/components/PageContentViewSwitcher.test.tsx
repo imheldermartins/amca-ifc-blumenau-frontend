@@ -7,7 +7,6 @@ const labels = {
   navigation: 'Visualização da página',
   files: 'Base',
   document: 'Documento',
-  workflow: 'Workflow',
 }
 
 afterEach(() => cleanup())
@@ -28,8 +27,10 @@ describe('PageContentViewSwitcher', () => {
       'false',
     )
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Workflow' }))
+    expect(screen.getAllByRole('tab')).toHaveLength(2)
+    expect(screen.queryByRole('tab', { name: 'Workflow' })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: 'Documento' }))
     expect(onValueChange).toHaveBeenCalledOnce()
-    expect(onValueChange).toHaveBeenCalledWith('workflow')
+    expect(onValueChange).toHaveBeenCalledWith('document')
   })
 })

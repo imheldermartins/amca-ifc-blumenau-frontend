@@ -1,9 +1,10 @@
 import { memo, useRef } from 'react'
 import type { MouseEvent } from 'react'
+import { useDndContext } from '@dnd-kit/core'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
-import { Checkbox, cn, formatDatePickerValue } from 'cubs-components'
+import { Checkbox, DragPlaceholder, dragPlaceholderStyle, cn, formatDatePickerValue } from 'cubs-components'
 
 import type {
   CellChange,
@@ -17,12 +18,13 @@ import type {
 import { cellErrorKey, formatCellValue, formatNumericValue, resolveColumnWidth } from '../utils'
 import type { ColumnHeaderMenuLabels } from './ColumnHeaderMenu'
 import { RowActionsMenu, type RowActionsMenuLabels } from './RowActionsMenu'
+import type { BatchRowActionsMenuLabels } from './BatchRowActionsMenu'
 import { TableCell } from './TableCell'
 
 /** Largura da célula de controles — o header usa o MESMO valor para alinhar. */
 export const CONTROL_CELL_WIDTH = 'w-28 min-w-28 max-w-28 overflow-hidden whitespace-nowrap'
 
-export interface TableRowLabels extends ColumnHeaderMenuLabels, CellEditorLabels, RowActionsMenuLabels {
+export interface TableRowLabels extends ColumnHeaderMenuLabels, CellEditorLabels, RowActionsMenuLabels, BatchRowActionsMenuLabels {
   drag?: string
   select?: string
   /** Label do "selecionar todas" (header; só aparece com seleção ativa). */
@@ -112,6 +114,7 @@ export interface TableRowProps {
  * este memo.
  */
 export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnWidths, columnTypes, cellErrors, lockedColumnKeys, zebra, selected, onSelectedChange, sortable, inShiftRange, onShiftHover, onOpenRow, onCellChange, onCellEditConflict, onColumnOptionsChange, onFlowOpen, onMoveRow, canMoveUp = false, canMoveDown = false, onDeleteRow, onHandleClick, labels }: TableRowProps) {
+  const { activeNodeRect } = useDndContext()
   const {
     attributes,
     listeners,
@@ -130,16 +133,21 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
     <div
       role="row"
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      style={{
+        ...(isDragging ? dragPlaceholderStyle(activeNodeRect) : undefined),
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
       onMouseEnter={onShiftHover ? () => onShiftHover(rowIndex) : undefined}
       className={cn(
         'group/row flex w-max min-w-full items-stretch transition-colors hover:bg-active/60',
         zebra ? 'bg-contrast' : 'bg-background',
         // Área coberta pela seleção com Shift (âncora → linha sob o mouse).
         inShiftRange && 'bg-p-purple-500/10 dark:bg-p-purple-500/15',
-        isDragging && 'relative z-10 opacity-25',
+        isDragging && 'relative z-10 [&>*:not([data-drag-placeholder])]:invisible',
       )}
     >
+      {isDragging && <DragPlaceholder />}
       <div
         role="cell"
         className={cn(

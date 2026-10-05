@@ -10,6 +10,7 @@ import {
   formatCalendarDate,
   setCalendarYear,
   shiftCalendarDate,
+  calendarDays,
   type CalendarItem,
   type CalendarRenderers,
 } from 'cubs-components'
@@ -17,6 +18,9 @@ import {
 import type { CalendarPinInput, HeaderCol, RowData } from '../types'
 import { databaseCalendarItems, type DatabaseCalendarItemTypes } from '../calendarItems'
 import { CalendarProperties } from './CalendarProperties'
+import type { DatabasePagination } from '../pagination'
+import { pageViewScopeKey, type PageViewQueryScope } from '../pageViewQueryContract'
+import { VirtualInfiniteList } from './VirtualInfiniteList'
 
 export interface CalendarViewLabels {
   calendar?: string
@@ -39,6 +43,7 @@ export interface CalendarViewLabels {
 }
 
 export interface CalendarViewProps {
+  pagination?: DatabasePagination
   rows: RowData[]
   columns: HeaderCol[]
   dateColumnId?: string
@@ -57,18 +62,37 @@ export interface CalendarViewProps {
 }
 
 const iconButtonClass = 'flex size-8 shrink-0 items-center justify-center rounded-md outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-p-purple'
+const EMPTY_ROWS: RowData[] = []
 
 /** Monthly database projection. Agenda persistence is injected by the host. */
-export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, pinnedPageIds, pendingPageId, onPin, onUnpin, onRequestPin, sourceTitle, locale = 'pt-BR', labels }: CalendarViewProps) {
+export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, pinnedPageIds, pendingPageId, onPin, onUnpin, onRequestPin, sourceTitle, locale = 'pt-BR', labels, pagination }: CalendarViewProps) {
   const dateColumn = dateColumnId ? columns.find((column) => column.id === dateColumnId && column.type === 'date') : columns.find((column) => column.type === 'date')
   const defaultColorColumn = colorColumnId ? columns.find((column) => column.id === colorColumnId && column.type === 'select') : columns.find((column) => column.type === 'select')
-  const items = useMemo(() => databaseCalendarItems(rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds), [rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds])
-  const [date, setDate] = useState(() => items[0]?.start.slice(0, 10) ?? new Date().toLocaleDateString('en-CA'))
+  const [requestedDate, setRequestedDate] = useState(() => pagination?.projection?.initialDate ?? databaseCalendarItems(rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds)[0]?.start.slice(0, 10) ?? new Date().toLocaleDateString('en-CA'))
+  const [dateTouched, setDateTouched] = useState(false)
+  const date = !dateTouched && pagination?.projection?.initialDate ? pagination.projection.initialDate : requestedDate
+  const setDate = (next: string) => { setDateTouched(true); setRequestedDate(next) }
+  const days = useMemo(() => calendarDays(date, 'month'), [date])
+  const period = useMemo<PageViewQueryScope>(() => ({ type: 'calendar', from: days[0], to: days.at(-1)! }), [days])
+  const projectionReady = Boolean(pagination?.projection)
+  const setScope = pagination?.setScope
+  useEffect(() => { if (projectionReady) setScope?.(period) }, [period, setScope, projectionReady])
+  const previewRows = pagination ? pagination.streams[pageViewScopeKey(period)]?.rows ?? pagination.streams.root?.rows ?? EMPTY_ROWS : rows
+  const items = useMemo(() => databaseCalendarItems(previewRows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds), [previewRows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds])
   const [selected, setSelected] = useState<CalendarItem<DatabaseCalendarItemTypes> | null>(null)
   const [selectedColorColumnId, setSelectedColorColumnId] = useState<string | null | undefined>(defaultColorColumn?.id ?? colorColumnId)
   const [confirmingUnpin, setConfirmingUnpin] = useState(false)
   const currentDate = new Date().toLocaleDateString('en-CA')
   const selectedRow = selected ? rows.find((row) => row.id === selected.id) : undefined
+  const selectedId = selected?.id
+  const pinRow = pagination?.pinRow
+  const onInteractionChange = pagination?.onInteractionChange
+  useEffect(() => {
+    if (!selectedId) return
+    pinRow?.(selectedId, true)
+    onInteractionChange?.(true)
+    return () => { pinRow?.(selectedId, false); onInteractionChange?.(false) }
+  }, [selectedId, pinRow, onInteractionChange])
   const isPinned = Boolean(selected && pinnedPageIds?.has(selected.id))
   const selectColumns = columns.filter((column) => column.type === 'select')
   const renderers = useMemo<CalendarRenderers<DatabaseCalendarItemTypes>>(() => ({
@@ -93,16 +117,22 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
     onRequestPin({ pageId: selected.id, dateColumnId: dateColumn.id, colorColumnId: selectedColorColumnId })
   }
 
-  return <div data-database-calendar className="flex h-[max(720px,calc(100dvh-180px))] min-h-0 flex-col">
+  return <div data-database-calendar aria-busy={pagination?.loading || undefined} className="flex h-[max(720px,calc(100dvh-180px))] min-h-0 flex-col">
     <header className="flex shrink-0 flex-wrap items-center gap-1 border-y border-divider px-3 py-2">
       <h2 className="mr-1 text-lg font-bold capitalize tracking-tight" aria-live="polite">{formatCalendarDate(date, locale, { month: 'long' })}</h2>
       <CalendarYearPicker year={Number(date.slice(0, 4))} onChange={(year) => setDate(setCalendarYear(date, year))} chooseLabel={labels?.chooseYear ?? 'Selecionar ano'} yearLabel={labels?.year ?? 'Ano'} />
       <button type="button" className={iconButtonClass} aria-label={labels?.previous ?? 'Mês anterior'} title={labels?.previous ?? 'Mês anterior'} onClick={() => setDate(shiftCalendarDate(date, -1, 'month'))}><Icon icon="lucide:chevron-left" className="size-4" /></button>
       <button type="button" className={iconButtonClass} aria-label={labels?.next ?? 'Próximo mês'} title={labels?.next ?? 'Próximo mês'} onClick={() => setDate(shiftCalendarDate(date, 1, 'month'))}><Icon icon="lucide:chevron-right" className="size-4" /></button>
       <button type="button" onClick={() => setDate(currentDate)} className="ml-1 rounded-md border border-divider px-2.5 py-1 text-xs font-medium hover:bg-contrast">{labels?.today ?? 'Hoje'}</button>
+      {pagination?.loading ? <span role="status" className="ml-auto flex items-center gap-1 text-xs opacity-60"><Icon icon="lucide:loader-circle" className="size-4 animate-spin" />Carregando páginas</span> : null}
     </header>
     <div className="relative min-h-0 flex-1 border-b border-divider">
-      <Calendar items={items} date={date} locale={locale} monthItemHeight={64} onDateChange={setDate} renderers={renderers} labels={{ calendar: labels?.calendar ?? 'Calendário' }} onItemClick={(item) => {
+      <Calendar items={items} date={date} locale={locale} monthItemHeight={64} onDateChange={setDate} renderers={renderers}
+        dayCounts={pagination?.projection?.days}
+        renderDayOverflow={pagination ? (day) => <CalendarDayPages day={day} period={period} columns={columns} dateColumnId={dateColumn?.id}
+          colorColumnId={colorColumnId} propertyIds={calendarPropertyIds} showLabels={showPropertyLabels} pagination={pagination}
+          onSelect={(item) => { setSelected(item); setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId); setConfirmingUnpin(false) }} /> : undefined}
+        labels={{ calendar: labels?.calendar ?? 'Calendário' }} onItemClick={(item) => {
         setSelected(item)
         setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId)
         setConfirmingUnpin(false)
@@ -127,5 +157,24 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
         {onPin ? <Button variant="filled" color="purple" disabled={pendingPageId === item.id} onClick={() => { if (isPinned) setConfirmingUnpin(true); else pinSelected() }}><Icon icon={pendingPageId === item.id ? 'lucide:loader-circle' : isPinned ? 'solar:pin-bold' : 'lucide:pin'} className={cn('mr-2 size-4', pendingPageId === item.id && 'animate-spin')} />{labels?.[isPinned ? 'unpin' : 'pin'] ?? (isPinned ? 'Desafixar da agenda' : 'Fixar na agenda')}</Button> : null}
       </>}
     />
+  </div>
+}
+
+function CalendarDayPages({ day, period, columns, dateColumnId, colorColumnId, propertyIds, showLabels, pagination, onSelect }: {
+  day: string; period: PageViewQueryScope; columns: HeaderCol[]; dateColumnId?: string; colorColumnId?: string | null
+  propertyIds?: string[]; showLabels: boolean; pagination: DatabasePagination; onSelect: (item: CalendarItem<DatabaseCalendarItemTypes>) => void
+}) {
+  const scope = useMemo<PageViewQueryScope>(() => ({ type: 'calendar', from: period.type === 'calendar' ? period.from : day,
+    to: period.type === 'calendar' ? period.to : day, day }), [period, day])
+  const ensureScope = pagination.ensureScope
+  useEffect(() => { ensureScope(scope) }, [scope, ensureScope])
+  const stream = pagination.streams[pageViewScopeKey(scope)]
+  const items = useMemo(() => databaseCalendarItems(stream?.rows ?? [], columns, dateColumnId, colorColumnId, propertyIds), [stream?.rows, columns, dateColumnId, colorColumnId, propertyIds])
+  return <div className="w-64 p-2" data-calendar-scroll>
+    <VirtualInfiniteList items={items} itemKey={(item) => item.id} pagination={pagination} scope={scope} stream={stream} estimateSize={84} gap={4} className="max-h-72"
+      renderItem={(item) => <button type="button" onClick={() => onSelect(item)} className="w-full rounded border border-divider bg-contrast p-2 text-left">
+        <span className="block truncate text-sm font-medium">{item.title}</span>
+        {item.type === 'page' && item.data.properties?.length ? <CalendarProperties properties={item.data.properties} compact showLabels={showLabels} className="mt-1" /> : null}
+      </button>} />
   </div>
 }

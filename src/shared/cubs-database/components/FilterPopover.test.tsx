@@ -156,4 +156,23 @@ describe('FilterPopover — layout compacto', () => {
       values: [new Date('2026-09-03T14:30').toISOString()],
     })
   })
+
+  it.each([['Não', 'false'], ['Sim', 'true']])('envia %s como valor canônico de checkbox', (label, value) => {
+    const onAdd = vi.fn()
+    render(
+      <FilterPopover
+        columns={[{ id: 'done', title: 'Concluído', type: 'checkbox' }]}
+        columnTypes={{ done: 'checkbox' }}
+        labels={labels}
+        filterCount={0}
+        onAdd={onAdd}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }))
+    expect((screen.getByRole('button', { name: 'Adicionar' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('combobox', { name: 'Valor' }))
+    fireEvent.click(screen.getByRole('option', { name: label }))
+    fireEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+    expect(onAdd).toHaveBeenCalledWith({ columnId: 'done', condition: 'equals', values: [value] })
+  })
 })

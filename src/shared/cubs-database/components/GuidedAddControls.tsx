@@ -7,6 +7,7 @@ export interface GuidedAddControlsProps {
   children: ReactNode
   onAddRow?: () => void
   onAddColumn?: () => void
+  addingColumn?: boolean
   addRowLabel: string
   addColumnLabel: string
   className?: string
@@ -22,6 +23,7 @@ export function GuidedAddControls({
   children,
   onAddRow,
   onAddColumn,
+  addingColumn,
   addRowLabel,
   addColumnLabel,
   className,
@@ -42,6 +44,7 @@ export function GuidedAddControls({
           axis="vertical"
           label={addColumnLabel}
           onClick={onAddColumn}
+          busy={addingColumn}
           className="col-start-2 row-start-1 rounded-xl border border-divider shadow-sm"
         />
       )}

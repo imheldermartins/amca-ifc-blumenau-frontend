@@ -5,13 +5,14 @@ import {
   DndContext,
   DragOverlay,
   closestCenter,
+  useDndContext,
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
 import { SortableContext, horizontalListSortingStrategy, useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
-import { ContextMenu, cn, type ContextMenuItem } from 'cubs-components'
+import { ContextMenu, DragPlaceholder, dragPlaceholderStyle, cn, type ContextMenuItem } from 'cubs-components'
 
 import type { DataViewKind, DataViewSettings, DataViewType } from '../types'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
@@ -25,6 +26,8 @@ export interface ViewTabsBarProps {
   onAddView?: (kind: DataViewKind) => void | Promise<void>
   addViewLabel?: string
   viewTypeLabels?: Record<DataViewKind, string>
+  /** Tipos que podem ser criados no contexto atual. */
+  availableViewKinds?: readonly DataViewKind[]
   /** Recebe a ordem completa após o drop. A presença habilita o sortable. */
   onViewOrderChange?: (viewIds: string[]) => void
   /** Itens do ContextMenu da tab (aberto SOMENTE com botão direito). */
@@ -58,12 +61,14 @@ function SortableViewTab({
   onContextMenu,
 }: SortableViewTabProps) {
   const editing = renaming?.viewId === viewId
+  const { activeNodeRect } = useDndContext()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: viewId,
     disabled: !sortable || editing,
     transition: { duration: 220, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
   })
   const style: CSSProperties = {
+    ...(isDragging ? dragPlaceholderStyle(activeNodeRect) : undefined),
     transform: CSS.Transform.toString(transform),
     transition,
     position: 'relative',
@@ -76,11 +81,12 @@ function SortableViewTab({
     active
       ? 'border-divider-contrast bg-active text-foreground shadow-sm'
       : 'border-divider bg-transparent opacity-60 hover:border-divider-contrast hover:bg-contrast hover:opacity-100',
-    isDragging && 'opacity-20',
+    isDragging && 'invisible',
   )
 
   return (
     <div ref={setNodeRef} style={style} data-sortable-view={viewId}>
+      {isDragging && <DragPlaceholder />}
       {editing ? (
         <div className={tabClass}>
           <Icon icon={VIEW_KIND_ICON[view.view]} fontSize={15} className="shrink-0" />
@@ -105,6 +111,7 @@ function SortableViewTab({
           data-state={active ? 'active' : 'inactive'}
           {...attributes}
           {...listeners}
+          aria-disabled={undefined}
           onClick={onActivate}
           onContextMenu={onContextMenu}
           className={tabClass}
@@ -151,6 +158,7 @@ export function ViewTabsBar({
   onAddView,
   addViewLabel = 'Adicionar view',
   viewTypeLabels,
+  availableViewKinds = DATA_VIEW_KINDS,
   onViewOrderChange,
   viewMenuItems,
   onRenameView,
@@ -300,7 +308,7 @@ export function ViewTabsBar({
                   if (view && onRenameView) setRenaming({ viewId: menu.viewId!, name: view.name })
                 },
               }) ?? []
-            : DATA_VIEW_KINDS.map((kind) => ({
+            : availableViewKinds.map((kind) => ({
                 id: kind,
                 label: viewTypeLabels?.[kind] ?? kind,
                 icon: VIEW_KIND_ICON[kind],

@@ -23,12 +23,13 @@ export interface UseSocketResult {
  *   return () => { socket.off('presence:count', setCount) }
  * }, [socket])
  */
-export function useSocket(): UseSocketResult {
+export function useSocket(enabled = true): UseSocketResult {
   const [socket, setSocket] = useState<CubsSocket | null>(null)
   const [status, setStatus] = useState<SocketStatus>('connecting')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!enabled) { setSocket(null); return }
     const acquired = socketService.acquire()
     setSocket(acquired)
     setStatus(acquired.connected ? 'connected' : 'connecting')
@@ -53,7 +54,7 @@ export function useSocket(): UseSocketResult {
       acquired.off('connect_error', onError)
       socketService.release()
     }
-  }, [])
+  }, [enabled])
 
   return { socket, status, error }
 }

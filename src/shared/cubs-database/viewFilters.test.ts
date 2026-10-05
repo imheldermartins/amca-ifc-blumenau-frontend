@@ -310,6 +310,35 @@ describe('view filter predicates', () => {
     ).toEqual(['r1', 'r3'])
   })
 
+  it('inclui checkboxes sem valor em Não sem aceitar valores de outros tipos', () => {
+    const column = columns.find(({ id }) => id === 'effective')!
+    const checkboxRows: RowData[] = [
+      { id: 'checked', cells: { effective: { value: true } } },
+      { id: 'unchecked', cells: { effective: { value: false } } },
+      { id: 'missing', cells: {} },
+      { id: 'undefined', cells: { effective: { value: undefined } } },
+      { id: 'null', cells: { effective: { value: null } } },
+      ...['false', '', 0, 'true', 1].map((value, index) => ({
+        id: `invalid-${index}`, cells: { effective: { value } },
+      })),
+    ]
+
+    for (const [value, expected] of [
+      ['false', ['unchecked', 'missing', 'undefined', 'null']],
+      ['true', ['checked']],
+    ] as const) {
+      const clause: ViewFilterClause = {
+        columnId: column.id, condition: 'equals', values: [value],
+      }
+      expect(applyViewFilters(checkboxRows, [column], [clause]).map(({ id }) => id))
+        .toEqual(expected)
+      expect(checkboxRows.filter((row) => matchesViewFilter(row, column, 'checkbox', clause))
+        .map(({ id }) => id)).toEqual(expected)
+    }
+    expect(checkboxRows[2].cells).toEqual({})
+    expect(checkboxRows[4].cells.effective?.value).toBeNull()
+  })
+
   it('compara datas e considera sobreposição inclusiva no between', () => {
     expect(
       applyViewFilters(rows, columns, [

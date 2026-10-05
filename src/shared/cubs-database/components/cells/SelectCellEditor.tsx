@@ -12,6 +12,7 @@ import { Popover, cn } from 'cubs-components'
 
 import type { CellEditorProps, ColumnOption } from '../../types'
 import { useSortableSensors } from '../dndSensors'
+import { ColumnOptionsEditor } from '../ColumnOptionsEditor'
 import { OptionChip } from './OptionChip'
 
 /** Referência ESTÁVEL para coluna sem options — `?? []` inline criaria um
@@ -71,8 +72,9 @@ function SortableOption({
  * funções num componente só:
  *
  *  1. escolher: clique numa option → `onCommit(option.id)` e o Popover fecha
- *     (clicar na já selecionada só fecha, sem eco);
- *  2. ordenar: drag pelo handle (dnd-kit) → `onOptionsChange` com o array
+ *     (clicar na já selecionada limpa a célula com `onCommit(null)`);
+ *  2. configurar: reusa o editor de options do header para o CRUD; drag pelo
+ *     handle (dnd-kit) → `onOptionsChange` com o array
  *     COMPLETO na nova ordem — read-modify-write, como o snapshot das views.
  *
  * A ordem local é otimista: o drag reordena na hora e o estado re-sincroniza
@@ -88,6 +90,7 @@ export const SelectCellEditor = memo(function SelectCellEditor({
 }: CellEditorProps) {
   const options = column.options ?? NO_OPTIONS
   const [open, setOpen] = useState(false)
+  const [creatingOptions, setCreatingOptions] = useState(false)
   const [localOptions, setLocalOptions] = useState(options)
   const seenValue = useRef(value)
 
@@ -121,7 +124,10 @@ export const SelectCellEditor = memo(function SelectCellEditor({
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setCreatingOptions(options.length === 0 && Boolean(onOptionsChange))
+      }}
       className="min-w-44"
       trigger={
         <button
@@ -133,25 +139,51 @@ export const SelectCellEditor = memo(function SelectCellEditor({
         </button>
       }
     >
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={localOptions.map((option) => option.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {localOptions.map((option) => (
-            <SortableOption
-              key={option.id}
-              option={option}
-              selected={option.id === value}
-              dragLabel={labels?.dragOption ?? 'Arrastar option'}
-              onPick={() => {
-                if (option.id !== value) onCommit(option.id)
-                setOpen(false)
-              }}
-            />
-          ))}
-        </SortableContext>
-      </DndContext>
+      {creatingOptions && onOptionsChange ? (
+        <ColumnOptionsEditor options={localOptions} onChange={onOptionsChange} labels={labels} />
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={localOptions.map((option) => option.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {localOptions.map((option) => (
+              <SortableOption
+                key={option.id}
+                option={option}
+                selected={option.id === value}
+                dragLabel={labels?.dragOption ?? 'Arrastar option'}
+                onPick={() => {
+                  onCommit(option.id === value ? null : option.id)
+                  setOpen(false)
+                }}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+      {creatingOptions && localOptions.length > 0 && (
+        <button type="button" onClick={() => setCreatingOptions(false)} className="mt-1 flex w-full items-center gap-1.5 rounded border-t border-divider px-2 py-1.5 text-sm hover:bg-active">
+          <Icon icon="lucide:check" fontSize={14} />
+          {labels?.selectOption ?? 'Selecionar opção'}
+        </button>
+      )}
+      {!creatingOptions && localOptions.length > 0 && onOptionsChange && (
+        <div className="mt-1 border-t border-divider pt-1">
+          <Popover
+            side="right"
+            align="start"
+            trigger={
+              <button type="button" className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-sm hover:bg-active">
+                <Icon icon="lucide:list" fontSize={14} />
+                {labels?.optionsMenu ?? 'Opções'}
+              </button>
+            }
+          >
+            <ColumnOptionsEditor options={localOptions} onChange={onOptionsChange} labels={labels} />
+          </Popover>
+        </div>
+      )}
     </Popover>
   )
 })

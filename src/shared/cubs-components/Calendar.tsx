@@ -50,7 +50,7 @@ function EventBar<M extends object>({ item, renderers, onItemClick, style, class
   </button>
 }
 
-function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemClick, renderers, locale, labels, monthItemHeight = 20 }: CalendarProps<M> & { days: string[] }) {
+function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemClick, renderers, locale, labels, monthItemHeight = 20, dayCounts, renderDayOverflow }: CalendarProps<M> & { days: string[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(126)
   useEffect(() => {
@@ -92,12 +92,15 @@ function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemCl
     <div className="pointer-events-none absolute inset-x-0 bottom-0.5 grid grid-cols-7">
       {days.map((day, index) => {
         const hidden = segments.filter((segment) => segment.lane >= laneCount && segment.column <= index && segment.column + segment.span > index)
-        if (!hidden.length) return <span key={day} />
-        return <Popover key={day} trigger={<button type="button" className="pointer-events-auto mx-1 truncate rounded text-left text-[10px] opacity-65 hover:bg-active">{(labels?.more ?? defaultLabels.more)(hidden.length)}</button>}>
+        const shown = segments.filter((segment) => segment.lane < laneCount && segment.column <= index && segment.column + segment.span > index).length
+        const hiddenCount = dayCounts?.[day] === undefined ? hidden.length : Math.max(0, dayCounts[day] - shown)
+        if (!hiddenCount) return <span key={day} />
+        return <Popover key={day} trigger={<button type="button" className="pointer-events-auto mx-1 truncate rounded text-left text-[10px] opacity-65 hover:bg-active">{(labels?.more ?? defaultLabels.more)(hiddenCount)}</button>}>
+          {renderDayOverflow ? renderDayOverflow(day, hidden.map((segment) => segment.item)) :
           <div data-calendar-scroll className="max-h-72 w-64 space-y-1 overflow-y-auto p-2">
             <p className="mb-2 text-xs font-semibold">{formatCalendarDate(day, locale ?? 'pt-BR', { dateStyle: 'long' })}</p>
             {hidden.map(({ item }) => <EventBar key={item.id} item={item} renderers={renderers} onItemClick={onItemClick} className="w-full" />)}
-          </div>
+          </div>}
         </Popover>
       })}
     </div>

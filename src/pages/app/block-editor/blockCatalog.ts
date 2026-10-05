@@ -11,6 +11,7 @@ export type EditorBlockOptionId =
   | 'bullet-list'
   | 'numbered-list'
   | 'check-list'
+  | 'form-submit'
 
 export type EditorBlockContentPreset =
   | 'paragraph'
@@ -19,7 +20,7 @@ export type EditorBlockContentPreset =
   | 'taskList'
 
 export interface EditorBlockPayloadPreset {
-  action: 'insert' | 'select-image'
+  action: 'insert' | 'select-image' | 'select-form'
   kind: EditorBlockKind
   content?: EditorBlockContentPreset
   attrs: {
@@ -109,6 +110,18 @@ export const EDITOR_BLOCK_OPTIONS = {
       attrs: { indent: 0 },
     },
   },
+  'form-submit': {
+    id: 'form-submit',
+    icon: 'lucide:send',
+    labelKey: 'pages.block-editor.blocks.form-submit',
+    descriptionKey: 'pages.block-editor.block-library.descriptions.form-submit',
+    payload: {
+      action: 'select-form',
+      kind: 'formSubmit',
+      content: 'paragraph',
+      attrs: { indent: 0 },
+    },
+  },
 } as const satisfies Record<EditorBlockOptionId, EditorBlockOption>
 
 export const EDITOR_BLOCK_OPTION_IDS = [
@@ -117,6 +130,7 @@ export const EDITOR_BLOCK_OPTION_IDS = [
   'bullet-list',
   'numbered-list',
   'check-list',
+  'form-submit',
 ] as const satisfies readonly EditorBlockOptionId[]
 
 export const DEFAULT_EDITOR_BLOCK_OPTION_ID: EditorBlockOptionId = 'text'
@@ -127,6 +141,7 @@ const EDITOR_BLOCK_OPTION_BY_KIND: Record<EditorBlockKind, EditorBlockOptionId> 
   bulletList: 'bullet-list',
   enumerateList: 'numbered-list',
   checkList: 'check-list',
+  formSubmit: 'form-submit',
 }
 
 export function editorBlockOptionForKind(kind: string): EditorBlockOption {
@@ -204,6 +219,28 @@ export function insertBlockFromCatalog(
   transaction.setSelection(
     Selection.near(transaction.doc.resolve(insertionPosition + 1), 1),
   )
+  editor.view.dispatch(transaction.scrollIntoView())
+  editor.commands.focus()
+  return true
+}
+
+export function insertFormSubmitBlock(editor: Editor, formViewId: string): boolean {
+  const { state } = editor
+  const depth = editableBlockDepth(editor)
+  if (depth === null) return false
+  const { $from } = state.selection
+  const sourceBlock = $from.node(depth)
+  const sourceStart = $from.before(depth)
+  const replaceCurrent = isEmptyTextBlock(sourceBlock)
+  const insertionPosition = replaceCurrent ? sourceStart : $from.after(depth)
+  const block = state.schema.nodes.editableBlock.create(
+    { id: crypto.randomUUID(), kind: 'formSubmit', indent: 0, formViewId },
+    state.schema.nodes.paragraph.create(),
+  )
+  const transaction = replaceCurrent
+    ? state.tr.replaceWith(sourceStart, $from.after(depth), block)
+    : state.tr.insert(insertionPosition, block)
+  transaction.setSelection(Selection.near(transaction.doc.resolve(insertionPosition + 1), 1))
   editor.view.dispatch(transaction.scrollIntoView())
   editor.commands.focus()
   return true

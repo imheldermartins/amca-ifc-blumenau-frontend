@@ -7,7 +7,7 @@ import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTheme } from "@/hooks/useTheme"
 import { useNotifications } from '@/hooks/useNotifications'
 import { i18n } from "@/lib/i18n"
-import { Button, cn, Popover, Switch } from "@/shared/cubs-components"
+import { Button, cn, Popover, SOFT_SELECTION_CLASSES, Switch } from "@/shared/cubs-components"
 import { Icon } from "@iconify/react"
 import { useLocation, useNavigate } from "@tanstack/react-router"
 import React from "react"
@@ -134,8 +134,8 @@ export default ({
                                         collapsed ? 'w-9' : 'w-full',
                                         'h-9 px-2 flex flex-nowrap justify-start items-center rounded text-sm ease-in-out duration-300 transition-[width,color,background-color,box-shadow] overflow-clip',
                                         item.active
-                                            ? 'bg-p-purple text-light-100'
-                                            : 'glow-purple-hover hover:bg-active',
+                                            ? SOFT_SELECTION_CLASSES
+                                            : 'hover:bg-active',
                                         (!currentWorkspaceId || !currentPageRootId) && 'cursor-not-allowed opacity-45',
                                     )}
                                 >
@@ -215,7 +215,7 @@ export default ({
                                     onClick: openSignOutConfirmation,
                                     icon: 'lucide:log-out',
                                     label: i18n('pages.app.account-menu.logout'),
-                                    classNames: 'shadow-none! text-p-red! hover:bg-p-red-600/20 dark:hover:bg-p-red-600/10 focus-visible:bg-p-red-600/20'
+                                    classNames: 'text-p-red hover:bg-p-red/10 focus-visible:bg-p-red/10 focus-visible:ring-p-red/25'
                                 }
                             ] as { divider?: boolean; disabled?: boolean; render?: () => React.ReactNode; onClick?: () => void; icon?: string; label?: string; classNames?: string; badge?: number }[]).map((item, index) => {
                                 if (item.divider) 
@@ -228,9 +228,13 @@ export default ({
                                     <Button
                                         key={index}
                                         type="button"
+                                        variant="text"
                                         color="from-theme"
                                         role="menuitem"
-                                        className={cn("cursor-pointer glow-purple-hover flex w-full justify-start items-center gap-2 h-6 rounded-lg px-2 py-4 text-left text-sm transition-[color,background-color,box-shadow] bg-transparent hover:bg-active focus-visible:bg-active focus-visible:outline-none", item?.classNames)}
+                                        className={cn(
+                                            "cursor-pointer flex w-full justify-start items-center gap-2 h-6 rounded-lg px-2 py-4 text-left text-sm transition-[color,background-color] bg-transparent focus-visible:outline-none",
+                                            item.classNames ?? 'hover:bg-p-purple/10 hover:text-p-purple focus-visible:bg-p-purple/10 focus-visible:text-p-purple',
+                                        )}
                                         onClick={item?.onClick}
                                         disabled={item?.disabled}
                                     >

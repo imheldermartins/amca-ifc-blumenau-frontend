@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
-import { Button, Checkbox, Popover, Switch, cn } from 'cubs-components'
+import { Button, Checkbox, Popover, SOFT_SELECTION_CLASSES, Switch, TextField, cn } from 'cubs-components'
 
 import type { ColumnLockEditor, ColumnLockMap, HeaderCol } from '../types'
 
@@ -31,6 +31,7 @@ export function ColumnLockSettings({
   labels: ColumnLockSettingsLabels
 }) {
   const [search, setSearch] = useState('')
+  const [sectionElement, setSectionElement] = useState<HTMLElement | null>(null)
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase()
     if (!needle) return editors
@@ -39,7 +40,7 @@ export function ColumnLockSettings({
     )
   }, [editors, search])
 
-  return <section className="grid gap-3 border-t border-divider pt-5">
+  return <section ref={setSectionElement} className="grid gap-3 border-t border-divider pt-5">
     <div className="flex items-start gap-2">
       <Icon icon="lucide:lock-keyhole" className="mt-0.5 size-4 shrink-0 text-p-purple" />
       <div>
@@ -62,27 +63,37 @@ export function ColumnLockSettings({
           {enabled && <Popover
             side="left"
             align="start"
+            className="p-2"
+            portalContainer={sectionElement?.closest<HTMLElement>('[data-drawer-content]')}
             trigger={<Button variant="text" color="from-theme" className="shrink-0 px-2 py-1 text-xs">
               <Icon icon="lucide:users" className="size-3.5" />
               {labels.allowed} · {selected.length}
             </Button>}
           >
             <div className="w-72">
-              <label className="flex items-center gap-2 rounded-md border border-divider px-2.5">
-                <Icon icon="lucide:search" className="size-3.5 opacity-55" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder={labels.search}
-                  className="min-w-0 flex-1 bg-transparent py-2 text-xs outline-none"
-                />
-              </label>
-              <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">
+              <TextField
+                type="search"
+                size="sm"
+                surface="plain"
+                aria-label={labels.search}
+                placeholder={labels.search}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="group/search"
+                startAdornment={<Icon icon="lucide:search" className="size-3.5 opacity-60 transition-colors group-focus-within/search:text-p-purple" />}
+                inputClassName="rounded-lg border-light-100/60 bg-floating-input text-xs shadow-sm shadow-p-purple/10 transition-[background-color,border-color,box-shadow] focus-visible:border-p-purple/30 focus-visible:ring-2 focus-visible:ring-p-purple/15 focus-visible:shadow-md focus-visible:shadow-p-purple/15 dark:border-light-100/5"
+              />
+              <div className="mt-3 max-h-56 space-y-1 overflow-y-auto">
                 {!filtered.length && <p className="p-2 text-xs opacity-60">{labels.empty}</p>}
                 {filtered.map((editor) => {
                   const checked = selected.includes(editor.id)
                   const actor = editor.id === currentUserId
-                  return <label key={editor.id} className={cn('flex items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-active', actor && 'cursor-default')}>
+                  return <label key={editor.id} className={cn(
+                    'flex items-center gap-2 rounded-lg px-2 py-2 text-xs transition-[color,background-color,box-shadow]',
+                    'hover:bg-p-purple/10 hover:shadow-sm hover:shadow-p-purple/10 focus-within:bg-p-purple/10 focus-within:shadow-sm focus-within:shadow-p-purple/10',
+                    checked && SOFT_SELECTION_CLASSES,
+                    actor ? 'cursor-default' : 'cursor-pointer',
+                  )}>
                     <Checkbox
                       checked={checked}
                       disabled={actor}
@@ -96,7 +107,7 @@ export function ColumnLockSettings({
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{editor.name || editor.email}</span>
-                      {editor.name && <span className="block truncate opacity-55">{editor.email}</span>}
+                      {editor.name && <span className="block truncate text-dark-100 dark:text-light-900">{editor.email}</span>}
                     </span>
                   </label>
                 })}

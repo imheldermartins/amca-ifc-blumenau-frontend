@@ -20,6 +20,7 @@ const labels: DatabaseViewToolbarLabels = {
     calendar: 'Calendário',
     timeline: 'Cronograma',
     graph: 'Grafos',
+    form: 'Formulário',
   },
   presets: 'Predefinições',
   closePresets: 'Fechar predefinições',
@@ -156,6 +157,24 @@ describe('DatabaseViewToolbar', () => {
       screen.getByRole('combobox', { name: 'Tipo de visualização' })
         .textContent,
     ).toContain('Grade')
+  })
+
+  it('não oferece conversão para Form sem coluna Flow disponível', async () => {
+    render(
+      <DatabaseViewToolbar
+        viewKind="table"
+        columns={[]}
+        rows={[]}
+        filters={emptyViewFilters()}
+        labels={labels}
+        availableViewKinds={['table', 'grid', 'board', 'calendar', 'timeline', 'graph']}
+        onViewKindChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Tipo de visualização' }))
+    await screen.findByRole('option', { name: 'Tabela' })
+    expect(screen.queryByRole('option', { name: 'Formulário' })).toBeNull()
   })
 
   it('abre as predefinições numa drawer de metade da página', () => {

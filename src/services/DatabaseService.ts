@@ -10,6 +10,7 @@ import {
   type ParsedDatabase,
 } from '@/lib/databaseParser'
 import { apiService } from '@/services/ApiService'
+import type { PageViewQueryProjection, PageViewQueryRequest } from '@/shared/cubs-database/pageViewQueryContract'
 
 /**
  * Leitura de uma base do Cub's.
@@ -67,24 +68,23 @@ export class DatabaseService {
   /**
    * Abre QUALQUER página como base, pronta para `<CubsDatabase />`.
    *
-   * Com o id em mãos as três leituras são independentes → vão em paralelo. Uma
-   * página sem filhas nem colunas responde vazia (não é erro): é só uma folha
-   * da árvore que ainda não virou parent de ninguém.
+   * Metadados não incluem linhas. A visualização ativa consulta sua projeção
+   * separadamente, evitando carregar filhas ao abrir documentos/formulários.
    */
   async loadPage(pageId: string): Promise<ParsedDatabase> {
-    const [page, columns, dataset] = await Promise.all([
-      this.getPage(pageId),
-      this.getColumns(pageId),
-      this.getChildren(pageId),
-    ])
+    const { page, columns } = await apiService.get<{ page: ApiPage; columns: ApiPageColumn[] }>(`/pages/${pageId}/view-metadata`)
 
     return parseDatabase({
       page,
       columns,
-      dataset,
+      dataset: [],
       titleLabel: i18n('pages.app.cubs-database.coluna-titulo'),
       fallbackViewName: i18n('pages.app.cubs-database.view-padrao'),
     })
+  }
+
+  queryView(pageId: string, viewId: string, input: PageViewQueryRequest, signal?: AbortSignal): Promise<PageViewQueryProjection> {
+    return apiService.post(`/pages/${pageId}/views/${viewId}/query`, input, { signal })
   }
 
   /**

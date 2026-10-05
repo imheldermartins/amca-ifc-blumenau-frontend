@@ -79,8 +79,8 @@ export const mockableData = {
       },
       [MOCK_VIEW_IDS.board]: {
         view: 'board',
-        name: 'Kanban',
-        urlKey: { key: 'kanban', aliases: [] },
+        name: 'Quadros',
+        urlKey: { key: 'quadros', aliases: ['kanban'] },
         filters: mockFilters([['status', 'published']]),
         orderedHeaderCols: [],
       },

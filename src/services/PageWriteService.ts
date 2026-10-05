@@ -4,11 +4,18 @@ import type {
   ColumnOption,
   DataViewKind,
   DataViewType,
+  FormViewConfig,
   ViewFiltersV2,
 } from 'cubs-database'
 
 import { TITLE_COLUMN_ID, type ApiPage, type ApiPageColumn } from '@/lib/databaseParser'
 import { apiService } from '@/services/ApiService'
+import type { PageViewRowMoveInput, PageViewRowMoveResult } from '@/shared/cubs-database/pageViewQueryContract'
+
+export interface DeleteRowsResult {
+  deletedRowIds: string[]
+  failures: Array<{ rowId: string; error: unknown }>
+}
 
 /**
  * Escrita da base — o caminho HTTP, e o ÚNICO caminho.
@@ -18,13 +25,16 @@ import { apiService } from '@/services/ApiService'
  * Isso evita escrita duplicada, fora de ordem, ou indo parar num nó que não é
  * líder. Ler `docs/cubs-database-realtime-arquitetura.md` §4.
  *
- * Cada método RETORNA a promise crua do `ApiService` — que rejeita com
+ * Cada escrita individual RETORNA a promise do `ApiService` — que rejeita com
  * `AppError` num erro. Quem chama (o `usePageDatabase`) é que trata: a célula
  * via `useMutation` (rollback fino + marca), as demais via `.catch` (feedback
- * + reload). Não engole nada aqui: engolir tiraria do caller a chance de
- * reverter o otimismo.
+ * + reload). Lotes retornam sucessos e falhas por linha, para o caller aplicar
+ * somente exclusões confirmadas e exibir um aviso agregado.
  */
 export class PageWriteService {
+  moveRow(pageId: string, viewId: string, input: PageViewRowMoveInput): Promise<PageViewRowMoveResult> {
+    return apiService.post(`/pages/${pageId}/views/${viewId}/rows/${input.rowId}/move`, input)
+  }
   updateTitle(pageId: string, title: string | null): Promise<ApiPage> {
     return apiService.put<ApiPage>(`/pages/${pageId}`, { title })
   }
@@ -35,6 +45,7 @@ export class PageWriteService {
     view: DataViewKind,
     name: string,
     title?: DataViewType['title'],
+    form?: FormViewConfig,
   ): Promise<{ viewId: string; view: DataViewType }> {
     return apiService.post(`/pages/${pageId}/views`, {
       name,
@@ -42,6 +53,7 @@ export class PageWriteService {
       ...(title && {
         title: { key: 'title', column_name: title.column_name, ...(title.mask && { mask: title.mask }) },
       }),
+      ...(form && { form }),
     })
   }
 
@@ -71,6 +83,31 @@ export class PageWriteService {
   /** Soft delete da página/linha; o backend publica `row-deleted` pós-commit. */
   deleteRow(rowId: string): Promise<unknown> {
     return apiService.delete(`/pages/${rowId}`)
+  }
+
+  /** Mantém autorização e realtime de cada DELETE; limita requisições em voo. */
+  async deleteRows(rowIds: readonly string[]): Promise<DeleteRowsResult> {
+    const ids = [...new Set(rowIds)]
+    const outcomes = new Map<string, { error: unknown } | null>()
+    let cursor = 0
+    await Promise.all(Array.from({ length: Math.min(4, ids.length) }, async () => {
+      while (cursor < ids.length) {
+        const rowId = ids[cursor++]
+        try {
+          await this.deleteRow(rowId)
+          outcomes.set(rowId, null)
+        } catch (error) {
+          outcomes.set(rowId, { error })
+        }
+      }
+    }))
+    return {
+      deletedRowIds: ids.filter((id) => outcomes.get(id) === null),
+      failures: ids.flatMap((rowId) => {
+        const failure = outcomes.get(rowId)
+        return failure ? [{ rowId, error: failure.error }] : []
+      }),
+    }
   }
 
   /** Soft delete da coluna; valores permanecem preservados sob o tombstone. */
@@ -167,10 +204,13 @@ export class PageWriteService {
     }
     if (patch.orderedRows !== undefined) body.orderedRows = patch.orderedRows
     if (patch.columnWidths !== undefined) body.columnWidths = patch.columnWidths
+    if (patch.tileSize !== undefined) body.tileSize = patch.tileSize
     if (patch.dateColumnId !== undefined) body.dateColumnId = patch.dateColumnId
     if (patch.colorColumnId !== undefined) body.colorColumnId = patch.colorColumnId
     if (patch.calendarPropertyIds !== undefined) body.calendarPropertyIds = patch.calendarPropertyIds
     if (patch.calendarShowPropertyLabels !== undefined) body.calendarShowPropertyLabels = patch.calendarShowPropertyLabels
+    if (patch.form !== undefined) body.form = patch.form
+    if (patch.board !== undefined) body.board = patch.board
     if (patch.title !== undefined) {
       body.title = {
         key: patch.title.key,
