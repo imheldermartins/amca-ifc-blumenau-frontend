@@ -34,7 +34,7 @@ describe('Collaborators', () => {
     )
 
     const trigger = screen.getByRole('button', {
-      name: 'Abrir colaboradores da página (2 pessoas com acesso)',
+      name: 'Abrir colaboradores da página (2 colaboradores)',
     })
     expect(trigger.dataset.participants).toBe('2')
     expect(trigger.dataset.viewers).toBe('7')
@@ -68,7 +68,7 @@ describe('Collaborators', () => {
     expect(screen.getByText('+2')).toBeTruthy()
     expect(
       screen.getByRole('button', {
-        name: 'Abrir colaboradores da página (5 pessoas com acesso)',
+        name: 'Abrir colaboradores da página (5 colaboradores)',
       }).dataset.participants,
     ).toBe('5')
   })
