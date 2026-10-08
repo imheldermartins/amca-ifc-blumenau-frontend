@@ -27,7 +27,6 @@ import {
 import { useFeedback } from '@/contexts/FeedbackContext'
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import {
-  applyLocalCellChange,
   applyLocalColumnCreated,
   applyLocalColumnConfig,
   applyLocalColumnDeleted,
@@ -51,8 +50,10 @@ import type {
 import { pageWriteService } from '@/services/PageWriteService'
 import { flowService } from '@/services/FlowService'
 import { formService } from '@/services/FormService'
-import type { DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
+import type { DatabaseProjectionBridge, LocalDatabaseMutation } from '@/hooks/useDatabasePagination'
 import type { DatabaseRowMove } from 'cubs-database'
+import { patchRowCells } from '@/lib/databaseLocalState'
+import { flowLocalChanges } from '@/lib/flowLocalChanges'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
 
@@ -140,18 +141,16 @@ export interface UsePageDatabaseResult {
  *
  * O fluxo de uma edição é sempre o mesmo triângulo:
  *
- *   1. o componente muda a UI na hora (otimismo local da própria lib);
+ *   1. a mutação atualiza o estado React e a projeção local na hora;
  *   2. este hook manda a escrita por **HTTP** — quem grava é sempre a API
  *      (router → rqlite, no líder do Raft). O socket NUNCA escreve;
  *   3. o backend, DEPOIS do commit, propaga o fato para a sala; os outros
-   *      aplicam pelo redutor puro (`applyRealtimeEvent`), inclusive quem
-   *      originou (o próprio eco sela o relógio autoritativo).
+ *      aplicam pelo redutor puro (`applyRealtimeEvent`). Durante uma escrita
+ *      pendente, o valor local é protegido até a confirmação ou rollback.
  *
- * O estado é UM `ParsedDatabase` por página, e não um cache por célula como o
- * doc de arquitetura descreve (§6). É uma escolha consciente para esta etapa:
- * na escala do protótipo o custo de re-render é irrelevante, e a regra de
- * merge já está isolada num redutor puro — migrar para chaves por célula vira
- * um passo mecânico, sem tocar em componente.
+ * `ParsedDatabase` combina o catálogo com as linhas retidas pela paginação.
+ * Escritas locais entram explicitamente na bridge; ela publica as linhas em
+ * uma única direção, sem espelhar snapshots de volta por effects.
  */
 export function usePageDatabase(pageId: string | undefined, paginationBridge?: RefObject<DatabaseProjectionBridge | null>): UsePageDatabaseResult {
   const feedback = useFeedback()
@@ -170,6 +169,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
   // o otimismo de uma edição mais nova. O Map fica em ref porque coordena
   // callbacks assíncronos, mas não desenha nada.
   const cellMutationRevisionsRef = useRef<Map<string, number>>(new Map())
+  const pendingLocalCellsRef = useRef(new Map<string, { revision: number; change: CellChange }>())
   // A revisão continua protegendo troca de página/unmount e qualquer resposta
   // obsoleta. O coalescer abaixo impede sobreposição normal: há no máximo
   // uma carga em voo e uma nova passagem pendente.
@@ -234,6 +234,8 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     loadedPageIdRef.current = undefined
     settingsRef.current = {}
     materializedFallbackRef.current = { pageId }
+    pendingLocalCellsRef.current.clear()
+    cellMutationRevisionsRef.current.clear()
     viewWriteQueueRef.current = Promise.resolve()
     if (!pageId) {
       databaseRef.current = null
@@ -364,27 +366,21 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
   const handleRealtimeEvent = useCallback<NonNullable<UsePageRealtimeOptions['onEvent']>>(
     (event) => {
       paginationBridge?.current?.onEvent(event)
+      const pendingKey = event.type === 'cell-updated' ? cellErrorKey(event.payload.rowId, event.payload.columnId)
+        : event.type === 'row-updated' ? cellErrorKey(event.payload.rowId, TITLE_COLUMN_ID) : undefined
+      if (pendingKey && pendingLocalCellsRef.current.has(pendingKey)) return
       // Qualquer snapshot confirmado substitui os previews: ele é a verdade
       // durável, inclusive quando o resize acabou ou sua escrita foi superada.
       if (event.type === 'view-updated') clearColumnWidthPreviews()
-      setDatabase((current) => {
-        if (!current) return current
-        // Sem filtro de autoria: o eco da PRÓPRIA edição também entra, e é ele
-        // que traz o `updatedAt` do servidor para o relógio (ver
-        // `databaseRealtime.ts`). Como o valor já é o que está na tela, o
-        // efeito visível é nenhum — o ganho é a guarda de ordem passar a
-        // valer para as edições deste usuário também.
-        const result = applyRealtimeEvent(
-          current,
-          clockRef.current,
-          event,
-          i18n('pages.app.cubs-database.coluna-titulo'),
-        )
-        if (!result.applied) return current
-        clockRef.current = result.clock
-        settingsRef.current = result.database.settings
-        return result.database
-      })
+      const current = databaseRef.current
+      if (!current) return
+      const result = applyRealtimeEvent(current, clockRef.current, event, i18n('pages.app.cubs-database.coluna-titulo'))
+      if (!result.applied) return
+      clockRef.current = result.clock
+      settingsRef.current = result.database.settings
+      // The next local action in this same React batch must see the remote fact.
+      databaseRef.current = result.database
+      setDatabase(result.database)
     },
     [clearColumnWidthPreviews, paginationBridge],
   )
@@ -411,12 +407,11 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         return
       }
 
-      setDatabase((current) => {
-        if (!current) return current
-        const next = { ...current, pageTitle: payload.title }
-        databaseRef.current = next
-        return next
-      })
+      const current = databaseRef.current
+      if (!current) return
+      const next = { ...current, pageTitle: payload.title }
+      databaseRef.current = next
+      setDatabase(next)
     },
     [pageId, reload],
   )
@@ -472,35 +467,33 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         [structureClockKey(event)]: event.payload.updatedAt,
       }
 
+      const current = databaseRef.current
       if (event.type === 'row-created' && !paginationBridge) {
-        setDatabase((current) => {
-          if (!current || current.rows.some((row) => row.id === event.payload.rowId)) {
-            return current
-          }
-          return {
+        if (current && !current.rows.some((row) => row.id === event.payload.rowId)) {
+          const next = {
             ...current,
             rows: [...current.rows, { id: event.payload.rowId, cells: {} }],
           }
-        })
+          databaseRef.current = next
+          setDatabase(next)
+        }
       } else if (event.type === 'row-deleted') {
-        setDatabase((current) => {
-          if (!current) return current
+        if (current) {
           const next = applyLocalRowDeleted(current, event.payload.rowId)
           databaseRef.current = next
-          return next
-        })
+          setDatabase(next)
+        }
         setCellErrors((current) => {
           const prefix = `${event.payload.rowId}:`
           const next = new Set([...current].filter((key) => !key.startsWith(prefix)))
           return next.size === current.size ? current : next
         })
       } else if (event.type === 'column-deleted') {
-        setDatabase((current) => {
-          if (!current) return current
+        if (current) {
           const next = applyLocalColumnDeleted(current, event.payload.columnId)
           databaseRef.current = next
-          return next
-        })
+          setDatabase(next)
+        }
         setCellErrors((current) => {
           const suffix = `:${event.payload.columnId}`
           const next = new Set([...current].filter((key) => !key.endsWith(suffix)))
@@ -703,17 +696,56 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
    *  - sucesso: a marca já saiu no onMutate e o eco do servidor confirma o
    *    valor, então não há o que fazer.
    */
+  const applyLocalChanges = useCallback((changes: CellChange[]) => {
+    const current = databaseRef.current
+    if (!current || !changes.length) return
+    const next = { ...current, rows: current.rows.map((row) => patchRowCells(row, changes)) }
+    databaseRef.current = next
+    setDatabase(next)
+  }, [])
+  const beginLocalMutation = useCallback((changes: CellChange[], move?: DatabaseRowMove): LocalDatabaseMutation => {
+    const mutationPageId = pageId
+    const revisions = new Map<string, number>()
+    for (const change of changes) {
+      const key = cellErrorKey(change.rowId, change.columnId)
+      const revision = (cellMutationRevisionsRef.current.get(key) ?? 0) + 1
+      revisions.set(key, revision); cellMutationRevisionsRef.current.set(key, revision)
+      pendingLocalCellsRef.current.set(key, { revision, change })
+    }
+    const projection = paginationBridge?.current?.onLocalMutation(changes, move)
+    applyLocalChanges(changes)
+    let finished = false
+    const finish = (confirmed?: CellChange[], rollback = false, orderRevision?: number) => {
+      if (finished) return
+      finished = true
+      if (currentPageIdRef.current !== mutationPageId || !mountedRef.current) return
+      const latest = changes.filter((change) => {
+        const key = cellErrorKey(change.rowId, change.columnId)
+        return cellMutationRevisionsRef.current.get(key) === revisions.get(key)
+      })
+      latest.forEach((change) => pendingLocalCellsRef.current.delete(cellErrorKey(change.rowId, change.columnId)))
+      const writes = rollback ? latest.map((change) => ({ ...change, value: change.previousValue }))
+        : confirmed?.filter((change) => {
+          const key = cellErrorKey(change.rowId, change.columnId)
+          return revisions.has(key) ? cellMutationRevisionsRef.current.get(key) === revisions.get(key) : !pendingLocalCellsRef.current.has(key)
+        }) ?? []
+      applyLocalChanges(writes)
+      if (rollback) projection?.rollback()
+      else projection?.commit(writes, orderRevision)
+    }
+    return { commit: (confirmed, orderRevision) => finish(confirmed, false, orderRevision), rollback: () => finish(undefined, true) }
+  }, [pageId, paginationBridge, applyLocalChanges])
   const cellMutation = useMutation({
     mutationFn: (change: CellChange) => pageWriteService.saveCell(change),
     onMutate: (change: CellChange) => {
       const key = cellErrorKey(change.rowId, change.columnId)
-      const revision = (cellMutationRevisionsRef.current.get(key) ?? 0) + 1
-      cellMutationRevisionsRef.current.set(key, revision)
       setCellErrors((prev) => toggleKey(prev, key, false))
-      setDatabase((current) => (current ? applyLocalCellChange(current, change) : current))
-      return { key, revision }
+      const local = beginLocalMutation([change])
+      return { key, revision: cellMutationRevisionsRef.current.get(key), local }
     },
-    onError: (_error, change, context) => {
+    onSuccess: (_data, _change, context) => context?.local.commit(),
+    onError: (_error, _change, context) => {
+      context?.local.rollback()
       // A célula já recebeu outra edição depois desta requisição. Reverter,
       // marcar ou notificar agora atribuiria a falha velha ao valor novo.
       if (
@@ -723,15 +755,6 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         return
       }
 
-      setDatabase((current) =>
-        current
-          ? applyLocalCellChange(current, {
-              rowId: change.rowId,
-              columnId: change.columnId,
-              value: change.previousValue,
-            })
-          : current,
-      )
       setCellErrors((prev) => toggleKey(prev, context.key, true))
       notifyWriteError(_error)
 
@@ -866,8 +889,9 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       // Um evento autoritativo também invalida o rollback de qualquer request
       // antiga ainda em voo. Sem isto, uma falha atrasada poderia restaurar o
       // valor anterior POR CIMA daquele que acabou de chegar pelo receiver.
-      const revision = (cellMutationRevisionsRef.current.get(key) ?? 0) + 1
-      cellMutationRevisionsRef.current.set(key, revision)
+      const accepted = beginLocalMutation([{ rowId: conflict.rowId, columnId: conflict.columnId, value: conflict.value,
+        previousValue: databaseRef.current?.rows.find((row) => row.id === conflict.rowId)?.cells[conflict.columnId]?.value }])
+      accepted.commit()
       setCellErrors((prev) => toggleKey(prev, key, true))
       feedback({
         title: i18n('feedback.realtime.titulo'),
@@ -878,19 +902,19 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         variant: 'warning',
       })
     },
-    [feedback],
+    [feedback, beginLocalMutation],
   )
 
   const mutateCell = cellMutation.mutateAsync
   const replaceLoadedRows = useCallback((rows: RowData[]) => {
     setDatabase((current) => {
       if (!current || current.rows === rows || (current.rows.length === rows.length && current.rows.every((row, index) => row === rows[index]))) return current
-      const next = { ...current, rows }
+      const pending = [...pendingLocalCellsRef.current.values()].map((entry) => entry.change)
+      const next = { ...current, rows: pending.length ? rows.map((row) => patchRowCells(row, pending)) : rows }
       databaseRef.current = next
       return next
     })
   }, [])
-  useEffect(() => { if (database) paginationBridge?.current?.onLocalRows(database.rows) }, [database, paginationBridge])
   const handlers = {
     onBoardConfigChange: useCallback((viewId: string, board: BoardViewConfig) => saveViewPatch(viewId, { board }), [saveViewPatch]),
     onBoardMove: useCallback(async (viewId: string, input: BoardMoveInput) => {
@@ -899,14 +923,16 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       if (!row) throw new Error('Página não encontrada')
       const previousValue = row.cells[input.selectColumnId]?.value
       if (paginationBridge) {
+        const changes = [{ rowId: input.rowId, columnId: input.selectColumnId, value: input.optionId, previousValue }]
+        const local = beginLocalMutation(changes, input)
         try {
-          await pageWriteService.moveRow(pageId, viewId, {
+          const result = await pageWriteService.moveRow(pageId, viewId, {
             rowId: input.rowId, beforeId: input.beforeId, afterId: input.afterId, boundary: input.boundary,
             expectedOrderRevision: paginationBridge.current?.orderRevision ?? 0,
             ...((previousValue ?? null) !== input.optionId ? { targetOptionId: input.optionId, previousOptionId: typeof previousValue === 'string' ? previousValue : null } : {}),
           })
-          paginationBridge.current?.onResync()
-        } catch (error) { paginationBridge.current?.onResync(); handleWriteError(error); throw error }
+          local.commit(changes, result.orderRevision)
+        } catch (error) { local.rollback(); handleWriteError(error); throw error }
         return
       }
       if ((previousValue ?? null) !== input.optionId) {
@@ -917,7 +943,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         const response = await enqueueViewWrite(() => pageWriteService.patchView(pageId, viewId, { orderedRows: input.orderedRows }))
         rememberView(viewId, response.view)
       } catch (error) { handleWriteError(error); throw error }
-    }, [pageId, mutateCell, enqueueViewWrite, rememberView, handleWriteError, paginationBridge]),
+    }, [pageId, mutateCell, enqueueViewWrite, rememberView, handleWriteError, paginationBridge, beginLocalMutation]),
     onBoardCreateRow: useCallback(async (input: BoardCreateInput): Promise<RowData | undefined> => {
       if (!pageId) return undefined
       let created
@@ -925,8 +951,11 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       catch (error) { handleWriteError(error); throw error }
       if (currentPageIdRef.current !== pageId) return undefined
       let row: RowData = { id: created.id, cells: {} }
-      setDatabase((current) => current && !current.rows.some((entry) => entry.id === row.id)
-        ? { ...current, rows: [...current.rows, row] } : current)
+      const current = databaseRef.current
+      if (current && !current.rows.some((entry) => entry.id === row.id)) {
+        const next = { ...current, rows: [...current.rows, row] }
+        databaseRef.current = next; setDatabase(next)
+      }
       if (input.optionId !== null) {
         try {
           await mutateCell({ rowId: row.id, columnId: input.selectColumnId, value: input.optionId, previousValue: undefined })
@@ -1081,17 +1110,21 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     ),
     onFlowExecute: useCallback(
       async (input: { columnId: string; rowId: string }) => {
-        const result = await flowService.execute(input.rowId, input.columnId)
-        setDatabase((current) => current ? {
-          ...current,
-          rows: current.rows.map((row) => row.id === input.rowId ? {
-            ...row,
-            cells: { ...row.cells, [input.columnId]: { value: result } },
-          } : row),
-        } : current)
-        return result
+        const source = databaseRef.current
+        const row = source?.rows.find((entry) => entry.id === input.rowId)
+        const flow = source?.headerCols.find((entry) => entry.id === input.columnId)?.flow
+        const local = beginLocalMutation(row && source ? flowLocalChanges(flow, row, source.headerCols) : [])
+        try {
+          const result = await flowService.execute(input.rowId, input.columnId)
+          if (result.status === 'failed') local.rollback()
+          else local.commit([
+            ...(result.updatedValues ?? []).map((entry) => ({ ...entry, rowId: input.rowId, previousValue: row?.cells[entry.columnId]?.value })),
+            { rowId: input.rowId, columnId: input.columnId, value: result, previousValue: row?.cells[input.columnId]?.value },
+          ])
+          return result
+        } catch (error) { local.rollback(); handleWriteError(error); throw error }
       },
-      [],
+      [beginLocalMutation, handleWriteError],
     ),
     onRowOrderChange: useCallback(
       (viewId: string, orderedRows: string[]) => {
@@ -1101,11 +1134,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     ),
     onRowMove: useCallback(async (viewId: string, input: DatabaseRowMove) => {
       if (!pageId) return
+      const local = beginLocalMutation([], input)
       try {
-        await pageWriteService.moveRow(pageId, viewId, { ...input, expectedOrderRevision: paginationBridge?.current?.orderRevision ?? 0 })
-        paginationBridge?.current?.onResync()
-      } catch (error) { paginationBridge?.current?.onResync(); handleWriteError(error); throw error }
-    }, [pageId, paginationBridge, handleWriteError]),
+        const result = await pageWriteService.moveRow(pageId, viewId, { ...input, expectedOrderRevision: paginationBridge?.current?.orderRevision ?? 0 })
+        local.commit(undefined, result.orderRevision)
+      } catch (error) { local.rollback(); handleWriteError(error); throw error }
+    }, [pageId, paginationBridge, handleWriteError, beginLocalMutation]),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
         saveViewPatch(viewId, { orderedHeaderCols })

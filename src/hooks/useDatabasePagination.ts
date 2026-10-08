@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import type { DatabasePagination, DataViewType, HeaderCol, RowData, ViewFiltersV2 } from 'cubs-database'
-import type { DatabaseRealtimeEvent } from '@/lib/databaseRealtime'
+import type { CellChange, DatabasePagination, DatabaseRowMove, DataViewType, HeaderCol, RowData, ViewFiltersV2 } from 'cubs-database'
+import { isRealtimeCellValue, type DatabaseRealtimeEvent } from '@/lib/databaseRealtime'
 import { parseRows, TITLE_COLUMN_ID } from '@/lib/databaseParser'
 import { databaseService } from '@/services/DatabaseService'
 import { PageRealtimeChannel, type PageStructureEvent } from '@/services/PageRealtimeChannel'
@@ -9,6 +9,12 @@ import { useSocket } from '@/hooks/useSocket'
 import type { RowOrderUpdatedPayload } from '@/services/realtime-contract-v1'
 import { pageViewScopeKey, type PageViewQueryProjection, type PageViewQueryRequest, type PageViewQueryScope } from '@/shared/cubs-database/pageViewQueryContract'
 import { mergeDatabaseGroups, refreshDatabaseGroups, mergeDatabaseWindow, shareDatabaseRows, trimDatabaseWindows, type CachedDatabaseWindow, type WindowViewport } from '@/lib/databaseWindowCache'
+import { patchDatabaseWindows, patchRowCells } from '@/lib/databaseLocalState'
+
+export interface LocalDatabaseMutation {
+  commit(changes?: CellChange[], orderRevision?: number): void
+  rollback(): void
+}
 
 export interface DatabaseProjectionBridge {
   onEvent(event: DatabaseRealtimeEvent): void
@@ -16,7 +22,7 @@ export interface DatabaseProjectionBridge {
   onResync(): void
   onAccessDenied(): void
   onRowOrder(payload: RowOrderUpdatedPayload): void
-  onLocalRows(rows: RowData[]): void
+  onLocalMutation(changes: CellChange[], move?: DatabaseRowMove): LocalDatabaseMutation
   onCreatedRow(row: RowData): void
   orderRevision: number
 }
@@ -44,11 +50,11 @@ interface Session {
   pins: Map<string, number>; viewports: Map<string, WindowViewport>; averageHeight: Map<string, number>
   clocks: Map<string, string>; interactions: number; dirty: boolean; timer?: ReturnType<typeof setTimeout>
   revokedBranches: Set<string>
+  mutations: Map<string, number>; mutationRevision: number; pendingWrites: number
 }
-const newSession = (identity: string, owner: string): Session => ({ identity, owner, cache: EMPTY_CACHE, generation: 0, denied: false, queue: [], active: null, next: undefined, running: false, consumed: null, completed: new Map(), pins: new Map(), viewports: new Map(), averageHeight: new Map(), clocks: new Map(), interactions: 0, dirty: false, revokedBranches: new Set() })
+const newSession = (identity: string, owner: string): Session => ({ identity, owner, cache: EMPTY_CACHE, generation: 0, denied: false, queue: [], active: null, next: undefined, running: false, consumed: null, completed: new Map(), pins: new Map(), viewports: new Map(), averageHeight: new Map(), clocks: new Map(), interactions: 0, dirty: false, revokedBranches: new Set(), mutations: new Map(), mutationRevision: 0, pendingWrites: 0 })
 const requestKey = (param: FetchParam) => JSON.stringify(param)
 const streamKey = (param: FetchParam) => pageViewScopeKey(param.scope ?? ROOT)
-const sameCells = (one: RowData, two: RowData) => one === two || JSON.stringify(one.cells) === JSON.stringify(two.cells)
 
 /** One transport, bounded view-wide cache, and independently scrollable streams. */
 export function useDatabasePagination(options: PaginationOptions): { pagination: DatabasePagination; bridge: DatabaseProjectionBridge; error: unknown } {
@@ -110,7 +116,13 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     queryFn: async ({ pageParam, signal }): Promise<FetchEnvelope> => {
       const atStart = session.generation
       const { replaceId: _replaceId, recovery: _recovery, ...input } = pageParam
-      const projection = await databaseService.queryView(options.pageId, options.viewId, { ...input, filters: optionsRef.current.filters, limit: input.limit ?? 50 }, signal)
+      const view = optionsRef.current.view?.view
+      const projection = await databaseService.queryView(options.pageId, options.viewId, {
+        ...input,
+        ...(view && { view }),
+        filters: optionsRef.current.filters,
+        limit: input.limit ?? 50,
+      }, signal)
       return { projection, param: pageParam, generation: atStart, identity }
     },
     getNextPageParam: () => session.next, getPreviousPageParam: () => undefined,
@@ -139,7 +151,7 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
   }, [])
   pumpRef.current = () => {
     const current = sessionRef.current
-    if (current.running || queryRef.current.isFetching || !current.queue.length || current.denied || !enabledRef.current) return
+    if (current.running || current.pendingWrites || queryRef.current.isFetching || !current.queue.length || current.denied || !enabledRef.current) return
     const param = current.queue.shift()!
     current.next = param; current.active = param; current.running = true
     void queryRef.current.fetchNextPage({ cancelRefetch: false }).then((result) => {
@@ -188,7 +200,7 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const current = sessionRef.current
     if (!response || current.denied || response === current.consumed || response.identity !== current.identity) return
     current.consumed = response
-    if (response.generation !== current.generation) { current.dirty = true; return }
+    if (response.generation !== current.generation || current.pendingWrites) { current.dirty = true; return }
     const { projection, param } = response, before = current.cache
     if (param.scope?.type === 'graph' && current.revokedBranches.has(param.scope.parentId)) return
     const previous = new Map(before.windows.flatMap((window) => window.rows.map((row) => [row.id, row] as const)))
@@ -272,24 +284,58 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     return [...unique.values()]
   }, [cache.windows, cache.created])
   useEffect(() => { optionsRef.current.onRows(rows) }, [rows])
-  const syncRows = useCallback((incoming: RowData[]) => {
-    const current = sessionRef.current, updates = new Map(incoming.map((row) => [row.id, row]))
-    let changed = false
-    const windows = current.cache.windows.map((window) => {
-      const nextRows = window.rows.map((row) => {
-        const update = updates.get(row.id)
-        if (!update || sameCells(update, row)) return row
-        changed = true; return update
-      })
-      return nextRows.some((row, index) => row !== window.rows[index]) ? { ...window, rows: nextRows } : window
-    })
-    const created = { ...current.cache.created }
+  const applyChanges = useCallback((current: Session, changes: CellChange[], move?: DatabaseRowMove) => {
+    const before = current.cache
+    const selectId = before.projection?.selectColumnId ?? optionsRef.current.view?.board?.selectColumnId
+      ?? (optionsRef.current.view?.view === 'board' ? optionsRef.current.columns?.find((column) => column.type === 'select')?.id : undefined)
+    const windows = patchDatabaseWindows(before.windows, changes, selectId, () => ++nextId.current, move)
+    const created = { ...before.created }
     for (const [id, entry] of Object.entries(created)) {
-      const update = updates.get(id)
-      if (update && !sameCells(update, entry.row)) { created[id] = { ...entry, row: update }; changed = true }
+      const row = patchRowCells(entry.row, changes)
+      const value = selectId ? row.cells[selectId]?.value : undefined
+      created[id] = { ...entry, row, scope: entry.scope.type === 'board' ? { type: 'board', optionId: typeof value === 'string' ? value : '__unassigned__' } : entry.scope }
     }
-    if (changed) commit(current, { ...current.cache, windows, created })
+    const groups = before.projection?.groups?.map((group) => {
+      const count = (entries: CachedDatabaseWindow[]) => entries.filter((window) => window.key === group.key).reduce((sum, window) => sum + window.rows.length, 0)
+      const delta = count(windows) - count(before.windows)
+      return delta ? { ...group, total: Math.max(0, group.total + delta) } : group
+    })
+    commit(current, { ...before, windows, created, projection: before.projection ? { ...before.projection, groups } : null })
   }, [commit])
+  const onLocalMutation = useCallback((changes: CellChange[], move?: DatabaseRowMove): LocalDatabaseMutation => {
+    const current = sessionRef.current, revision = ++current.mutationRevision
+    const cellKey = (change: CellChange) => `${change.rowId}:${change.columnId}`
+    const source = move ? current.cache.windows.find((window) => window.rows.some((row) => row.id === move.rowId)) : undefined
+    const index = source?.rows.findIndex((row) => row.id === move?.rowId) ?? -1
+    const undoMove = move && source ? { rowId: move.rowId, beforeId: source.rows[index + 1]?.id, afterId: source.rows[index - 1]?.id, boundary: 'start' as const } : undefined
+    const moveKey = move ? `order:${move.rowId}` : undefined
+    if (moveKey) current.mutations.set(moveKey, revision)
+    changes.forEach((change) => current.mutations.set(cellKey(change), revision))
+    current.interactions++; current.pendingWrites++
+    // Discard HTTP reads started before this local write, without clearing cards.
+    current.generation++; current.completed.clear()
+    applyChanges(current, changes, move)
+    let finished = false
+    const finish = (confirmed?: CellChange[], rollback = false, orderRevision?: number) => {
+      if (finished) return
+      finished = true
+      if (current !== sessionRef.current || current.denied) return
+      const latest = changes.filter((change) => current.mutations.get(cellKey(change)) === revision)
+      const latestMove = moveKey !== undefined && current.mutations.get(moveKey) === revision
+      if (moveKey && latestMove) current.mutations.delete(moveKey)
+      latest.forEach((change) => current.mutations.delete(cellKey(change)))
+      const writes = rollback ? latest.map((change) => ({ ...change, value: change.previousValue }))
+        : confirmed?.filter((change) => changes.some((entry) => cellKey(entry) === cellKey(change))
+          ? latest.some((entry) => cellKey(entry) === cellKey(change)) : !current.mutations.has(cellKey(change))) ?? []
+      const restoreOrder = rollback && latestMove && latest.length === changes.length ? undoMove : undefined
+      if (writes.length || restoreOrder) applyChanges(current, writes, restoreOrder)
+      if (orderRevision !== undefined && current.cache.projection) commit(current, { ...current.cache, projection: { ...current.cache.projection, orderRevision: Math.max(orderRevision, current.cache.projection.orderRevision) } })
+      current.interactions = Math.max(0, current.interactions - 1)
+      current.pendingWrites = Math.max(0, current.pendingWrites - 1)
+      invalidate()
+    }
+    return { commit: (confirmed, orderRevision) => finish(confirmed, false, orderRevision), rollback: () => finish(undefined, true) }
+  }, [applyChanges, commit, invalidate])
   const onCreatedRow = useCallback((row: RowData) => {
     const current = sessionRef.current
     if (current.denied || !enabledRef.current) return
@@ -324,23 +370,23 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     if (event.type !== 'cell-updated' && event.type !== 'row-updated') { invalidate(); return }
     const current = sessionRef.current, columnId = event.type === 'row-updated' ? TITLE_COLUMN_ID : event.payload.columnId
     const value = event.type === 'row-updated' ? event.payload.title : event.payload.value
+    if (event.type === 'cell-updated') {
+      const column = optionsRef.current.columns?.find((candidate) => candidate.id === columnId)
+      if (
+        !isRealtimeCellValue(value, event.payload.columnType) ||
+        (column?.type !== undefined && column.type !== event.payload.columnType)
+      ) {
+        invalidate()
+        return
+      }
+    }
     const loaded = current.cache.windows.some((window) => window.rows.some((row) => row.id === event.payload.rowId)) || Boolean(current.cache.created[event.payload.rowId])
     if (event.type === 'row-updated' && current.cache.navigation[event.payload.rowId]) commit(current, { ...current.cache, navigation: { ...current.cache.navigation, [event.payload.rowId]: { ...current.cache.navigation[event.payload.rowId], title: event.payload.title ?? '' } } })
-    if (loaded) {
-      const write = (row: RowData) => {
-        if (row.id !== event.payload.rowId || JSON.stringify(row.cells[columnId]?.value) === JSON.stringify(value ?? undefined)) return row
-        const cells = { ...row.cells }; if (value == null) delete cells[columnId]; else cells[columnId] = { value }
-        return { ...row, cells }
-      }
-      const windows = current.cache.windows.map((window) => { const rows = window.rows.map(write); return rows.some((row, index) => row !== window.rows[index]) ? { ...window, rows } : window })
-      const created = { ...current.cache.created }, entry = created[event.payload.rowId]
-      if (entry) created[event.payload.rowId] = { ...entry, row: write(entry.row) }
-      commit(current, { ...current.cache, windows, created })
-    }
+    if (loaded && !current.mutations.has(`${event.payload.rowId}:${columnId}`)) applyChanges(current, [{ rowId: event.payload.rowId, columnId, value, previousValue: undefined }])
     const opts = optionsRef.current
     const depends = opts.filters.clauses.some((clause) => clause.columnId === columnId) || (opts.view?.view !== 'board' && opts.filters.groupBy.includes(columnId)) || columnId === opts.view?.board?.selectColumnId || columnId === current.cache.projection?.selectColumnId || columnId === opts.view?.dateColumnId || columnId === current.cache.projection?.dateColumnId
     if (depends || (loaded && queryRef.current.isFetching)) invalidate()
-  }, [accepts, commit, invalidate])
+  }, [accepts, applyChanges, commit, invalidate])
   const onStructure = useCallback((event: PageStructureEvent) => {
     const entity = event.type === 'column-deleted' ? `column:${event.payload.columnId}` : `row:${event.payload.rowId}`
     if (!accepts(event.payload.pageId, entity, event.payload.updatedAt)) return
@@ -361,7 +407,7 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     invalidate()
   }, [accepts, commit, invalidate])
   const onRowOrder = useCallback((payload: RowOrderUpdatedPayload) => { if (payload.viewId === optionsRef.current.viewId && accepts(payload.pageId, `order:${payload.viewId}`, payload.updatedAt)) invalidate() }, [accepts, invalidate])
-  const bridge = useMemo<DatabaseProjectionBridge>(() => ({ orderRevision: cache.projection?.orderRevision ?? 0, onLocalRows: syncRows, onCreatedRow, onEvent, onStructure, onRowOrder, onResync: invalidate, onAccessDenied: deny }), [cache.projection?.orderRevision, syncRows, onCreatedRow, onEvent, onStructure, onRowOrder, invalidate, deny])
+  const bridge = useMemo<DatabaseProjectionBridge>(() => ({ orderRevision: cache.projection?.orderRevision ?? 0, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, onResync: invalidate, onAccessDenied: deny }), [cache.projection?.orderRevision, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, invalidate, deny])
   const bridgeRef = useRef(bridge); bridgeRef.current = bridge
   const branchIds = [...new Set(cache.windows.flatMap((window) => window.scope.type === 'graph' && window.scope.parentId !== options.pageId ? [window.scope.parentId] : []))].sort().join(',')
   const branchChannels = useRef(new Map<string, PageRealtimeChannel>())

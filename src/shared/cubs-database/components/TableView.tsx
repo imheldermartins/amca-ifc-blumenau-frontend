@@ -121,7 +121,7 @@ export interface TableViewProps {
 /**
  * Header cell sortable: o handle fica CENTRALIZADO NO TOPO e só aparece no
  * hover — o header continua limpo, e o drag nunca disputa com o clique (o
- * activator é só o handle). Botão direito abre o menu da coluna.
+ * activator é só o handle). Clique simples ou botão direito abrem o menu.
  */
 const SortableHeaderCell = memo(function SortableHeaderCell({
   column,
@@ -262,9 +262,11 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
         }}
         onPointerEnter={() => setCellHovered(true)}
         onPointerLeave={() => setCellHovered(false)}
+        onClick={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
         onContextMenu={onContextMenu ? (event) => onContextMenu(column.id, event) : undefined}
         className={cn(
           'group/col relative flex shrink-0 items-center gap-1.5 border-l border-divider px-2.5 py-1.5 text-sm font-semibold opacity-70',
+          onContextMenu && 'cursor-pointer',
           // A ÚLTIMA coluna fecha a grade à direita: sem esta borda a tabela
           // termina "aberta" e a alça de resize da última coluna não teria em
           // que se apoiar visualmente. Por PROP, e não por `last:`, porque o
@@ -289,6 +291,7 @@ const SortableHeaderCell = memo(function SortableHeaderCell({
             role="separator"
             aria-orientation="vertical"
             aria-label={resizeLabel}
+            onClick={(event) => event.stopPropagation()}
             onPointerDown={handleResizePointerDown}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}
@@ -628,7 +631,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       onColumnDelete,
   )
 
-  const handleHeaderContextMenu = useCallback(
+  const handleHeaderMenu = useCallback(
     (columnId: string, event: MouseEvent<HTMLDivElement>) => {
       if (!columnMenuEnabled) return
       event.preventDefault()
@@ -827,7 +830,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                       dragHandleLayer={dragHandleLayer}
                       onResize={handleColumnResize}
                       onResizeEnd={handleColumnResizeEnd}
-                      onContextMenu={handleHeaderContextMenu}
+                      onContextMenu={handleHeaderMenu}
                       onHandleClick={handleColumnHandleClick}
                     />
                   ))}

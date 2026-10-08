@@ -29,24 +29,32 @@ const LINHA = 'row-1'
 const EU = 'user-eu'
 const OUTRO = 'user-outro'
 
-function base(): ParsedDatabase {
+type ColumnType = ParsedDatabase['headerCols'][number]['type']
+
+function base(columnType: ColumnType = 'text'): ParsedDatabase {
   return {
     settings: {},
     headerCols: [
       { id: TITLE_COLUMN_ID, title: 'Título', type: 'text' },
-      { id: COLUNA, title: 'Status', type: 'text' },
+      { id: COLUNA, title: 'Status', type: columnType },
     ],
     rows: [{ id: LINHA, cells: { [COLUNA]: { value: 'inicial' } } }],
   }
 }
 
-function cellEvent(value: unknown, updatedAt: string, originUserId: string) {
+function cellEvent(
+  value: unknown,
+  updatedAt: string,
+  originUserId: string,
+  columnType: ColumnType = 'text',
+) {
   return {
     type: 'cell-updated' as const,
     payload: {
       pageId: 'page-1',
       rowId: LINHA,
       columnId: COLUNA,
+      columnType,
       value,
       updatedAt,
       originUserId,
@@ -110,6 +118,7 @@ describe('applyRealtimeEvent — guarda de ordem', () => {
         pageId: 'page-1',
         rowId: 'linha-fantasma',
         columnId: COLUNA,
+        columnType: 'text' as const,
         value: 'x',
         updatedAt: '2026-07-21T10:00:00Z',
         originUserId: OUTRO,
@@ -119,11 +128,15 @@ describe('applyRealtimeEvent — guarda de ordem', () => {
     expect(applyRealtimeEvent(base(), {}, evento, 'Título').applied).toBe(false)
   })
 
-  it.each([false, 0, ''])('preserva valor falsy confirmado: %j', (value) => {
+  it.each([
+    [false, 'checkbox'],
+    [0, 'numeric'],
+    ['', 'text'],
+  ] as const)('preserva valor falsy confirmado: %j', (value, columnType) => {
     const result = applyRealtimeEvent(
-      base(),
+      base(columnType),
       {},
-      cellEvent(value, '2026-07-21T10:00:00Z', OUTRO),
+      cellEvent(value, '2026-07-21T10:00:00Z', OUTRO, columnType),
       'Título',
     )
 

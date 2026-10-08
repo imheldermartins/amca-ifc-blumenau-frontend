@@ -151,7 +151,8 @@ describe('usePageDatabase — Board writes', () => {
   function projectionBridge() {
     return { current: {
       orderRevision: 7, onEvent: vi.fn(), onStructure: vi.fn(), onResync: vi.fn(),
-      onAccessDenied: vi.fn(), onRowOrder: vi.fn(), onLocalRows: vi.fn(), onCreatedRow: vi.fn(),
+      onAccessDenied: vi.fn(), onRowOrder: vi.fn(), onCreatedRow: vi.fn(),
+      onLocalMutation: vi.fn(() => ({ commit: vi.fn(), rollback: vi.fn() })),
     } }
   }
   it('uses the atomic anchor movement without sending the complete order', async () => {
@@ -169,7 +170,7 @@ describe('usePageDatabase — Board writes', () => {
     })
     expect(dependencies.saveCell).not.toHaveBeenCalled()
     expect(dependencies.patchView).not.toHaveBeenCalled()
-    expect(bridge.current.onResync).toHaveBeenCalledOnce()
+    expect(bridge.current.onLocalMutation.mock.results[0].value.commit).toHaveBeenCalledWith(expect.any(Array), 8)
   })
   it.each([false, true])('registers the new draft only after select assignment settles (failure=%s)', async (fails) => {
     const bridge = projectionBridge()
@@ -353,6 +354,7 @@ describe('usePageDatabase — criação de página-linha', () => {
           pageId: PAGE_ID,
           rowId: NEW_ROW_ID,
           columnId: COLUMN_ID,
+          columnType: 'text',
           value: 'valor remoto',
           updatedAt: '2026-09-02T01:00:00.001Z',
           originUserId: 'outro-usuario',
@@ -803,6 +805,7 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
           pageId: PAGE_ID,
           rowId: ROW_ID,
           columnId: COLUMN_ID,
+          columnType: 'text',
           value: 'evento-durante-reload',
           updatedAt: '2026-08-15T20:00:00.000Z',
           originUserId: 'outro-usuario',
@@ -845,6 +848,7 @@ describe('usePageDatabase — concorrência e ressincronização da célula', ()
           pageId: PAGE_ID,
           rowId: ROW_ID,
           columnId: COLUMN_ID,
+          columnType: 'text',
           value: 'autoritativo-remoto',
           updatedAt: '2026-08-15T20:00:00.000Z',
           originUserId: 'outro-usuario',

@@ -38,6 +38,7 @@ describe('SQL projection pagination transport', () => {
     const hook = setup()
     await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
     expect(queryView).toHaveBeenCalledTimes(1)
+    expect(queryView.mock.calls[0][2]).toMatchObject({ view: 'table', filters, limit: 50 })
     queryView.mockResolvedValueOnce(projection(50))
     act(() => hook.result.current.pagination.loadNext({ type: 'root' }))
     await waitFor(() => expect(hook.result.current.pagination.streams.root.rows).toHaveLength(100))
@@ -120,7 +121,10 @@ describe('SQL projection pagination transport', () => {
       hook.result.current.pagination.pinRow?.('new-page', true)
       hook.result.current.pagination.pinRow?.('new-page', true)
       hook.result.current.pagination.onInteractionChange?.(true)
-      hook.result.current.bridge.onLocalRows([{ ...draft, cells: { ...draft.cells, page_title: { value: 'Edited' }, note: { value: 'latest' } } }])
+      hook.result.current.bridge.onLocalMutation([
+        { rowId: draft.id, columnId: 'page_title', value: 'Edited', previousValue: 'New' },
+        { rowId: draft.id, columnId: 'note', value: 'latest', previousValue: 'original' },
+      ]).commit()
       hook.result.current.bridge.onResync()
     })
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 230)) })
@@ -244,7 +248,7 @@ describe('SQL projection pagination transport', () => {
     queryView.mockImplementationOnce(() => new Promise<PageViewQueryProjection>((done) => { resolve = done }))
     const hook = dynamicSetup('board', filters, { view: 'board', name: 'Board', board: { selectColumnId: 'status' } } as DataViewType)
     await waitFor(() => expect(queryView).toHaveBeenCalled())
-    act(() => hook.result.current.bridge.onEvent({ type: 'cell-updated', payload: { pageId: 'page', rowId: 'unseen', columnId: 'status', value: 'one', updatedAt: '2026-10-05T12:00:00.000Z', originUserId: 'user' } }))
+    act(() => hook.result.current.bridge.onEvent({ type: 'cell-updated', payload: { pageId: 'page', rowId: 'unseen', columnId: 'status', columnType: 'select', value: 'one', updatedAt: '2026-10-05T12:00:00.000Z', originUserId: 'user' } }))
     await act(async () => { await new Promise((done) => setTimeout(done, 210)); resolve(projection()) })
     await waitFor(() => expect(hook.result.current.pagination.projection).not.toBeNull())
     expect(queryView).toHaveBeenCalledTimes(2)
@@ -270,7 +274,7 @@ describe('SQL projection pagination transport', () => {
     const hook = dynamicSetup('board', filters, { view: 'board', name: 'Board', board: { selectColumnId: 'status' } } as DataViewType)
     await waitFor(() => expect(hook.result.current.pagination.projection).not.toBeNull())
     for (let index = 0; index < 6; index++) {
-      act(() => hook.result.current.bridge.onEvent({ type: 'cell-updated', payload: { pageId: 'page', rowId: `unseen-${index}`, columnId: 'status', value: 'one', updatedAt: `2026-10-05T12:00:0${index}.000Z`, originUserId: 'user' } }))
+      act(() => hook.result.current.bridge.onEvent({ type: 'cell-updated', payload: { pageId: 'page', rowId: `unseen-${index}`, columnId: 'status', columnType: 'select', value: 'one', updatedAt: `2026-10-05T12:00:0${index}.000Z`, originUserId: 'user' } }))
       await act(async () => { await new Promise((done) => setTimeout(done, 100)) })
       if (index === 2) expect(queryView.mock.calls.length).toBeGreaterThanOrEqual(2)
     }

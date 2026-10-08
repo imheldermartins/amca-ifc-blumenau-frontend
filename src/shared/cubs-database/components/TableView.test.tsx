@@ -12,6 +12,21 @@ afterEach(() => {
 describe('TableView — menu da coluna', () => {
   const column = { id: 'column-1', title: 'Nome', type: 'text' as const }
 
+  it('abre o ContextMenu com clique simples no próprio column-header', () => {
+    render(
+      <TableView
+        columns={[column]}
+        rows={[]}
+        onColumnRename={() => undefined}
+        labels={{ renameColumn: 'Renomear coluna' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('columnheader'))
+
+    expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
+  })
+
   it('abre o ContextMenu com clique simples no drag-handle', () => {
     render(
       <TableView
@@ -102,6 +117,70 @@ describe('TableView — menu da coluna', () => {
 
     expect(onRename).toHaveBeenCalledWith('column-1', 'Nome atualizado')
     expect(screen.queryByRole('textbox', { name: 'Renomear coluna' })).toBeNull()
+  })
+
+  it('não deixa uma ação interna disparar o blur do título antes do click', () => {
+    const onRename = vi.fn()
+    const onColumnTypeChange = vi.fn()
+    render(
+      <TableView
+        columns={[column]}
+        rows={[]}
+        onColumnRename={onRename}
+        onColumnTypeChange={onColumnTypeChange}
+        labels={{ renameColumn: 'Renomear coluna', changeType: 'Mudar tipo' }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('columnheader'))
+    const input = screen.getByRole('textbox', { name: 'Renomear coluna' })
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'Em edição' } })
+    const action = screen.getByRole('menuitem', { name: 'Mudar tipo' })
+    const pointerDown = new MouseEvent('pointerdown', { bubbles: true, cancelable: true })
+
+    expect(action.dispatchEvent(pointerDown)).toBe(false)
+    expect(pointerDown.defaultPrevented).toBe(true)
+    expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
+
+    fireEvent.click(action)
+    const numeric = screen.getByRole('menuitem', { name: 'numeric' })
+    fireEvent.pointerDown(numeric)
+    fireEvent.click(numeric)
+
+    expect(onRename).toHaveBeenCalledWith('column-1', 'Em edição')
+    expect(onColumnTypeChange).toHaveBeenCalledWith('column-1', 'numeric')
+    expect(screen.queryByRole('textbox', { name: 'Renomear coluna' })).toBeNull()
+  })
+
+  it('confirma o título sem fechar quando o foco entra num campo de submenu', () => {
+    const onRename = vi.fn()
+    render(
+      <TableView
+        columns={[{ ...column, type: 'select', options: [{ id: 'one', label: 'Um' }] }]}
+        rows={[]}
+        onColumnRename={onRename}
+        onColumnOptionsChange={() => undefined}
+        labels={{
+          renameColumn: 'Renomear coluna',
+          optionsMenu: 'Opções',
+          optionNamePlaceholder: 'Nome da opção',
+        }}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('columnheader'))
+    const titleInput = screen.getByRole('textbox', { name: 'Renomear coluna' })
+    fireEvent.focus(titleInput)
+    fireEvent.change(titleInput, { target: { value: 'Status atualizado' } })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Opções' }))
+    const optionInput = screen.getByRole('textbox', { name: 'Nome da opção' })
+
+    fireEvent.blur(titleInput, { relatedTarget: optionInput })
+
+    expect(onRename).toHaveBeenCalledWith('column-1', 'Status atualizado')
+    expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
+    expect(optionInput).not.toBeNull()
   })
 
   it('bloqueia somente uma tentativa de fechamento enquanto o blur está pendente', () => {

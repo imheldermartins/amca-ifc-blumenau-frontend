@@ -52,7 +52,8 @@ export function VirtualInfiniteList<T>({ items, itemKey, itemIds, renderItem, pa
     rangeExtractor: (range) => [...new Set([...defaultRangeExtractor(range), ...pinnedIndexes])].sort((a, b) => a - b),
     useFlushSync: false,
   })
-  const visible = virtualizer.getVirtualItems()
+  // A status change can shorten a lane before the virtualizer measures again.
+  const visible = virtualizer.getVirtualItems().filter((entry) => entry.index < items.length)
   // A pinned editor/drag item may be mounted far outside the viewport.
   // It must not turn every intervening row into a protected cache window.
   const first = virtualizer.range?.startIndex, last = virtualizer.range?.endIndex
@@ -68,8 +69,8 @@ export function VirtualInfiniteList<T>({ items, itemKey, itemIds, renderItem, pa
   useEffect(load, [load])
   useEffect(() => {
     reportWindow?.(scopeKey, {
-      firstId: first === undefined ? undefined : itemKey(items[first]),
-      lastId: last === undefined ? undefined : itemKey(items[last]),
+      firstId: first === undefined || first >= items.length ? undefined : itemKey(items[first]),
+      lastId: last === undefined || last >= items.length ? undefined : itemKey(items[last]),
       height: totalHeight - (stream?.beforeHeight ?? 0) - (stream?.afterHeight ?? 0),
       visible: visibleWindow,
     })

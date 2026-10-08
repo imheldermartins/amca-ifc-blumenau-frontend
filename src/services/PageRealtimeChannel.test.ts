@@ -118,6 +118,7 @@ describe('PageRealtimeChannel', () => {
       pageId: PAGE_ID,
       rowId: 'row-1',
       columnId: 'column-1',
+      columnType: 'checkbox' as const,
       value: false,
       ...META,
     }
@@ -212,6 +213,7 @@ describe('PageRealtimeChannel', () => {
       pageId: PAGE_ID,
       rowId: 'row-1',
       columnId: 'column-1',
+      columnType: 'text',
       value: 'depois',
       ...META,
     })

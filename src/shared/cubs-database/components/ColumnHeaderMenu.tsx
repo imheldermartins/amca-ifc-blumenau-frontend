@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { Menu, TextField, cn } from 'cubs-components'
 
 import type {
@@ -35,6 +35,12 @@ export interface ColumnHeaderMenuProps {
   style?: CSSProperties
 }
 
+function isColumnMenuTarget(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(
+    target.closest('[data-column-header-menu], [data-radix-popper-content-wrapper]'),
+  )
+}
+
 /** Campo de renomear — rascunho realtime-safe (o menu pode estar aberto quando
     outra pessoa renomeia). Commit no blur, só se mudou. */
 function RenameField({
@@ -43,6 +49,8 @@ function RenameField({
   onRename,
   onClose,
   onPendingBlurChange,
+  onFocusChange,
+  commitRef,
 }: {
   column: HeaderCol
   label: string
@@ -50,16 +58,21 @@ function RenameField({
   onClose: () => void
   /** true enquanto há um rename editado esperando o commit do blur. */
   onPendingBlurChange: (pending: boolean) => void
+  onFocusChange: (focused: boolean) => void
+  /** Permite que uma ação que fecha o menu confirme o rename antes de desmontá-lo. */
+  commitRef: RefObject<(() => void) | null>
 }) {
   const field = useExternalDraft(column.title)
 
-  const commit = () => {
+  const commit = (close: boolean) => {
     onPendingBlurChange(false)
-    if (!field.settle()) return
-    const next = field.draft.trim()
-    if (next !== '' && next !== column.title) onRename(next)
-    onClose()
+    if (field.settle()) {
+      const next = field.draft.trim()
+      if (next !== '' && next !== column.title) onRename(next)
+    }
+    if (close) onClose()
   }
+  commitRef.current = () => commit(false)
 
   return (
     <TextField
@@ -67,12 +80,21 @@ function RenameField({
       surface="background"
       size="sm"
       value={field.draft}
-      onFocus={field.focus}
+      onFocus={() => {
+        field.focus()
+        onFocusChange(true)
+      }}
       onChange={(event) => {
         field.change(event.target.value)
         onPendingBlurChange(true)
       }}
-      onBlur={commit}
+      onBlur={(event) => {
+        onFocusChange(false)
+        // Campos dos submenus portalados podem receber foco sem desmontar o
+        // menu. O rename é confirmado, mas o fechamento fica para o clique
+        // realmente externo (ou para uma ação que explicitamente o fecha).
+        commit(!isColumnMenuTarget(event.relatedTarget))
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
@@ -111,14 +133,31 @@ export function ColumnHeaderMenu({
   style,
 }: ColumnHeaderMenuProps) {
   const pendingRenameBlurRef = useRef(false)
+  const renameFocusedRef = useRef(false)
+  const renameCommitRef = useRef<(() => void) | null>(null)
   const handlePendingBlurChange = useCallback((pending: boolean) => {
     pendingRenameBlurRef.current = pending
   }, [])
+  const handleClose = useCallback(() => {
+    if (pendingRenameBlurRef.current) renameCommitRef.current?.()
+    onClose()
+  }, [onClose])
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
-      // Clique dentro de um submenu (Popover portalado do NestedMenu) não fecha.
-      if ((event.target as Element)?.closest?.('[data-radix-popper-content-wrapper]')) return
+      // Um submenu do NestedMenu é portalado. Enquanto o rename está focado,
+      // pointerdown numa ação do próprio popover não transfere foco: isso
+      // dispararia o blur e fecharia o menu antes do click da ação.
+      const target = event.target as Element | null
+      if (target?.closest?.('[data-radix-popper-content-wrapper]')) {
+        if (
+          renameFocusedRef.current &&
+          !target.closest('input, textarea, select, [contenteditable="true"]')
+        ) {
+          event.preventDefault()
+        }
+        return
+      }
       // `pointerdown` vem antes de `blur`. Se um rename editado está esperando
       // o blur, fechar aqui desmontaria o input e apagaria o commit pendente.
       // Consome UMA tentativa de fechamento; o clique segue normalmente,
@@ -127,10 +166,10 @@ export function ColumnHeaderMenu({
         pendingRenameBlurRef.current = false
         return
       }
-      onClose()
+      handleClose()
     }
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') handleClose()
     }
     document.addEventListener('pointerdown', handlePointerDown)
     document.addEventListener('keydown', handleKeyDown)
@@ -138,20 +177,24 @@ export function ColumnHeaderMenu({
       document.removeEventListener('pointerdown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [onClose])
+  }, [handleClose])
 
   const nodes = buildColumnHeaderMenuNodes({
     column,
     columnType,
-    onClose,
+    onClose: handleClose,
     onRename,
     renderRenameContent: (rename) => (
       <RenameField
         column={column}
         label={labels?.renameColumn ?? 'Renomear coluna'}
         onRename={rename}
-        onClose={onClose}
+        onClose={handleClose}
         onPendingBlurChange={handlePendingBlurChange}
+        onFocusChange={(focused) => {
+          renameFocusedRef.current = focused
+        }}
+        commitRef={renameCommitRef}
       />
     ),
     onColumnTypeChange,
@@ -165,8 +208,18 @@ export function ColumnHeaderMenu({
   return (
     <Menu
       items={nodes}
+      data-column-header-menu
       style={style}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        const target = event.target as Element
+        if (
+          renameFocusedRef.current &&
+          !target.closest('input, textarea, select, [contenteditable="true"]')
+        ) {
+          event.preventDefault()
+        }
+      }}
       onContextMenu={(event) => event.preventDefault()}
       className={cn('absolute z-50 mt-1 min-w-48', className)}
     />

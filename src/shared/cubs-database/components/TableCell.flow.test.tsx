@@ -35,7 +35,8 @@ describe('TableCell — flow', () => {
     const cell = screen.getByRole('cell')
     const execute = screen.getByRole('button', { name: 'Executar' })
     expect(cell.classList.contains('overflow-clip')).toBe(true)
-    expect(execute.classList.contains('border-p-purple')).toBe(true)
+    expect(execute.classList.contains('border-divider-contrast')).toBe(true)
+    expect(execute.classList.contains('border-p-purple')).toBe(false)
     expect(execute.classList.contains('bg-p-purple/10')).toBe(true)
 
     fireEvent.click(execute)
@@ -46,6 +47,7 @@ describe('TableCell — flow', () => {
     render(<TableCell column={column} row={row} columnType="flow" onFlowOpen={vi.fn()} />)
     const execute = screen.getByRole('button', { name: 'Executar Aprovação' })
     expect(execute.classList.contains('rounded-full')).toBe(true)
+    expect(execute.classList.contains('border-divider-contrast')).toBe(true)
     expect(execute.textContent).toBe('')
   })
 

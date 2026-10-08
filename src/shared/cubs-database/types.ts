@@ -125,6 +125,7 @@ export interface FlowExecutionResult {
   executedNodeIds: string[]
   callback: string | null
   effects: { emailsQueued: number; valuesUpdated: number }
+  updatedValues?: { columnId: string; value: unknown }[]
   error?: string
 }
 

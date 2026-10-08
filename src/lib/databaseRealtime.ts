@@ -38,6 +38,7 @@ import type {
 
 import type {
   CellUpdatedPayload,
+  CellColumnType,
   ColumnCreatedPayload,
   ColumnUpdatedPayload,
   RowUpdatedPayload,
@@ -64,6 +65,24 @@ export type RealtimeClock = Record<string, string>
 const cellKey = (rowId: string, columnId: string) => `cell:${rowId}:${columnId}`
 const columnKey = (columnId: string) => `column:${columnId}`
 const VIEW_KEY = 'view'
+
+/** Guarda runtime do wire: `unknown` só entra no estado se combinar com o
+ * tipo confirmado que veio no mesmo evento pós-commit. */
+export function isRealtimeCellValue(value: unknown, columnType: CellColumnType): boolean {
+  if (value === null || value === undefined) return true
+  switch (columnType) {
+    case 'text':
+    case 'select':
+    case 'date':
+      return typeof value === 'string'
+    case 'numeric':
+      return typeof value === 'number' && Number.isFinite(value)
+    case 'checkbox':
+      return typeof value === 'boolean'
+    case 'flow':
+      return typeof value === 'object' && !Array.isArray(value)
+  }
+}
 
 /**
  * Escreve o valor de uma célula na base, sem tocar em nada mais.
@@ -326,9 +345,16 @@ type RealtimeEventHandlerRegistry = {
  */
 const DATABASE_REALTIME_HANDLERS = {
   'cell-updated': ({ database, clock, unchanged }, payload) => {
-    const { rowId, columnId, value, updatedAt } = payload
+    const { rowId, columnId, columnType, value, updatedAt } = payload
     const key = cellKey(rowId, columnId)
     if (!isFresh(clock, key, updatedAt)) return unchanged
+
+    const column = database.headerCols.find((header) => header.id === columnId)
+    if (
+      !column ||
+      column.type !== columnType ||
+      !isRealtimeCellValue(value, columnType)
+    ) return unchanged
 
     // Linha desconhecida: quem chegou depois (row-created) recarrega a base;
     // inventar uma linha vazia aqui mostraria um registro sem as outras células.
