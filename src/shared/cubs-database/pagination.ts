@@ -8,6 +8,8 @@ export interface DatabasePageStream {
   hasNextPage: boolean
   hasPreviousPage: boolean
   isFetching: boolean
+  /** Refresh of retained rows, without a loading element or layout change. */
+  isRefreshing?: boolean
   error?: unknown
   beforeHeight: number
   afterHeight: number

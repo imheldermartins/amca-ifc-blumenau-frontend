@@ -174,11 +174,13 @@ describe('PageRealtimeChannel', () => {
   it('reentra na reconexão, ressincroniza só apó ACK e limpa tudo no dispose', () => {
     const socket = new FakeSocket()
     const onResync = vi.fn()
+    const onProjectionInvalidated = vi.fn()
     const onJoinedChanged = vi.fn()
     const onPresenceChanged = vi.fn()
     const onEvent = vi.fn()
     const channel = new PageRealtimeChannel(socket as unknown as CubsSocket, PAGE_ID, {
       onResync,
+      onProjectionInvalidated,
       onJoinedChanged,
       onPresenceChanged,
       onEvent,
@@ -190,6 +192,11 @@ describe('PageRealtimeChannel', () => {
 
     socket.receive('joined-page-database', { pageId: PAGE_ID })
     expect(onJoinedChanged).toHaveBeenLastCalledWith(true)
+    expect(onResync).toHaveBeenCalledTimes(1)
+
+    socket.receive('projection-invalidated', { pageId: OTHER_PAGE_ID, ...META })
+    socket.receive('projection-invalidated', { pageId: PAGE_ID, ...META })
+    expect(onProjectionInvalidated).toHaveBeenCalledTimes(1)
     expect(onResync).toHaveBeenCalledTimes(1)
 
     socket.receive('page-presence', { pageId: PAGE_ID, count: 2 })

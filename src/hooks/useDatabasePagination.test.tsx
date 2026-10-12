@@ -51,6 +51,108 @@ describe('SQL projection pagination transport', () => {
     expect(hook.result.current.pagination.streams.root.rows).toHaveLength(50)
     expect(queryView).toHaveBeenCalledTimes(1)
   })
+  it('materializa row-created uma vez sem reconciliar todas as janelas', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const created = { type: 'row-created' as const, payload: {
+      pageId: 'page', rowId: 'new-page', updatedAt: '2026-10-12T12:00:00.000Z', originUserId: 'user',
+    } }
+
+    act(() => hook.result.current.bridge.onStructure(created))
+    expect(hook.result.current.pagination.streams.root.rows.at(-1)).toEqual({ id: 'new-page', cells: {} })
+
+    // O HTTP pode voltar depois do eco do socket. O merge continua único e
+    // nenhum timer de invalidação deve abrir buscas para as janelas retidas.
+    act(() => hook.result.current.bridge.onCreatedRow({ id: 'new-page', cells: {} }))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 230)) })
+    expect(hook.result.current.pagination.streams.root.rows.filter((row) => row.id === 'new-page')).toHaveLength(1)
+    expect(queryView).toHaveBeenCalledTimes(1)
+  })
+  it('não reconcilia as rows quando uma coluna vazia é criada', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const firstRow = hook.result.current.pagination.streams.root.rows[0]
+
+    act(() => hook.result.current.bridge.onEvent({
+      type: 'column-created',
+      payload: {
+        pageId: 'page',
+        columnId: 'new-column',
+        column: { id: 'new-column', name: 'Nova coluna', type: 'text', data: {} },
+        updatedAt: '2026-10-12T12:00:01.000Z',
+        originUserId: 'user',
+      },
+    }))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 230)) })
+
+    expect(queryView).toHaveBeenCalledTimes(1)
+    expect(hook.result.current.pagination.streams.root.rows[0]).toBe(firstRow)
+    expect(hook.result.current.pagination.loading).toBe(false)
+    expect(hook.result.current.pagination.streams.root.isFetching).toBe(false)
+  })
+  it('confirma uma célula sem dependências sem reler páginas ou alterar as outras rows', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const other = hook.result.current.pagination.streams.root.rows[1]
+    act(() => hook.result.current.bridge.onLocalMutation([{ rowId: 'row-0', columnId: 'note', value: 'novo', previousValue: undefined }]).commit())
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 230)) })
+    expect(queryView).toHaveBeenCalledTimes(1)
+    expect(hook.result.current.pagination.streams.root.rows[0].cells.note?.value).toBe('novo')
+    expect(hook.result.current.pagination.streams.root.rows[1]).toBe(other)
+  })
+  it('não apaga uma página criada fora da janela ao encerrar o editor', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const row = { id: 'new-page', cells: { page_title: { value: 'Página nova' } } }
+    act(() => { hook.result.current.bridge.onCreatedRow(row); hook.result.current.pagination.pinRow?.(row.id, true) })
+    act(() => hook.result.current.pagination.pinRow?.(row.id, false))
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 230)) })
+    expect(hook.result.current.pagination.streams.root.rows.at(-1)).toBe(row)
+    expect(queryView).toHaveBeenCalledTimes(1)
+  })
+  it('reconcilia em background uma dependência confirmada pelo Flow que não estava na prévia local', async () => {
+    queryView.mockResolvedValue(scopedProjection({ type: 'board', optionId: 'one' }, 0, 'board'))
+    const hook = dynamicSetup('board')
+    await waitFor(() => expect(hook.result.current.pagination.streams['board:one']?.rows).toHaveLength(50))
+    let resolve!: (value: PageViewQueryProjection) => void
+    queryView.mockImplementationOnce(() => new Promise<PageViewQueryProjection>(done => { resolve = done }))
+    act(() => hook.result.current.bridge.onLocalMutation([]).commit([
+      { rowId: 'row-0', columnId: 'status', value: 'two', previousValue: 'one' },
+    ]))
+    await waitFor(() => expect(queryView).toHaveBeenCalledTimes(2))
+    expect(hook.result.current.pagination.loading).toBe(false)
+    expect(hook.result.current.pagination.streams['board:one'].isRefreshing).toBe(true)
+    expect(hook.result.current.pagination.streams['board:one'].rows).toHaveLength(49)
+    await act(async () => { resolve(scopedProjection({ type: 'board', optionId: 'one' }, 1, 'board')); await Promise.resolve() })
+  })
+  it('não deixa um eco row-created vazio apagar células já confirmadas localmente', async () => {
+    queryView.mockResolvedValue(scopedProjection({ type: 'board', optionId: 'one' }, 0, 'board'))
+    const hook = dynamicSetup('board')
+    await waitFor(() => expect(hook.result.current.pagination.streams['board:one']?.rows).toHaveLength(50))
+    const created = {
+      id: 'new-page',
+      cells: {
+        page_title: { value: 'Nova página' },
+        status: { value: 'one' },
+        note: { value: 'valor local mais novo' },
+      },
+    }
+
+    act(() => hook.result.current.bridge.onCreatedRow(created))
+    act(() => hook.result.current.bridge.onStructure({
+      type: 'row-created',
+      payload: {
+        pageId: 'page',
+        rowId: 'new-page',
+        updatedAt: '2026-10-12T12:00:02.000Z',
+        originUserId: 'user',
+      },
+    }))
+
+    const rows = Object.values(hook.result.current.pagination.streams).flatMap((stream) => stream.rows)
+    expect(rows.filter((row) => row.id === 'new-page')).toEqual([created])
+    expect(hook.result.current.pagination.streams['board:one'].rows.at(-1)).toEqual(created)
+  })
   it('keeps reference identities for unaffected cards and clears revoked data', async () => {
     const hook = setup()
     await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
@@ -137,7 +239,7 @@ describe('SQL projection pagination transport', () => {
     expect(hook.onRows.mock.calls.at(-1)?.[0].at(-1)?.id).toBe('new-page')
     act(() => { hook.result.current.pagination.pinRow?.('new-page', false); hook.result.current.pagination.onInteractionChange?.(false) })
     await waitFor(() => expect(queryView).toHaveBeenCalledTimes(2))
-    expect(hook.result.current.pagination.streams['board:one'].rows.some((row) => row.id === 'new-page')).toBe(false)
+    expect(hook.result.current.pagination.streams['board:one'].rows.at(-1)?.cells.note?.value).toBe('latest')
   })
   it('rejects older facts for loaded root and Graph branch cells, accepting timestamp ties', async () => {
     const hook = dynamicSetup('graph')

@@ -31,6 +31,8 @@ export interface UsePageRealtimeOptions {
   onColumnResize?: (payload: ColumnResizingPayload) => void
   /** Refetch autoritativo depois do ACK de cada entrada/reentrada na sala. */
   onResync?: () => void
+  /** Invalida somente a projeção SQL; não relê o snapshot completo da página. */
+  onProjectionInvalidated?: () => void
   onRowOrder?: (payload: RowOrderUpdatedPayload) => void
   onAccessDenied?: () => void
   /** Liga o produtor de previews ao channel ativo sem expor o socket. */
@@ -91,6 +93,7 @@ export function usePageRealtime(
         if (currentOptions()) setJoined(nextJoined)
       },
       onResync: () => currentOptions()?.onResync?.(),
+      onProjectionInvalidated: () => currentOptions()?.onProjectionInvalidated?.(),
       onRowOrder: (payload) => currentOptions()?.onRowOrder?.(payload),
       onAccessDenied: () => currentOptions()?.onAccessDenied?.(),
     })

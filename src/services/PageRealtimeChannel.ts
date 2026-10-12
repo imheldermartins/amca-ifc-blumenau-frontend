@@ -8,6 +8,7 @@ import type {
   ColumnUpdatedPayload,
   DatabaseUpdatedPayload,
   PageUpdatedPayload,
+  ProjectionInvalidatedPayload,
   RowPayload,
   RowUpdatedPayload,
   ViewUpdatedPayload,
@@ -28,6 +29,7 @@ export interface PageRealtimeChannelCallbacks {
   onColumnResize?: (payload: ColumnResizingPayload) => void
   onPresenceChanged?: (viewers: number) => void
   onJoinedChanged?: (joined: boolean) => void
+  onProjectionInvalidated?: () => void
   onResync?: () => void
 }
 
@@ -75,6 +77,7 @@ export class PageRealtimeChannel {
     this.socket.on('row-order-updated', this.handleRowOrder)
     this.socket.on('page-updated', this.handlePageUpdated)
     this.socket.on('database-updated', this.handleDatabaseUpdated)
+    this.socket.on('projection-invalidated', this.handleProjectionInvalidated)
     this.socket.on('column-updated', this.handleColumnUpdated)
     this.socket.on('column-resizing', this.handleColumnResize)
     this.socket.on('view-updated', this.handleViewUpdated)
@@ -104,6 +107,7 @@ export class PageRealtimeChannel {
     this.socket.off('row-order-updated', this.handleRowOrder)
     this.socket.off('page-updated', this.handlePageUpdated)
     this.socket.off('database-updated', this.handleDatabaseUpdated)
+    this.socket.off('projection-invalidated', this.handleProjectionInvalidated)
     this.socket.off('column-updated', this.handleColumnUpdated)
     this.socket.off('column-resizing', this.handleColumnResize)
     this.socket.off('view-updated', this.handleViewUpdated)
@@ -182,6 +186,10 @@ export class PageRealtimeChannel {
 
   private readonly handleDatabaseUpdated = (payload: DatabaseUpdatedPayload) => {
     if (this.belongsHere(payload)) this.callbacks.onDatabaseUpdated?.(payload)
+  }
+
+  private readonly handleProjectionInvalidated = (payload: ProjectionInvalidatedPayload) => {
+    if (this.belongsHere(payload)) this.callbacks.onProjectionInvalidated?.()
   }
 
   private readonly handleColumnUpdated = (payload: ColumnUpdatedPayload) => {
