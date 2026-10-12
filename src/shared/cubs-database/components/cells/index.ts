@@ -6,6 +6,7 @@ import { DateCellEditor } from './DateCellEditor'
 import { NumericCellEditor } from './NumericCellEditor'
 import { SelectCellEditor } from './SelectCellEditor'
 import { TextCellEditor } from './TextCellEditor'
+import { RelationCellEditor } from './RelationCellEditor'
 
 export type CellEditor = ComponentType<CellEditorProps> | null
 
@@ -24,6 +25,8 @@ export const CELL_EDITORS: Record<ColumnDataType, CellEditor> = {
   checkbox: CheckboxCellEditor,
   date: DateCellEditor,
   flow: null,
+  relation: RelationCellEditor,
+  rollup: null,
 }
 
 export { CheckboxCellEditor } from './CheckboxCellEditor'
@@ -31,5 +34,6 @@ export { DateCellEditor } from './DateCellEditor'
 export { NumericCellEditor } from './NumericCellEditor'
 export { SelectCellEditor } from './SelectCellEditor'
 export { TextCellEditor } from './TextCellEditor'
+export { RelationCellEditor, RelationChips } from './RelationCellEditor'
 export { OptionChip } from './OptionChip'
 export { OPTION_COLOR_CLASSES } from './optionColors'

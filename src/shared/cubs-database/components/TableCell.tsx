@@ -14,6 +14,7 @@ import type {
 import { formatCellValue, formatNumericValue, inferColumnType, resolveColumnWidth } from '../utils'
 import { CELL_EDITORS } from './cells'
 import { OptionChip } from './cells/OptionChip'
+import { RelationChips } from './cells/RelationCellEditor'
 import { FlowActionButton } from './FlowActionButton'
 
 function CellValue({
@@ -47,7 +48,11 @@ function CellValue({
     }
     return <OptionChip option={option} />
   }
-  if (type === 'numeric' && column.format) {
+  if (type === 'relation') return <RelationChips column={column} value={value} />
+  if (type === 'rollup' && !column.rollupResult) {
+    return <span className="truncate text-xs text-p-orange-600">Configuração indisponível</span>
+  }
+  if ((type === 'numeric' || type === 'rollup') && column.format) {
     // O `format` vale nos DOIS modos: o read-only exibe o MESMO texto que o
     // editor ("R$ 1.299,00" / "42%"), não o número cru do armazenamento.
     return <span className="truncate tabular-nums">{formatNumericValue(value, column.format)}</span>
@@ -66,7 +71,8 @@ function formatConflictValue(type: ColumnDataType, value: unknown, column: Heade
   if (type === 'select' && typeof value === 'string') {
     return column.options?.find((option) => option.id === value)?.label ?? formatCellValue(value)
   }
-  if (type === 'numeric' && column.format) return formatNumericValue(value, column.format)
+  if ((type === 'numeric' || type === 'rollup') && column.format) return formatNumericValue(value, column.format)
+  if (type === 'relation') return Array.isArray(value) ? `${value.length} página${value.length === 1 ? '' : 's'}` : ''
   if (type === 'date') return formatDatePickerValue(value)
   return formatCellValue(value)
 }
@@ -174,7 +180,9 @@ export const TableCell = memo(function TableCell({
         role="cell"
         title={locked ? 'Coluna bloqueada' : undefined}
         className={cn(
-          'flex shrink-0 items-center overflow-clip border-l border-divider p-2 pb-2.5 text-sm',
+          // A linha possui altura fixa. O Flow não pode definir a altura das
+          // outras células com padding vertical próprio.
+          'flex shrink-0 items-center overflow-clip border-l border-divider px-2 text-sm',
           isLast && 'border-r',
         )}
         style={{ width: resolveColumnWidth(width) }}
@@ -213,7 +221,9 @@ export const TableCell = memo(function TableCell({
         // editor) em vez de em cada editor: um anel interno p-red que não
         // desloca o layout (`ring-inset`). O `aria-invalid` vai no editor.
         className={cn(
-          'flex shrink-0 items-stretch border-l border-divider',
+          // Centraliza editores compactos (ex.: TextField h-8) dentro da
+          // altura canônica da linha, sem criar sobra apenas embaixo.
+          'flex shrink-0 items-center border-l border-divider',
           type === 'checkbox' && 'items-center justify-center',
           isLast && 'border-r',
           hasError && 'bg-p-red-500/10 ring-1 ring-inset ring-p-red dark:bg-p-red-500/15',

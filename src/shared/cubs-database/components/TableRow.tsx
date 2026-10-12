@@ -140,7 +140,9 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
       }}
       onMouseEnter={onShiftHover ? () => onShiftHover(rowIndex) : undefined}
       className={cn(
-        'group/row flex w-max min-w-full items-stretch transition-colors hover:bg-active/60',
+        // 36 px é também o estimateSize da lista virtual. A altura pertence à
+        // linha; nenhuma célula individual deve fazê-la crescer.
+        'group/row flex h-9 w-max min-w-full items-stretch transition-colors hover:bg-active/60',
         zebra ? 'bg-contrast' : 'bg-background',
         // Área coberta pela seleção com Shift (âncora → linha sob o mouse).
         inShiftRange && 'bg-p-purple-500/10 dark:bg-p-purple-500/15',
@@ -263,7 +265,7 @@ export const TableRowDragOverlay = memo(function TableRowDragOverlay({
       data-row-drag-overlay
       aria-hidden="true"
       className={cn(
-        'pointer-events-none flex w-max min-w-full items-stretch overflow-hidden rounded-lg border border-p-purple-500/30 shadow-xl ring-1 ring-p-purple-500/15',
+        'pointer-events-none flex h-9 w-max min-w-full items-stretch overflow-hidden rounded-lg border border-p-purple-500/30 shadow-xl ring-1 ring-p-purple-500/15',
         zebra ? 'bg-contrast' : 'bg-background',
       )}
     >

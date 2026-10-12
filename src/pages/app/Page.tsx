@@ -5,6 +5,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { CubsDatabase } from 'cubs-database'
 import type {
   CalendarPinInput,
+  ColumnConfigPatch,
+  ColumnDataType,
   DataViewKind,
   DataViewSettings,
   HeaderCol,
@@ -17,6 +19,7 @@ import { SchedulePinRequestDialog, type SchedulePinRequestTarget } from '@/compo
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
 import { FormPublicationDialog } from '@components/FormPublicationDialog'
+import { ColumnRelationRollupDialog, type ColumnRelationRollupTarget } from '@/components/ColumnRelationRollupDialog'
 import { PageBlockEditor } from './PageBlockEditor'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
@@ -25,6 +28,7 @@ import { useColumnLocks, usePageTitleLock } from '@/hooks/useColumnLocks'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { useDatabasePagination, type DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
 import { useSchedule } from '@/hooks/useSchedule'
+import { databaseService } from '@/services/DatabaseService'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
 
@@ -94,6 +98,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
   const [pinRequestTarget, setPinRequestTarget] = useState<SchedulePinRequestTarget | null>(null)
   const [publicationViewId, setPublicationViewId] = useState<string | null>(null)
+  const [columnConfigTarget, setColumnConfigTarget] = useState<ColumnRelationRollupTarget | null>(null)
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
   const lockedColumnKeys = useMemo(() => columnLocks.isPending || columnLocks.isError
@@ -213,6 +218,13 @@ export function Page({ pageId, initialTitle }: PageProps) {
         date: i18n('pages.app.cubs-database.tipos.date'),
         checkbox: i18n('pages.app.cubs-database.tipos.checkbox'),
         flow: i18n('pages.app.cubs-database.tipos.flow'),
+        relation: i18n('pages.app.cubs-database.tipos.relation'),
+        rollup: i18n('pages.app.cubs-database.tipos.rollup'),
+      },
+      columnTypeSections: {
+        base: i18n('pages.app.cubs-database.secoes-tipos.base'),
+        automation: i18n('pages.app.cubs-database.secoes-tipos.automation'),
+        advanced: i18n('pages.app.cubs-database.secoes-tipos.advanced'),
       },
       // Menu de coluna (submenus + editor de options).
       changeType: i18n('pages.app.cubs-database.coluna.tipo'),
@@ -365,6 +377,27 @@ export function Page({ pageId, initialTitle }: PageProps) {
     [addView, pageId, viewQuery.activeViewId],
   )
 
+  const handleColumnTypeChange = useCallback((columnId: string, type: ColumnDataType) => {
+    if (type === 'relation' || type === 'rollup') {
+      setColumnConfigTarget({ mode: 'update', columnId, type })
+      return
+    }
+    handlers.onColumnTypeChange(columnId, type)
+  }, [handlers])
+
+  const handleAddColumn = useCallback((type: ColumnDataType) => {
+    if (type === 'relation' || type === 'rollup') {
+      setColumnConfigTarget({ mode: 'create', type })
+      return
+    }
+    handlers.onAddColumn(type)
+  }, [handlers])
+
+  const handleConfiguredColumnType = useCallback((target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => {
+    if (target.mode === 'create') handlers.onAddColumn(target.type, config)
+    else handlers.onColumnTypeChange(target.columnId, target.type, config)
+  }, [handlers])
+
   const handleDuplicateView = useCallback(async (viewId: string) => {
     if (!pageId) return
     try {
@@ -471,6 +504,8 @@ export function Page({ pageId, initialTitle }: PageProps) {
               onOpenRow={handleOpenRow}
               {...(mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers : {})}
               onCellChange={mayEditRows && !columnLocks.isPending && !columnLocks.isError ? handlers.onCellChange : undefined}
+              onColumnTypeChange={mayEdit ? handleColumnTypeChange : undefined}
+              onLoadRelationOptions={(databaseId, input) => databaseService.listRelationOptions(databaseId, input)}
               onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
               onDeleteRows={permissions.data?.isOwner ? handlers.onDeleteRows : undefined}
               deletingRows={deletingRows}
@@ -482,6 +517,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
               addViewLabel={i18n('pages.app.cubs-database.adicionar-view')}
               onViewFiltersChange={viewQuery.changeLocal}
               onCalendarConfigChange={mayEdit ? handlers.onCalendarConfigChange : undefined}
+              onHeatmapConfigChange={mayEdit ? handlers.onHeatmapConfigChange : undefined}
               pinnedCalendarPageIds={pinnedCalendarPageIds}
               calendarPendingPageId={schedule.mutating ? schedule.pendingPageId : null}
               onCalendarPin={workspaceId && pageId ? handleCalendarPin : undefined}
@@ -493,7 +529,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
               canManageColumnLocks={columnLocks.canManage}
               currentUserId={columnLocks.currentUserId}
               onColumnLockChange={columnLocks.canManage ? columnLocks.save : undefined}
-              onAddColumn={pageId && !broken && mayEdit ? handlers.onAddColumn : undefined}
+              onAddColumn={pageId && !broken && mayEdit ? handleAddColumn : undefined}
               labels={labels}
               toolbarLabels={toolbarLabels}
               formLabels={formLabels}
@@ -529,6 +565,13 @@ export function Page({ pageId, initialTitle }: PageProps) {
         pageId={pageId}
         viewId={publicationViewId}
         lang={currentLang}
+      />
+      <ColumnRelationRollupDialog
+        target={columnConfigTarget}
+        workspaceId={workspaceId ?? undefined}
+        columns={columns}
+        onOpenChange={(open) => { if (!open) setColumnConfigTarget(null) }}
+        onSave={handleConfiguredColumnType}
       />
     </>
   )

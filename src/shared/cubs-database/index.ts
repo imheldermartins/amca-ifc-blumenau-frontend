@@ -14,6 +14,7 @@ export { TableView } from './components/TableView'
 export type { TableViewProps } from './components/TableView'
 export { GridView, GridContainer, GridTile } from './components/GridView'
 export { CalendarView, type CalendarViewLabels, type CalendarViewProps } from './components/CalendarView'
+export { HeatmapView } from './components/HeatmapView'
 export { BoardView, type BoardViewProps } from './components/BoardView'
 export { BOARD_UNASSIGNED, parseBoardConfig } from './boardView'
 export { ColumnLockSettings, type ColumnLockSettingsLabels } from './components/ColumnLockSettings'
@@ -74,6 +75,8 @@ export type { GuidedAddControlsProps } from './components/GuidedAddControls'
 export { VirtualScroller } from './components/VirtualScroller'
 export type { VirtualScrollerProps } from './components/VirtualScroller'
 export { TYPE_ICON } from './components/columnTypeIcons'
+export { COLUMN_TYPE_SECTIONS } from './columnTypeSections'
+export type { ColumnTypeSectionKey } from './columnTypeSections'
 export { DATA_VIEW_KINDS, VIEW_KIND_ICON, isDataViewKind } from './viewKinds'
 export {
   createDefaultFormViewConfig,
@@ -105,6 +108,8 @@ export {
   OPTION_COLOR_CLASSES,
   SelectCellEditor,
   TextCellEditor,
+  RelationCellEditor,
+  RelationChips,
 } from './components/cells'
 export type { CellEditor } from './components/cells'
 
@@ -149,11 +154,17 @@ export type {
   FormFieldAnswer,
   FormSubmissionInput,
   FormViewConfig,
+  HeatmapConfig,
   HeaderCol,
   NumberFormat,
   OptionColor,
   PageTitleColumn,
   PublicKeyMetadata,
+  RelationConfig,
+  RelationTarget,
+  RollupConfig,
+  RollupOperation,
+  RollupResult,
   RowData,
   FilterCondition,
   ViewFilterClause,

@@ -8,7 +8,32 @@
  */
 
 /** Tipos de dado que uma coluna pode ter. */
-export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow'
+export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'rollup'
+
+export interface RelationTarget {
+  id: string
+  title: string | null
+}
+
+export interface RelationConfig {
+  version: 1
+  targetDatabaseId: string
+}
+
+export type RollupOperation = 'count' | 'sum' | 'min' | 'max'
+
+export interface RollupConfig {
+  version: 1
+  relationColumnId: string
+  operation: RollupOperation
+  targetColumnId?: string
+}
+
+export interface RollupResult {
+  type: 'numeric'
+  format?: NumberFormat
+  currency?: CurrencyCode
+}
 
 export type FlowNodeType = 'start' | 'email' | 'set_value' | 'switch' | 'callback'
 export type FlowConditionOperator =
@@ -204,6 +229,8 @@ export interface ColumnConfigPatch {
   format?: NumberFormat | null
   currency?: CurrencyCode | null
   mask?: ColumnMask | null
+  relation?: RelationConfig
+  rollup?: RollupConfig
 }
 
 export interface FlowButtonConfig {
@@ -320,6 +347,7 @@ export type DataViewKind =
   | 'timeline'
   | 'graph'
   | 'form'
+  | 'heatmap'
 
 export type CatalogIcon = `${'cuida' | 'lucide'}:${string}`
 
@@ -332,6 +360,15 @@ export interface FormViewConfig {
     label: string
     icon: CatalogIcon | null
   }
+}
+
+export interface HeatmapConfig {
+  version: 1
+  dateColumnId: string
+  checkboxColumnId: string
+  period:
+    | { mode: 'months'; monthCount: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 }
+    | { mode: 'year' }
 }
 
 export interface FormFieldAnswer {
@@ -427,6 +464,8 @@ export interface DataViewType {
   board?: BoardViewConfig
   /** Configuração autoritativa da projeção Form; ausente em snapshots legados. */
   form?: FormViewConfig
+  /** Configuração do Mapa de calor; a métrica diária é concluídas / total. */
+  heatmap?: HeatmapConfig
 }
 
 export interface CalendarPinInput {
@@ -495,6 +534,13 @@ export interface HeaderCol {
   /** Definição autoritativa da coluna Flow; a célula guarda apenas a última execução. */
   flow?: FlowDefinition
   flowButton?: FlowButtonConfig
+  relation?: RelationConfig
+  rollup?: RollupConfig
+  rollupResult?: RollupResult
+  /** Catálogo autorizado retornado junto da projeção, usado para os chips. */
+  relationTargets?: Record<string, RelationTarget>
+  /** Busca paginada do seletor múltiplo; injetada pelo host. */
+  loadRelationOptions?: (input: { search?: string; cursor?: string; limit?: number }) => Promise<{ items: RelationTarget[]; nextCursor: string | null }>
   /**
    * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva
    * (backend), então uma coluna pode carregar `options`/`format`/`mask` de um

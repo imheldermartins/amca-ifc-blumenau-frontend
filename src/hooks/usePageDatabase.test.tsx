@@ -7,6 +7,7 @@ import type { ParsedDatabase } from '@/lib/databaseParser'
 import { FALLBACK_VIEW_ID } from '@/lib/databaseParser'
 import { AppError } from '@/lib/errors'
 import type { PageRealtimeChannel } from '@/services/PageRealtimeChannel'
+import type { RowData } from '@/shared/cubs-database/types'
 import { usePageDatabase } from './usePageDatabase'
 
 const dependencies = vi.hoisted(() => ({
@@ -266,6 +267,23 @@ describe('usePageDatabase — identidade da rota', () => {
 })
 
 describe('usePageDatabase — criação de página-linha', () => {
+  it('entrega a criação à paginação sem manter uma segunda cópia em database.rows', async () => {
+    const bridge = { current: {
+      orderRevision: 1, onEvent: vi.fn(), onStructure: vi.fn(), onResync: vi.fn(),
+      onAccessDenied: vi.fn(), onRowOrder: vi.fn(), onCreatedRow: vi.fn(),
+      onLocalMutation: vi.fn(() => ({ commit: vi.fn(), rollback: vi.fn() })),
+    } }
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID, bridge), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.handlers.onAddRow())
+    await waitFor(() => expect(bridge.current.onCreatedRow).toHaveBeenCalledExactlyOnceWith({
+      id: NEW_ROW_ID,
+      cells: {},
+    }))
+    expect(result.current.database?.rows.map((row) => row.id)).toEqual([ROW_ID])
+  })
+
   it('deduplica o eco row-created sem refetch e deixa a primeira edição como célula ausente', async () => {
     const createRequest = deferred<{
       id: string
@@ -437,6 +455,8 @@ describe('usePageDatabase — criação de coluna', () => {
     })
     expect(dependencies.createColumn).toHaveBeenCalledOnce()
     expect(result.current.addingColumn).toBe(true)
+    const rows = result.current.database?.rows
+    expect(result.current.loading).toBe(false)
     act(() => {
       result.current.realtimeOptions.onEvent?.({ type: 'column-created', payload: {
         pageId: PAGE_ID, columnId: NEW_COLUMN_ID, column: createdColumn,
@@ -448,6 +468,9 @@ describe('usePageDatabase — criação de coluna', () => {
     expect(result.current.addingColumn).toBe(true)
     await act(async () => request.resolve(createdColumn))
     expect(result.current.addingColumn).toBe(false)
+    expect(result.current.loading).toBe(false)
+    expect(result.current.database?.rows).toBe(rows)
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
     expect(result.current.database?.headerCols.filter(({ id }) => id === NEW_COLUMN_ID)).toHaveLength(1)
   })
 
@@ -521,6 +544,8 @@ describe('usePageDatabase — criação de coluna', () => {
     expect(dependencies.createColumn).toHaveBeenCalledWith(
       PAGE_ID,
       'pages.app.cubs-database.nova-coluna',
+      'text',
+      undefined,
     )
 
     const column = {
@@ -716,6 +741,73 @@ describe('usePageDatabase — lixeira otimista', () => {
 })
 
 describe('usePageDatabase — concorrência e ressincronização da célula', () => {
+  it('invalida somente a projeção sem reler o snapshot completo da página', async () => {
+    const bridge = { current: {
+      orderRevision: 1, onEvent: vi.fn(), onStructure: vi.fn(), onResync: vi.fn(),
+      onAccessDenied: vi.fn(), onRowOrder: vi.fn(), onCreatedRow: vi.fn(),
+      onLocalMutation: vi.fn(() => ({ commit: vi.fn(), rollback: vi.fn() })),
+    } }
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID, bridge), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.realtimeOptions.onProjectionInvalidated?.())
+
+    expect(bridge.current.onResync).toHaveBeenCalledOnce()
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('publica a mutação local antes de aplicar um socket recebido no mesmo lote', async () => {
+    dependencies.renameColumn.mockResolvedValueOnce(undefined)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => {
+      result.current.handlers.onColumnRename(COLUMN_ID, 'Nome local')
+      result.current.realtimeOptions.onEvent?.({
+        type: 'cell-updated',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: ROW_ID,
+          columnId: COLUMN_ID,
+          columnType: 'text',
+          value: 'socket no mesmo lote',
+          updatedAt: '2026-10-12T01:00:00.000Z',
+          originUserId: 'outro-usuario',
+        },
+      })
+    })
+
+    expect(result.current.database?.headerCols[0].title).toBe('Nome local')
+    expect(result.current.database?.rows[0].cells[COLUMN_ID]?.value).toBe('socket no mesmo lote')
+  })
+
+  it('publica o cache local antes de aplicar um socket recebido no mesmo lote', async () => {
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    const cached: RowData = { id: NEW_ROW_ID, cells: {} }
+    act(() => {
+      result.current.replaceLoadedRows([cached])
+      result.current.realtimeOptions.onEvent?.({
+        type: 'cell-updated',
+        payload: {
+          pageId: PAGE_ID,
+          rowId: NEW_ROW_ID,
+          columnId: COLUMN_ID,
+          columnType: 'text',
+          value: 'socket depois do cache local',
+          updatedAt: '2026-10-12T01:00:00.000Z',
+          originUserId: 'outro-usuario',
+        },
+      })
+    })
+
+    expect(result.current.database?.rows).toEqual([{
+      id: NEW_ROW_ID,
+      cells: { [COLUMN_ID]: { value: 'socket depois do cache local' } },
+    }])
+  })
+
   it('mantém o snapshot visível durante um resync de background', async () => {
     const background = deferred<ParsedDatabase>()
     dependencies.loadPage

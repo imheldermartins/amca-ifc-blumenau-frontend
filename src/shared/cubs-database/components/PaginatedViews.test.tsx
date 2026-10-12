@@ -25,6 +25,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('paginated renderers', () => {
+  it('faz refresh em background sem acrescentar loading à altura da lista', async () => {
+    const bridge = pagination()
+    bridge.streams.root.isFetching = true
+    bridge.streams.root.isRefreshing = true
+    render(<VirtualInfiniteList items={rows} itemKey={row => row.id} renderItem={row => <span>{row.id}</span>}
+      pagination={bridge} scope={{ type: 'root' }} stream={bridge.streams.root} />)
+    await waitFor(() => expect(screen.getByText('row-0')).toBeTruthy())
+    expect(screen.queryByRole('status')).toBeNull()
+  })
   it('mounts only a viewport, retains a pinned card, and requests the next page only after scrolling', async () => {
     const bridge = pagination()
     const { container } = render(<VirtualInfiniteList items={rows} itemKey={(row) => row.id} renderItem={(row) => <span>{row.id}</span>}
@@ -79,6 +88,41 @@ describe('paginated renderers', () => {
     await waitFor(() => expect(selection).toHaveBeenLastCalledWith(['row-0', 'row-10', 'row-11']))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar todas' }))
     await waitFor(() => expect(selection).toHaveBeenLastCalledWith(['row-0']))
+  })
+
+  it('não reserva uma faixa vazia mínima no corpo paginado da Table', () => {
+    const bridge = pagination()
+    bridge.streams.root.rows = rows.slice(0, 1)
+    const { container } = render(<TableView columns={[title]} rows={rows.slice(0, 1)} pagination={bridge} />)
+
+    const viewport = container.querySelector('[data-infinite-list]')
+    expect(viewport?.classList.contains('min-h-0')).toBe(true)
+    expect(viewport?.classList.contains('min-h-16')).toBe(false)
+  })
+
+  it('mostra o estado vazio quando a projeção paginada confirma zero linhas', () => {
+    const bridge = pagination()
+    bridge.projection = { ...bridge.projection!, total: 0 }
+    bridge.streams.root = { ...bridge.streams.root, rows: [], total: 0, hasNextPage: false }
+
+    render(<TableView columns={[title]} rows={[]} pagination={bridge} emptyLabel="Nenhuma página." />)
+
+    expect(screen.getByText('Nenhuma página.')).toBeTruthy()
+    expect(document.querySelector('[data-infinite-list]')).toBeNull()
+  })
+
+  it('não anuncia vazio enquanto existem linhas no servidor ou a projeção ainda carrega', () => {
+    const bridge = pagination()
+    bridge.streams.root = { ...bridge.streams.root, rows: [], total: 100 }
+    const { rerender } = render(<TableView columns={[title]} rows={[]} pagination={bridge} />)
+
+    expect(screen.queryByText('Nenhum registro.')).toBeNull()
+    expect(document.querySelector('[data-infinite-list]')).not.toBeNull()
+
+    bridge.projection = { ...bridge.projection!, total: 0 }
+    bridge.loading = true
+    rerender(<TableView columns={[title]} rows={[]} pagination={bridge} />)
+    expect(screen.queryByText('Nenhum registro.')).toBeNull()
   })
 
   it('uses server membership and order even when local filters and snapshots disagree', async () => {

@@ -128,7 +128,11 @@ describe('TableView — menu da coluna', () => {
         rows={[]}
         onColumnRename={onRename}
         onColumnTypeChange={onColumnTypeChange}
-        labels={{ renameColumn: 'Renomear coluna', changeType: 'Mudar tipo' }}
+        labels={{
+          renameColumn: 'Renomear coluna',
+          changeType: 'Mudar tipo',
+          columnTypeSections: { base: 'Base', automation: 'Automação', advanced: 'Avançado' },
+        }}
       />,
     )
 
@@ -144,6 +148,9 @@ describe('TableView — menu da coluna', () => {
     expect(screen.getByRole('textbox', { name: 'Renomear coluna' })).not.toBeNull()
 
     fireEvent.click(action)
+    expect(screen.getByText('Base')).not.toBeNull()
+    expect(screen.getByText('Automação')).not.toBeNull()
+    expect(screen.getByText('Avançado')).not.toBeNull()
     const numeric = screen.getByRole('menuitem', { name: 'numeric' })
     fireEvent.pointerDown(numeric)
     fireEvent.click(numeric)
@@ -267,6 +274,40 @@ describe('TableView — menu da coluna', () => {
 
     fireEvent.contextMenu(screen.getByRole('columnheader'))
     expect(screen.queryByText('Mover para lixeira')).toBeNull()
+  })
+})
+
+describe('TableView — criação de coluna por seção', () => {
+  it('lista Base, Automação e Avançado nessa ordem e entrega o tipo selecionado', () => {
+    const onAddColumn = vi.fn()
+    render(
+      <TableView
+        columns={[]}
+        rows={[]}
+        onAddColumn={onAddColumn}
+        labels={{
+          addColumn: 'Adicionar coluna',
+          columnTypeSections: { base: 'Base', automation: 'Automação', advanced: 'Avançado' },
+          columnTypes: {
+            text: 'Texto', numeric: 'Número', select: 'Seleção', date: 'Data', checkbox: 'Checkbox',
+            flow: 'Flow', relation: 'Relação', rollup: 'Resumo',
+          },
+        }}
+      />,
+    )
+
+    const addColumnButton = screen.getByRole('button', { name: 'Adicionar coluna' })
+    const guidedControls = addColumnButton.closest('[data-guided-add-controls]')
+    expect(addColumnButton.parentElement).toBe(guidedControls)
+
+    fireEvent.click(addColumnButton)
+    const headings = ['Base', 'Automação', 'Avançado'].map((label) => screen.getByText(label))
+    expect(headings.map((heading) => heading.textContent)).toEqual(['Base', 'Automação', 'Avançado'])
+    expect(headings[0].compareDocumentPosition(headings[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(headings[1].compareDocumentPosition(headings[2]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Flow' }))
+    expect(onAddColumn).toHaveBeenCalledWith('flow')
   })
 })
 
@@ -507,6 +548,7 @@ describe('TableView — agrupamento e seleção visível', () => {
     const row = screen.getAllByRole('row')[1]
     const controlCell = row.querySelector('[role="cell"]') as HTMLElement
     const drag = screen.getByRole('button', { name: 'Ações da página' })
+    expect(row.className).toContain('h-9')
     expect(controlCell.style.paddingLeft).toBe('')
     expect(controlCell.className).toContain('w-28')
     expect(controlCell.className).toContain('min-w-28')
@@ -642,7 +684,8 @@ describe('TableView — adição guiada', () => {
     expect(onAddRow).toHaveBeenCalledOnce()
     rerender(<TableView {...props} addingColumn={false} />)
     fireEvent.click(screen.getByRole('button', { name: 'Adicionar coluna' }))
-    expect(onAddColumn).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'text' }))
+    expect(onAddColumn).toHaveBeenCalledWith('text')
   })
 
   it('expõe os dois eixos como botões e encaminha os cliques', () => {
@@ -661,9 +704,10 @@ describe('TableView — adição guiada', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Nova linha' }))
     fireEvent.click(screen.getByRole('button', { name: 'Nova coluna' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'text' }))
 
     expect(onAddRow).toHaveBeenCalledOnce()
-    expect(onAddColumn).toHaveBeenCalledOnce()
+    expect(onAddColumn).toHaveBeenCalledWith('text')
     expect(
       screen.getByRole('table').contains(screen.getByRole('button', { name: 'Nova linha' })),
     ).toBe(false)

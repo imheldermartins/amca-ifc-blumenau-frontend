@@ -21,6 +21,7 @@ const labels: DatabaseViewToolbarLabels = {
     timeline: 'Cronograma',
     graph: 'Grafos',
     form: 'Formulário',
+    heatmap: 'Mapa de calor',
   },
   presets: 'Predefinições',
   closePresets: 'Fechar predefinições',

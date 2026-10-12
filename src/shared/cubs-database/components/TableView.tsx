@@ -113,7 +113,7 @@ export interface TableViewProps {
   /** Clique no trilho horizontal de adição — UI somente nesta etapa. */
   onAddRow?: () => void
   /** Clique no trilho vertical de adição — UI somente nesta etapa. */
-  onAddColumn?: () => void
+  onAddColumn?: (type: ColumnDataType) => void
   addingColumn?: boolean
   labels?: TableRowLabels
 }
@@ -429,6 +429,15 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
   const rowsSortable = Boolean(pagination ? onRowMove : onRowOrderChange) && validGroupBy.length === 0
   const columnsSortable = Boolean(onColumnOrderChange)
   const columnsResizable = Boolean(onColumnWidthChange)
+  const confirmedEmpty = localRows.length === 0 && (
+    !pagination || (
+      pagination.projection?.total === 0 &&
+      !pagination.loading &&
+      !pagination.error &&
+      !pagination.streams.root?.isFetching &&
+      !pagination.streams.root?.error
+    )
+  )
 
   // A seleção sobe por efeito, e não de dentro do redutor: chamar callback do
   // host numa função que precisa ser pura quebraria o StrictMode (que a
@@ -765,6 +774,8 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
         addingColumn={addingColumn}
         addRowLabel={labels?.addRow ?? 'Adicionar linha'}
         addColumnLabel={labels?.addColumn ?? 'Adicionar coluna'}
+        columnTypeLabels={labels?.columnTypes}
+        columnTypeSectionLabels={labels?.columnTypeSections}
       >
         <div
           ref={tableScrollRef}
@@ -854,7 +865,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
               </div>
             ) : pagination?.projection?.groups?.length ? (
               <ServerTableGroups pagination={pagination} columns={localColumns} renderRow={renderTableRow} />
-            ) : localRows.length === 0 && !pagination ? (
+            ) : confirmedEmpty ? (
               <div className="flex">
                 <div className={cn('shrink-0', CONTROL_CELL_WIDTH)} />
                 <div className="flex-1 border-l border-divider px-3 py-6 text-center text-sm opacity-60">
@@ -887,7 +898,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
                 <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
                   {pagination ? <VirtualInfiniteList items={localRows} itemKey={(row) => row.id} renderItem={(row) => renderTableRow(row)}
                     pagination={pagination} scope={{ type: 'root' }} stream={pagination.streams.root} estimateSize={36}
-                    pinnedIds={activeRowId ? [activeRowId] : []} disabled={Boolean(activeRowId)} /> : localRows.map((row) => renderTableRow(row))}
+                    pinnedIds={activeRowId ? [activeRowId] : []} disabled={Boolean(activeRowId)} className="min-h-0" /> : localRows.map((row) => renderTableRow(row))}
                 </SortableContext>
                 {typeof document !== 'undefined'
                   ? createPortal(

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Icon } from '@iconify/react'
 import { Button, Drawer, Select, Tooltip, type IconPickerLabels } from 'cubs-components'
 
-import type { ColumnLockEditor, ColumnLockMap, DataViewKind, DataViewType, FormViewConfig, HeaderCol, RowData } from '../types'
+import type { ColumnLockEditor, ColumnLockMap, DataViewKind, DataViewType, FormViewConfig, HeatmapConfig, HeaderCol, RowData } from '../types'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from '../viewKinds'
 import {
   parseViewFilters,
@@ -94,6 +94,8 @@ export interface DatabaseViewToolbarProps {
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
   form?: FormViewConfig
   onFormChange?: (form: FormViewConfig) => void
+  heatmap?: HeatmapConfig
+  onHeatmapChange?: (heatmap: HeatmapConfig) => void
   /** Slot no header principal para controles específicos da FormView. */
   formHeaderPortalRef?: (node: HTMLDivElement | null) => void
   columnLocks?: ColumnLockMap
@@ -136,6 +138,8 @@ export function DatabaseViewToolbar({
   onBoardChange,
   form,
   onFormChange,
+  heatmap,
+  onHeatmapChange,
   formHeaderPortalRef,
   columnLocks = {},
   columnLockEditors = [],
@@ -153,7 +157,7 @@ export function DatabaseViewToolbar({
     [columns],
   )
   const valueColumns = useMemo(
-    () => columns.filter((column) => columnTypes[column.id] !== 'flow'),
+    () => columns.filter((column) => !['flow', 'relation', 'rollup'].includes(columnTypes[column.id])),
     [columnTypes, columns],
   )
   const validGroupBy = document.groupBy.filter((id) =>
@@ -318,6 +322,8 @@ export function DatabaseViewToolbar({
           calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }}
           form={form}
           onFormChange={onFormChange}
+          heatmap={heatmap}
+          onHeatmapChange={onHeatmapChange}
           formLabels={{
             flow: labels.formFlow ?? 'Flow executado no envio',
             buttonLabel: labels.formButtonLabel ?? 'Texto do botão',

@@ -33,6 +33,24 @@ import type { PageViewQueryProjection, PageViewQueryRequest } from '@/shared/cub
  * `WorkspaceContext` nunca substitui a página consultada.
  */
 export class DatabaseService {
+  listRelationDatabases(workspaceId: string, input: { search?: string; cursor?: string; limit?: number } = {}): Promise<{ items: Array<{ id: string; title: string | null }>; nextCursor: string | null }> {
+    const query = new URLSearchParams()
+    if (input.search) query.set('search', input.search)
+    if (input.cursor) query.set('cursor', input.cursor)
+    if (input.limit) query.set('limit', String(input.limit))
+    const suffix = query.size ? `?${query.toString()}` : ''
+    return apiService.get(`/workspaces/${workspaceId}/relation-databases${suffix}`)
+  }
+
+  listRelationOptions(databaseId: string, input: { search?: string; cursor?: string; limit?: number } = {}): Promise<{ items: Array<{ id: string; title: string | null }>; nextCursor: string | null }> {
+    const query = new URLSearchParams()
+    if (input.search) query.set('search', input.search)
+    if (input.cursor) query.set('cursor', input.cursor)
+    if (input.limit) query.set('limit', String(input.limit))
+    const suffix = query.size ? `?${query.toString()}` : ''
+    return apiService.get(`/pages/${databaseId}/relation-options${suffix}`)
+  }
+
   /** A página em si — `data` guarda as views salvas. */
   getPage(pageId: string): Promise<ApiPage> {
     return apiService.get<ApiPage>(`/pages/${pageId}`)

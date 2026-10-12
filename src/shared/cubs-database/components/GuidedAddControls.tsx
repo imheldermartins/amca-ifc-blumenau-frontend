@@ -1,15 +1,20 @@
-import type { ReactNode } from 'react'
-import { cn } from 'cubs-components'
+import { useMemo, useState, type ReactNode } from 'react'
+import { cn, NestedMenu, Popover, type MenuNode } from 'cubs-components'
 
+import { COLUMN_TYPE_SECTIONS, type ColumnTypeSectionKey } from '../columnTypeSections'
+import type { ColumnDataType } from '../types'
 import { GuidedAddControl } from './GuidedAddControl'
+import { TYPE_ICON } from './columnTypeIcons'
 
 export interface GuidedAddControlsProps {
   children: ReactNode
   onAddRow?: () => void
-  onAddColumn?: () => void
+  onAddColumn?: (type: ColumnDataType) => void
   addingColumn?: boolean
   addRowLabel: string
   addColumnLabel: string
+  columnTypeLabels?: Partial<Record<ColumnDataType, string>>
+  columnTypeSectionLabels?: Partial<Record<ColumnTypeSectionKey, string>>
   className?: string
 }
 
@@ -26,8 +31,29 @@ export function GuidedAddControls({
   addingColumn,
   addRowLabel,
   addColumnLabel,
+  columnTypeLabels,
+  columnTypeSectionLabels,
   className,
 }: GuidedAddControlsProps) {
+  const [columnPickerOpen, setColumnPickerOpen] = useState(false)
+  const columnTypeNodes = useMemo<MenuNode[]>(() =>
+    (Object.entries(COLUMN_TYPE_SECTIONS) as Array<[ColumnTypeSectionKey, readonly ColumnDataType[]]>).map(
+      ([section, types], index) => ({
+        id: `column-section-${section}`,
+        name: columnTypeSectionLabels?.[section] ?? section,
+        separatorBefore: index > 0,
+        content: <NestedMenu nodes={types.map((type) => ({
+          id: `add-column-${type}`,
+          name: columnTypeLabels?.[type] ?? type,
+          icon: TYPE_ICON[type],
+          onSelect: () => {
+            setColumnPickerOpen(false)
+            onAddColumn?.(type)
+          },
+        }))} />,
+      }),
+    ), [columnTypeLabels, columnTypeSectionLabels, onAddColumn])
+
   return (
     <div
       data-guided-add-controls
@@ -40,13 +66,22 @@ export function GuidedAddControls({
       <div className="col-start-1 row-start-1 min-w-0">{children}</div>
 
       {onAddColumn && (
-        <GuidedAddControl
-          axis="vertical"
-          label={addColumnLabel}
-          onClick={onAddColumn}
-          busy={addingColumn}
-          className="col-start-2 row-start-1 rounded-xl border border-divider shadow-sm"
-        />
+        <Popover
+          open={columnPickerOpen && !addingColumn}
+          onOpenChange={setColumnPickerOpen}
+          side="left"
+          align="start"
+          sideOffset={6}
+          className="min-w-52"
+          trigger={<GuidedAddControl
+            axis="vertical"
+            label={addColumnLabel}
+            busy={addingColumn}
+            className="col-start-2 row-start-1 rounded-xl border border-divider shadow-sm"
+          />}
+        >
+          <NestedMenu nodes={columnTypeNodes} />
+        </Popover>
       )}
 
       {onAddRow && (

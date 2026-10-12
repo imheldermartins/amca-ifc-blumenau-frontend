@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FocusEvent } from 'react'
 import { Checkbox, IconPicker, Select, Switch, TextField, type IconPickerLabels } from 'cubs-components'
 
-import type { BoardViewConfig, CatalogIcon, DataViewKind, DataViewType, FormViewConfig, HeaderCol } from '../types'
+import type { BoardViewConfig, CatalogIcon, DataViewKind, DataViewType, FormViewConfig, HeatmapConfig, HeaderCol } from '../types'
 import { createDefaultFormViewConfig } from '../formView'
 import { mappedForm, type ViewMockSettings } from '../viewSettings'
 import { PrioritySelect, type PrioritySelectLabels } from './PrioritySelect'
@@ -115,6 +115,8 @@ export function ViewSettingsForm({
   calendarPropertyLabels,
   form,
   onFormChange,
+  heatmap,
+  onHeatmapChange,
   formLabels,
   board,
   onBoardChange,
@@ -133,6 +135,8 @@ export function ViewSettingsForm({
   calendarPropertyLabels?: PrioritySelectLabels
   form?: FormViewConfig
   onFormChange?: (form: FormViewConfig) => void
+  heatmap?: HeatmapConfig
+  onHeatmapChange?: (heatmap: HeatmapConfig) => void
   formLabels?: {
     flow: string
     buttonLabel: string
@@ -148,6 +152,7 @@ export function ViewSettingsForm({
   const defaultForm = createDefaultFormViewConfig(columns)
   const activeForm = form ?? defaultForm
   const flowColumns = columns.filter((column) => column.type === 'flow')
+  const checkboxColumns = columns.filter((column) => column.type === 'checkbox')
   const updateForm = (patch: Partial<FormViewConfig>) => {
     if (!activeForm || !onFormChange) return
     onFormChange({ ...activeForm, ...patch })
@@ -225,6 +230,20 @@ export function ViewSettingsForm({
           disabled={!onFormChange}
           onValueChange={(icon) => updateSubmitButton({ icon: icon as CatalogIcon })}
         />
+      </> : null}
+      {type === 'heatmap' && heatmap ? <>
+        <Select label="Propriedade de data" aria-label="Propriedade de data" value={heatmap.dateColumnId}
+          options={dateColumns.map((column) => ({ value: column.id, label: column.title }))}
+          disabled={!onHeatmapChange}
+          onValueChange={(dateColumnId) => onHeatmapChange?.({ ...heatmap, dateColumnId })} />
+        <Select label="Propriedade concluída" aria-label="Propriedade concluída" value={heatmap.checkboxColumnId}
+          options={checkboxColumns.map((column) => ({ value: column.id, label: column.title }))}
+          disabled={!onHeatmapChange}
+          onValueChange={(checkboxColumnId) => onHeatmapChange?.({ ...heatmap, checkboxColumnId })} />
+        <Select label="Período" aria-label="Período" value={heatmap.period.mode === 'year' ? 'year' : String(heatmap.period.monthCount)}
+          disabled={!onHeatmapChange}
+          options={[...Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: `${index + 1} ${index === 0 ? 'mês' : 'meses'}` })), { value: 'year', label: 'Ano contínuo' }]}
+          onValueChange={(value) => onHeatmapChange?.({ ...heatmap, period: value === 'year' ? { mode: 'year' } : { mode: 'months', monthCount: Number(value) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 } })} />
       </> : null}
       {mappedForm[type].map((field) => (
         <div key={field.key} className="grid gap-2">

@@ -198,6 +198,8 @@ describe('mappedFilters', () => {
       'date',
       'flow',
       'numeric',
+      'relation',
+      'rollup',
       'select',
       'text',
     ])
@@ -211,6 +213,8 @@ describe('mappedFilters', () => {
     expect(mappedFilters.date.conditions.map(({ id }) => id)).toEqual(['equals', 'between'])
     expect(mappedFilters.checkbox.conditions.map(({ id }) => id)).toEqual(['equals'])
     expect(mappedFilters.flow.conditions).toEqual([])
+    expect(mappedFilters.relation.conditions).toEqual([])
+    expect(mappedFilters.rollup.conditions).toEqual([])
     expect(getFilterCondition('numeric', 'contains')).toBeUndefined()
   })
 })

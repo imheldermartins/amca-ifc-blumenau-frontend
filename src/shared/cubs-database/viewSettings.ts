@@ -35,4 +35,5 @@ export const mappedForm: Record<DataViewKind, FormField[]> = {
   timeline: [],
   graph: [{ key: 'loadSubItems', control: 'switch', label: 'Carregar subitens' }],
   form: [],
+  heatmap: [],
 }

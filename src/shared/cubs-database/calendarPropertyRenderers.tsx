@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { DatabaseCalendarProperty } from './calendarItems'
 import type { ColumnDataType } from './types'
 import { OptionChip } from './components/cells/OptionChip'
+import { RelationChips } from './components/cells/RelationCellEditor'
 
 export interface CalendarPropertyRenderContext {
   compact: boolean
@@ -45,4 +46,8 @@ export const mappedProps: Record<ColumnDataType, CalendarPropertyRenderer> = {
     ) : <span className="opacity-60">—</span>
   },
   flow: () => null,
+  relation: ({ column, rawValue }) => <RelationChips column={column} value={rawValue} />,
+  rollup: ({ value, column }) => column.rollupResult
+    ? <span className="block max-w-full truncate tabular-nums">{value}</span>
+    : <span className="text-p-orange-600">Configuração indisponível</span>,
 }

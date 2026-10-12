@@ -645,7 +645,37 @@
           "select": "Seleção",
           "date": "Data",
           "checkbox": "Checkbox",
-          "flow": "Flow"
+          "flow": "Flow",
+          "relation": "Relação",
+          "rollup": "Resumo"
+        },
+        "secoes-tipos": {
+          "base": "Base",
+          "automation": "Automação",
+          "advanced": "Avançado"
+        },
+        "relation-config": {
+          "titulo-relacao": "Configurar Relação",
+          "titulo-resumo": "Configurar Resumo",
+          "descricao-relacao": "Escolha a database cujas páginas poderão ser vinculadas.",
+          "descricao-resumo": "Escolha a Relação, a operação e, quando necessário, a propriedade numérica.",
+          "buscar-database": "Buscar database",
+          "buscar-placeholder": "Buscar por título",
+          "database-destino": "Database de destino",
+          "carregando": "Carregando…",
+          "carregar-mais": "Carregar mais databases",
+          "calculo": "Cálculo",
+          "contagem": "Contagem",
+          "soma": "Soma",
+          "minimo": "Mínimo",
+          "maximo": "Máximo",
+          "propriedade-numerica": "Propriedade numérica",
+          "sem-nome": "Sem nome",
+          "erro-databases": "Não foi possível carregar as databases.",
+          "erro-mais-databases": "Não foi possível carregar mais databases.",
+          "erro-propriedades": "Não foi possível carregar as propriedades numéricas.",
+          "cancelar": "Cancelar",
+          "salvar": "Salvar"
         },
         "coluna": {
           "tipo": "Tipo",

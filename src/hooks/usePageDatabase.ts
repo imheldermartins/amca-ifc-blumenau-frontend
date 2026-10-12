@@ -19,6 +19,7 @@ import {
   type FlowExecutionResult,
   type FlowMacroOption,
   type FormViewConfig,
+  type HeatmapConfig,
   type FormSubmissionInput,
   type PageTitleColumn,
   type ViewFiltersV2,
@@ -56,6 +57,14 @@ import { patchRowCells } from '@/lib/databaseLocalState'
 import { flowLocalChanges } from '@/lib/flowLocalChanges'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
+
+function createDefaultHeatmapConfig(columns: readonly { id: string; type?: ColumnDataType }[]): HeatmapConfig | undefined {
+  const dateColumnId = columns.find((column) => column.type === 'date')?.id
+  const checkboxColumnId = columns.find((column) => column.type === 'checkbox')?.id
+  return dateColumnId && checkboxColumnId
+    ? { version: 1, dateColumnId, checkboxColumnId, period: { mode: 'months', monthCount: 12 } }
+    : undefined
+}
 
 /**
  * Set imutável: devolve a MESMA referência quando nada muda (para não custar
@@ -103,13 +112,13 @@ export interface UsePageDatabaseResult {
     onBoardMove: (viewId: string, input: BoardMoveInput) => Promise<void>
     onBoardCreateRow: (input: BoardCreateInput) => Promise<RowData | undefined>
     onAddRow: () => void
-    onAddColumn: () => void
+    onAddColumn: (type?: ColumnDataType, config?: ColumnConfigPatch) => void
     onCellChange: (change: CellChange) => void
     onCellEditConflict: (conflict: CellEditConflict) => void
     onColumnOptionsChange: (columnId: string, options: ColumnOption[]) => void
     onColumnRename: (columnId: string, name: string) => void
     onPageTitleColumnChange: (viewId: string, column: PageTitleColumn) => void
-    onColumnTypeChange: (columnId: string, type: ColumnDataType) => void
+    onColumnTypeChange: (columnId: string, type: ColumnDataType, config?: ColumnConfigPatch) => void
     onColumnConfigChange: (columnId: string, patch: ColumnConfigPatch) => void
     onFlowConfigChange: (columnId: string, flow: FlowDefinition) => Promise<FlowDefinition>
     onFlowLoadMacros: (input: { columnId: string; rowId?: string }) => Promise<FlowMacroOption[]>
@@ -124,6 +133,7 @@ export interface UsePageDatabaseResult {
     onCalendarConfigChange: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds'>) => void
     onGridConfigChange: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
     onFormConfigChange: (viewId: string, form: FormViewConfig) => void
+    onHeatmapConfigChange: (viewId: string, heatmap: HeatmapConfig) => void
     onFormSubmit: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
     onColumnWidthPreview: (viewId: string, columnId: string, width: number) => void
     onViewKindChange: (viewId: string, view: DataViewKind) => void
@@ -187,6 +197,18 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
   // Snapshot síncrono para o contexto das mutações destrutivas otimistas.
   const databaseRef = useRef(database)
   databaseRef.current = database
+  const updateDatabase = useCallback(
+    (update: (current: ParsedDatabase | null) => ParsedDatabase | null) => {
+      const current = databaseRef.current
+      const next = update(current)
+      // Eventos Socket.IO podem entrar antes do próximo render. O ref é a
+      // fonte causal síncrona; o state apenas publica o mesmo snapshot na UI.
+      databaseRef.current = next
+      if (next !== current) setDatabase(next)
+      return next
+    },
+    [],
+  )
   const rowBatchDeleteInFlightRef = useRef(false)
 
   // Relógio de sincronização (último `updatedAt` por célula/coluna/view). Ref
@@ -276,7 +298,14 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       loadedPageIdRef.current = pageId
       settingsRef.current = loaded.settings
       setFailed(false)
-      setDatabase((current) => paginationBridge && !exposesLoading && current ? { ...loaded, rows: current.rows } : loaded)
+      const current = databaseRef.current
+      const next = paginationBridge && !exposesLoading && current
+        ? { ...loaded, rows: current.rows }
+        : loaded
+      // O receiver pode entrar no mesmo lote que a resolução da leitura. O
+      // espelho síncrono precisa publicar o snapshot antes do setState.
+      databaseRef.current = next
+      setDatabase(next)
 
       if (
         loaded.needsFilterKeyReconcile &&
@@ -294,7 +323,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
             ) {
               return
             }
-            setDatabase((current) => {
+            updateDatabase((current) => {
               if (!current) return current
               const settings =
                 Object.keys(reconciled.settings).length > 0
@@ -320,7 +349,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     } finally {
       if (isCurrent() && exposesLoading) setLoading(false)
     }
-  }, [pageId, paginationBridge])
+  }, [pageId, paginationBridge, updateDatabase])
 
   /**
    * Coalescência autoritativa: eventos estruturais/ACKs durante uma leitura
@@ -543,8 +572,8 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     const { [FALLBACK_VIEW_ID]: _fallback, ...saved } = settingsRef.current
     const settings = { ...(replaceFallback ? saved : settingsRef.current), [viewId]: view }
     settingsRef.current = settings
-    setDatabase((current) => (current ? { ...current, settings } : current))
-  }, [pageId])
+    updateDatabase((current) => (current ? { ...current, settings } : current))
+  }, [pageId, updateDatabase])
 
   const materializeFallbackView = useCallback(async (): Promise<string | null> => {
     if (!pageId) return null
@@ -581,11 +610,11 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         [viewId]: { ...current, ...patch, ...(patch.board && { board: { ...current.board, ...patch.board } }) },
       }
       settingsRef.current = settings
-      setDatabase((database) => (database ? { ...database, settings } : database))
+      updateDatabase((database) => (database ? { ...database, settings } : database))
 
       void enqueueViewWrite(() => pageWriteService.patchView(pageId, viewId, patch)).catch(handleWriteError)
     },
-    [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView],
+    [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView, updateDatabase],
   )
 
   const saveViewFilters = useCallback(
@@ -608,12 +637,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
             [response.targetId]: { ...current, filters: response.saved.filters },
           }
           settingsRef.current = settings
-          setDatabase((database) => (database ? { ...database, settings } : database))
+          updateDatabase((database) => (database ? { ...database, settings } : database))
         }
       }
       return response.saved.filters
     },
-    [enqueueViewWrite, materializeFallbackView, pageId],
+    [enqueueViewWrite, materializeFallbackView, pageId, updateDatabase],
   )
 
   const addView = useCallback(
@@ -631,10 +660,16 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
           const form = kind === 'form'
             ? createDefaultFormViewConfig(databaseRef.current?.headerCols ?? [])
             : undefined
+          const heatmap = kind === 'heatmap'
+            ? createDefaultHeatmapConfig(databaseRef.current?.headerCols ?? [])
+            : undefined
           if (kind === 'form' && !form) throw new Error('Crie uma coluna Flow antes do formulário')
-          const created = form
-            ? await pageWriteService.createView(pageId, kind, name, sourceTitle, form)
-            : await pageWriteService.createView(pageId, kind, name, sourceTitle)
+          if (kind === 'heatmap' && !heatmap) throw new Error('Crie uma coluna de data e uma checkbox antes do Mapa de calor')
+          const created = kind === 'heatmap'
+            ? await pageWriteService.createView(pageId, kind, name, sourceTitle, undefined, heatmap)
+            : kind === 'form'
+              ? await pageWriteService.createView(pageId, kind, name, sourceTitle, form ?? undefined)
+              : await pageWriteService.createView(pageId, kind, name, sourceTitle)
           rememberView(created.viewId, created.view)
           return created.viewId
         })
@@ -676,13 +711,13 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         if (!mountedRef.current || currentPageIdRef.current !== pageId) return
         const { [targetId]: _deleted, ...settings } = settingsRef.current
         settingsRef.current = settings
-        setDatabase((current) => (current ? { ...current, settings } : current))
+        updateDatabase((current) => (current ? { ...current, settings } : current))
       })
     } catch (error) {
       handleWriteError(error)
       throw error
     }
-  }, [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId])
+  }, [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, updateDatabase])
 
   /**
    * A CÉLULA é a escrita de maior frequência e a única com rollback FINO — daí
@@ -795,10 +830,9 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       ) {
         return
       }
-      setDatabase((current) => {
+      updateDatabase((current) => {
         if (!current) return current
         const restored = restoreLocalRowDeleted(current, context.beforeDelete, rowId)
-        databaseRef.current = restored
         return restored
       })
     },
@@ -809,11 +843,9 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     onSuccess: (result, scope) => {
       if (!mountedRef.current || currentPageIdRef.current !== scope.pageId) return
       // Só retira o que a API confirmou. Falhas preservam linha, edição e seleção.
-      setDatabase((current) => {
+      updateDatabase((current) => {
         if (!current) return current
-        const next = result.deletedRowIds.reduce(applyLocalRowDeleted, current)
-        databaseRef.current = next
-        return next
+        return result.deletedRowIds.reduce(applyLocalRowDeleted, current)
       })
       const deleted = new Set(result.deletedRowIds)
       setCellErrors((current) => new Set([...current].filter((key) => !deleted.has(key.split(':')[0]))))
@@ -873,10 +905,9 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       ) {
         return
       }
-      setDatabase((current) => {
+      updateDatabase((current) => {
         if (!current) return current
         const restored = restoreLocalColumnDeleted(current, context.beforeDelete, columnId)
-        databaseRef.current = restored
         return restored
       })
     },
@@ -907,13 +938,14 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
 
   const mutateCell = cellMutation.mutateAsync
   const replaceLoadedRows = useCallback((rows: RowData[]) => {
-    setDatabase((current) => {
-      if (!current || current.rows === rows || (current.rows.length === rows.length && current.rows.every((row, index) => row === rows[index]))) return current
-      const pending = [...pendingLocalCellsRef.current.values()].map((entry) => entry.change)
-      const next = { ...current, rows: pending.length ? rows.map((row) => patchRowCells(row, pending)) : rows }
-      databaseRef.current = next
-      return next
-    })
+    const current = databaseRef.current
+    if (!current || current.rows === rows || (current.rows.length === rows.length && current.rows.every((row, index) => row === rows[index]))) return
+    const pending = [...pendingLocalCellsRef.current.values()].map((entry) => entry.change)
+    const next = { ...current, rows: pending.length ? rows.map((row) => patchRowCells(row, pending)) : rows }
+    // A cache paginada é estado local canônico. Publicá-la apenas dentro do
+    // updater do React deixa um socket do mesmo lote ler a lista anterior.
+    databaseRef.current = next
+    setDatabase(next)
   }, [])
   const handlers = {
     onBoardConfigChange: useCallback((viewId: string, board: BoardViewConfig) => saveViewPatch(viewId, { board }), [saveViewPatch]),
@@ -976,17 +1008,23 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         .createRow(pageId)
         .then((created) => {
           if (currentPageIdRef.current !== pageId) return
-          setDatabase((current) => {
-            if (!current || current.rows.some((row) => row.id === created.id)) return current
-            return {
-              ...current,
-              rows: [...current.rows, { id: created.id, cells: {} }],
-            }
-          })
+          const row: RowData = { id: created.id, cells: {} }
+          if (paginationBridge?.current) {
+            // A paginação é a única fonte das linhas quando está ativa. Inserir
+            // também em `database.rows` faria o cache antigo sobrescrever a
+            // página no render seguinte, produzindo o cresce/encolhe da Table.
+            paginationBridge.current.onCreatedRow(row)
+            return
+          }
+          const current = databaseRef.current
+          if (!current || current.rows.some((candidate) => candidate.id === created.id)) return
+          const next = { ...current, rows: [...current.rows, row] }
+          databaseRef.current = next
+          setDatabase(next)
         })
         .catch(handleWriteError)
-    }, [handleWriteError, pageId]),
-    onAddColumn: useCallback(() => {
+    }, [handleWriteError, pageId, paginationBridge]),
+    onAddColumn: useCallback((type: ColumnDataType = 'text', config?: ColumnConfigPatch) => {
       if (!pageId || columnCreationsInFlightRef.current.has(pageId)) return
       // A guarda é síncrona: duas ativações antes do próximo render precisam
       // compartilhar a mesma criação, mesmo se o eco chegar antes do HTTP.
@@ -998,9 +1036,14 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       // linha ganha um value artificial para fazer o header aparecer.
       void (async () => {
         try {
-          const created = await pageWriteService.createColumn(pageId, i18n('pages.app.cubs-database.nova-coluna'))
+          const created = await pageWriteService.createColumn(
+            pageId,
+            i18n('pages.app.cubs-database.nova-coluna'),
+            type,
+            config,
+          )
           if (!mountedRef.current || currentPageIdRef.current !== pageId) return
-          setDatabase((current) =>
+          updateDatabase((current) =>
             current
               ? applyLocalColumnCreated(
                   current,
@@ -1016,7 +1059,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
           if (mountedRef.current) setColumnCreationPageIds((current) => toggleKey(current, pageId, false))
         }
       })()
-    }, [handleWriteError, pageId]),
+    }, [handleWriteError, pageId, updateDatabase]),
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
     onCellChange: cellMutation.mutate,
@@ -1030,12 +1073,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         // Otimista: o editor de options do menu lê `column.options`, então o
         // read-modify-write dele precisa ver a mudança na hora (senão a próxima
         // edição parte de estado velho). O eco confirma; erro → reload desfaz.
-        setDatabase((current) =>
+        updateDatabase((current) =>
           current ? applyLocalColumnOptions(current, columnId, options) : current,
         )
         pageWriteService.saveColumnOptions(pageId, columnId, options).catch(handleWriteError)
       },
-      [pageId, handleWriteError],
+      [pageId, handleWriteError, updateDatabase],
     ),
     onColumnRename: useCallback(
       (columnId: string, name: string) => {
@@ -1045,12 +1088,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
         // Otimista, como a célula: o header mostra o nome novo sem esperar a
         // volta da rede. O eco confirma logo atrás; se a escrita falhar, o
         // reload do `handleWriteError` desfaz o otimismo.
-        setDatabase((current) =>
+        updateDatabase((current) =>
           current ? applyLocalColumnRename(current, columnId, name) : current,
         )
         pageWriteService.renameColumn(pageId, columnId, name).catch(handleWriteError)
       },
-      [pageId, handleWriteError],
+      [pageId, handleWriteError, updateDatabase],
     ),
     onPageTitleColumnChange: useCallback(
       (viewId: string, column: PageTitleColumn) => {
@@ -1061,33 +1104,33 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       [saveViewPatch],
     ),
     onColumnTypeChange: useCallback(
-      (columnId: string, type: ColumnDataType) => {
+      (columnId: string, type: ColumnDataType, config?: ColumnConfigPatch) => {
         if (!pageId || columnId === TITLE_COLUMN_ID) return
         // Otimista: header/editores passam ao novo tipo na hora. Não-destrutivo
         // no backend (config e valores do tipo antigo ficam preservados).
-        setDatabase((current) =>
-          current ? applyLocalColumnType(current, columnId, type) : current,
+        updateDatabase((current) =>
+          current ? applyLocalColumnConfig(applyLocalColumnType(current, columnId, type), columnId, config ?? {}) : current,
         )
-        pageWriteService.changeColumnType(pageId, columnId, type).catch(handleWriteError)
+        pageWriteService.changeColumnType(pageId, columnId, type, config).catch(handleWriteError)
       },
-      [pageId, handleWriteError],
+      [pageId, handleWriteError, updateDatabase],
     ),
     onColumnConfigChange: useCallback(
       (columnId: string, patch: ColumnConfigPatch) => {
         if (!pageId || columnId === TITLE_COLUMN_ID) return
-        setDatabase((current) =>
+        updateDatabase((current) =>
           current ? applyLocalColumnConfig(current, columnId, patch) : current,
         )
         pageWriteService.saveColumnConfig(pageId, columnId, patch).catch(handleWriteError)
       },
-      [pageId, handleWriteError],
+      [pageId, handleWriteError, updateDatabase],
     ),
     onFlowConfigChange: useCallback(
       async (columnId: string, flow: FlowDefinition) => {
         if (!pageId || columnId === TITLE_COLUMN_ID) throw new Error('Coluna Flow inválida')
         try {
           const saved = await flowService.save(pageId, columnId, flow)
-          setDatabase((current) => current ? {
+          updateDatabase((current) => current ? {
             ...current,
             headerCols: current.headerCols.map((column) =>
               column.id === columnId ? { ...column, flow: saved } : column,
@@ -1099,7 +1142,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
           throw error
         }
       },
-      [pageId, handleWriteError],
+      [pageId, handleWriteError, updateDatabase],
     ),
     onFlowLoadMacros: useCallback(
       (input: { columnId: string; rowId?: string }) => {
@@ -1168,6 +1211,10 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       },
       [saveViewPatch],
     ),
+    onHeatmapConfigChange: useCallback(
+      (viewId: string, heatmap: HeatmapConfig) => saveViewPatch(viewId, { heatmap }),
+      [saveViewPatch],
+    ),
     onFormSubmit: useCallback(
       async (viewId: string, input: FormSubmissionInput) => {
         if (!pageId) throw new Error('Página não disponível')
@@ -1206,6 +1253,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
           saveViewPatch(viewId, { view, form })
           return
         }
+        if (view === 'heatmap') {
+          const heatmap = createDefaultHeatmapConfig(databaseRef.current?.headerCols ?? [])
+          if (!heatmap) return
+          saveViewPatch(viewId, { view, heatmap })
+          return
+        }
         saveViewPatch(viewId, { view })
       },
       [saveViewPatch],
@@ -1226,9 +1279,9 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       if (entries.length !== viewIds.length) return
       const settings = Object.fromEntries(entries)
       settingsRef.current = settings
-      setDatabase((current) => (current ? { ...current, settings } : current))
+      updateDatabase((current) => (current ? { ...current, settings } : current))
       void enqueueViewWrite(() => pageWriteService.reorderViews(pageId, viewIds)).catch(handleWriteError)
-    }, [enqueueViewWrite, handleWriteError, pageId]),
+    }, [enqueueViewWrite, handleWriteError, pageId, updateDatabase]),
     onViewFiltersChange: useCallback(
       (viewId: string, filters: ViewFiltersV2) => saveViewFilters(viewId, filters),
       [saveViewFilters],
@@ -1250,8 +1303,12 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       onStructureChanged: handleStructureChanged,
       onColumnResize: handleRemoteColumnResize,
       onResync: () => { reload(); paginationBridge?.current?.onResync() },
+      onProjectionInvalidated: () => {
+        if (paginationBridge?.current) paginationBridge.current.onResync()
+        else reload()
+      },
       onRowOrder: (payload) => paginationBridge?.current?.onRowOrder(payload),
-      onAccessDenied: () => { paginationBridge?.current?.onAccessDenied(); setDatabase(null); setFailed(true); setLoading(false) },
+      onAccessDenied: () => { paginationBridge?.current?.onAccessDenied(); updateDatabase(() => null); setFailed(true); setLoading(false) },
       onChannelChange: handleRealtimeChannelChange,
     },
     handlers,

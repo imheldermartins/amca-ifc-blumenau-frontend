@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
-import type { MenuNode } from 'cubs-components'
+import { NestedMenu, type MenuNode } from 'cubs-components'
 
+import { COLUMN_TYPE_SECTIONS, type ColumnTypeSectionKey } from '../columnTypeSections'
 import type {
   ColumnConfigPatch,
   ColumnDataType,
@@ -11,7 +12,6 @@ import type {
 import { ColumnOptionsEditor, type ColumnOptionsEditorLabels } from './ColumnOptionsEditor'
 import { TYPE_ICON } from './columnTypeIcons'
 
-const COLUMN_TYPES: ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow']
 const TEXT_MASKS: ColumnMask[] = ['cpf', 'cep', 'phone-br', 'date', 'email']
 
 export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
@@ -21,6 +21,8 @@ export interface ColumnHeaderMenuLabels extends ColumnOptionsEditorLabels {
   renameColumn?: string
   /** Rótulos exibíveis por tipo de coluna; ausente = o token cru. */
   columnTypes?: Partial<Record<ColumnDataType, string>>
+  /** Títulos das seções compartilhadas pelos seletores de tipo/criação. */
+  columnTypeSections?: Partial<Record<ColumnTypeSectionKey, string>>
   /** Submenus. */
   changeType?: string
   optionsMenu?: string
@@ -91,18 +93,28 @@ class ChangeTypeNodeHandler extends ColumnMenuNodeHandler {
   protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
     if (!context.onColumnTypeChange) return undefined
 
+    const typeNode = (type: ColumnDataType): MenuNode => ({
+      id: `change-type-${type}`,
+      name: context.labels?.columnTypes?.[type] ?? type,
+      icon: type === context.columnType ? 'lucide:check' : TYPE_ICON[type],
+      onSelect: () => {
+        context.onColumnTypeChange?.(type)
+        context.onClose()
+      },
+    })
+
     return {
       id: 'change-type',
       name: context.labels?.changeType ?? 'Tipo',
       icon: TYPE_ICON[context.columnType],
-      children: COLUMN_TYPES.map((type) => ({
-        id: `change-type-${type}`,
-        name: context.labels?.columnTypes?.[type] ?? type,
-        icon: type === context.columnType ? 'lucide:check' : TYPE_ICON[type],
-        onSelect: () => {
-          context.onColumnTypeChange?.(type)
-          context.onClose()
-        },
+      children: (Object.entries(COLUMN_TYPE_SECTIONS) as Array<[
+        ColumnTypeSectionKey,
+        readonly ColumnDataType[],
+      ]>).map(([section, types], index) => ({
+        id: `change-type-section-${section}`,
+        name: context.labels?.columnTypeSections?.[section] ?? section,
+        separatorBefore: index > 0,
+        content: <NestedMenu nodes={types.map(typeNode)} />,
       })),
     }
   }

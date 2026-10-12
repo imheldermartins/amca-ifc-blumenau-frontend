@@ -92,6 +92,7 @@ export function useSchedule(workspaceId: string | null, options: { enabled?: boo
       onDatabaseUpdated: invalidate,
       onStructureChanged: invalidate,
       onResync: invalidate,
+      onProjectionInvalidated: invalidate,
     }))
     channels.forEach((channel) => channel.subscribe())
     return () => channels.forEach((channel) => channel.dispose())

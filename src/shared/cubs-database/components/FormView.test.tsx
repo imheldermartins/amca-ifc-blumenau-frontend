@@ -14,6 +14,8 @@ const AGE_ID = '01KXVZ00000000000000000003'
 const ACTIVE_ID = '01KXVZ00000000000000000004'
 const STATUS_ID = '01KXVZ00000000000000000005'
 const DATE_ID = '01KXVZ00000000000000000007'
+const RELATION_ID = '01KXVZ00000000000000000008'
+const ROLLUP_ID = '01KXVZ00000000000000000009'
 
 const columns: HeaderCol[] = [
   { id: 'page_title', key: 'title', title: 'Nome', type: 'text', publicKey: { key: 'nome', aliases: [] } },
@@ -32,6 +34,8 @@ const columns: HeaderCol[] = [
     }],
   },
   { id: DATE_ID, title: 'Data', type: 'date', publicKey: { key: 'data', aliases: [] } },
+  { id: RELATION_ID, title: 'Relação', type: 'relation', publicKey: { key: 'relacao', aliases: [] }, relation: { version: 1, targetDatabaseId: '01KXVZ00000000000000000010' } },
+  { id: ROLLUP_ID, title: 'Resumo', type: 'rollup', publicKey: { key: 'resumo', aliases: [] }, rollup: { version: 1, relationColumnId: RELATION_ID, operation: 'count' }, rollupResult: { type: 'numeric' } },
   { id: FLOW_ID, title: 'Disparar', type: 'flow' },
 ]
 
@@ -65,6 +69,8 @@ describe('FormView', () => {
 
     expect(screen.getByText('6 campos')).not.toBeNull()
     expect(screen.queryByText('Disparar')).toBeNull()
+    expect(screen.queryByText('Relação')).toBeNull()
+    expect(screen.queryByText('Resumo')).toBeNull()
     expect((screen.getByLabelText('Nome') as HTMLInputElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Visualizar formulário' }))
     expect(screen.getByLabelText('Nome')).not.toBeNull()

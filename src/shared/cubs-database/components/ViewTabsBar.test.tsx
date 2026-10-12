@@ -23,6 +23,7 @@ const viewTypeLabels = {
   timeline: 'Cronograma',
   graph: 'Grafos',
   form: 'Formulário',
+  heatmap: 'Mapa de calor',
 }
 
 describe('ViewTabsBar — adicionar view', () => {

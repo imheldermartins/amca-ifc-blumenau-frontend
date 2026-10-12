@@ -27,6 +27,12 @@ const mappedPropertyValues: Record<ColumnDataType, PropertyValueFormatter> = {
     ? column.options?.find((option) => option.id === value)?.label
     : undefined,
   flow: () => undefined,
+  relation: (value, column) => Array.isArray(value)
+    ? value.map((id) => typeof id === 'string' ? column.relationTargets?.[id]?.title : undefined).filter(Boolean).join(', ')
+    : undefined,
+  rollup: (value, column) => column.rollupResult
+    ? (column.format ? formatNumericValue(value, column.format) : formatCellValue(value))
+    : 'Configuração indisponível',
 }
 
 export function databaseCardProperties(row: RowData, columns: readonly HeaderCol[], includeEmpty = false): DatabaseCalendarProperty[] {

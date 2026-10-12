@@ -1,10 +1,12 @@
 import type {
   CellChange,
   ColumnConfigPatch,
+  ColumnDataType,
   ColumnOption,
   DataViewKind,
   DataViewType,
   FormViewConfig,
+  HeatmapConfig,
   ViewFiltersV2,
 } from 'cubs-database'
 
@@ -46,6 +48,7 @@ export class PageWriteService {
     name: string,
     title?: DataViewType['title'],
     form?: FormViewConfig,
+    heatmap?: HeatmapConfig,
   ): Promise<{ viewId: string; view: DataViewType }> {
     return apiService.post(`/pages/${pageId}/views`, {
       name,
@@ -54,6 +57,7 @@ export class PageWriteService {
         title: { key: 'title', column_name: title.column_name, ...(title.mask && { mask: title.mask }) },
       }),
       ...(form && { form }),
+      ...(heatmap && { heatmap }),
     })
   }
 
@@ -76,8 +80,16 @@ export class PageWriteService {
   }
 
   /** Cria apenas a definição da coluna; células EAV continuam ausentes. */
-  createColumn(parentId: string, name: string): Promise<ApiPageColumn> {
-    return apiService.post<ApiPageColumn>(`/pages/parent/${parentId}/columns?type=text`, { name })
+  createColumn(
+    parentId: string,
+    name: string,
+    type: ColumnDataType = 'text',
+    config?: ColumnConfigPatch,
+  ): Promise<ApiPageColumn> {
+    return apiService.post<ApiPageColumn>(`/pages/parent/${parentId}/columns?type=${type}`, {
+      name,
+      ...config,
+    })
   }
 
   /** Soft delete da página/linha; o backend publica `row-deleted` pós-commit. */
@@ -170,8 +182,8 @@ export class PageWriteService {
    * Troca o TIPO da coluna por atualização parcial. Manda só `type`; config e
    * valores existentes ficam intactos.
    */
-  changeColumnType(parentId: string, columnId: string, type: string): Promise<unknown> {
-    return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { type })
+  changeColumnType(parentId: string, columnId: string, type: string, config?: ColumnConfigPatch): Promise<unknown> {
+    return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { type, ...config })
   }
 
   /**
@@ -210,6 +222,7 @@ export class PageWriteService {
     if (patch.calendarPropertyIds !== undefined) body.calendarPropertyIds = patch.calendarPropertyIds
     if (patch.calendarShowPropertyLabels !== undefined) body.calendarShowPropertyLabels = patch.calendarShowPropertyLabels
     if (patch.form !== undefined) body.form = patch.form
+    if (patch.heatmap !== undefined) body.heatmap = patch.heatmap
     if (patch.board !== undefined) body.board = patch.board
     if (patch.title !== undefined) {
       body.title = {

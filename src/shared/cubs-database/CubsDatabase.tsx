@@ -14,6 +14,7 @@ import { CalendarView } from './components/CalendarView'
 import { BoardView } from './components/BoardView'
 import { GraphView } from './components/GraphView'
 import { FormView, type FormViewLabels } from './components/FormView'
+import { HeatmapView } from './components/HeatmapView'
 import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from './viewSettings'
 import type { TableRowLabels } from './components/TableRow'
 import type {
@@ -75,6 +76,7 @@ const DEFAULT_TOOLBAR_LABELS: DatabaseViewToolbarLabels = {
     timeline: 'Cronograma',
     graph: 'Grafos',
     form: 'Formulário',
+    heatmap: 'Mapa de calor',
   },
   presets: 'Configurações da view',
   closePresets: 'Fechar configurações da view',
@@ -164,6 +166,7 @@ export interface CubsDatabaseProps {
    * broadcast) é responsabilidade do app host.
    */
   onCellChange?: (change: CellChange) => void
+  onLoadRelationOptions?: (databaseId: string, input: { search?: string; cursor?: string; limit?: number }) => Promise<{ items: Array<{ id: string; title: string | null }>; nextCursor: string | null }>
   /**
    * O receiver atualizou uma célula que estava em edição. Nesse ponto o
    * rascunho já foi cancelado e o valor externo já está visível.
@@ -248,6 +251,7 @@ export interface CubsDatabaseProps {
   onGridConfigChange?: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
   /** Persiste a configuração específica da view Form no snapshot. */
   onFormConfigChange?: (viewId: string, form: FormViewConfig) => void
+  onHeatmapConfigChange?: (viewId: string, heatmap: NonNullable<DataViewType['heatmap']>) => void
   /** Envio condensado; a lib monta campos e o host decide o transporte. */
   onFormSubmit?: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
   formLabels?: Partial<FormViewLabels>
@@ -274,7 +278,7 @@ export interface CubsDatabaseProps {
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
-  onAddColumn?: () => void
+  onAddColumn?: (type: ColumnDataType) => void
   addingColumn?: boolean
   /** Fetch inicial em andamento → skeleton. */
   loading?: boolean
@@ -313,6 +317,7 @@ export function CubsDatabase({
   pageTitle,
   onLoadGraphChildren,
   onCellChange,
+  onLoadRelationOptions,
   onCellEditConflict,
   onColumnOptionsChange,
   onAddRow,
@@ -341,6 +346,7 @@ export function CubsDatabase({
   onCalendarConfigChange,
   onGridConfigChange,
   onFormConfigChange,
+  onHeatmapConfigChange,
   onFormSubmit,
   formLabels,
   pinnedCalendarPageIds,
@@ -380,9 +386,11 @@ export function CubsDatabase({
   const localSettings = mockSettingsByView[mockSettingsKey] ?? DEFAULT_VIEW_MOCK_SETTINGS
   const mockSettings = { ...localSettings, tileSize: currentView.tileSize ?? localSettings.tileSize }
   const availableViewKinds = useMemo(
-    () => headerCols.some((column) => column.type === 'flow')
-      ? DATA_VIEW_KINDS
-      : DATA_VIEW_KINDS.filter((kind) => kind !== 'form'),
+    () => DATA_VIEW_KINDS.filter((kind) => {
+      if (kind === 'form') return headerCols.some((column) => column.type === 'flow')
+      if (kind === 'heatmap') return headerCols.some((column) => column.type === 'date') && headerCols.some((column) => column.type === 'checkbox')
+      return true
+    }),
     [headerCols],
   )
 
@@ -444,9 +452,17 @@ export function CubsDatabase({
               mask: pageTitleColumn.mask,
               publicKey: pageTitleColumn.publicKey ?? column.publicKey,
             }
-          : column,
+          : column.type === 'relation'
+            ? {
+                ...column,
+                relationTargets: pagination?.projection?.relationTargets,
+                ...(column.relation && onLoadRelationOptions && {
+                  loadRelationOptions: (input: { search?: string; cursor?: string; limit?: number }) => onLoadRelationOptions(column.relation!.targetDatabaseId, input),
+                }),
+              }
+            : column,
       ),
-    [headerCols, pageTitleColumn],
+    [headerCols, onLoadRelationOptions, pageTitleColumn, pagination?.projection?.relationTargets],
   )
 
   const handleViewChange = (viewId: string) => {
@@ -578,6 +594,8 @@ export function CubsDatabase({
         onBoardChange={onBoardConfigChange ? (patch) => onBoardConfigChange(currentViewId, patch) : undefined}
         form={stableForm}
         onFormChange={onFormConfigChange ? (form) => onFormConfigChange(currentViewId, form) : undefined}
+        heatmap={currentView.heatmap}
+        onHeatmapChange={onHeatmapConfigChange ? (heatmap) => onHeatmapConfigChange(currentViewId, heatmap) : undefined}
         formHeaderPortalRef={setFormHeaderPortalTarget}
         columnLocks={columnLocks}
         columnLockEditors={columnLockEditors}
@@ -688,6 +706,9 @@ export function CubsDatabase({
             pendingPageId={calendarPendingPageId} onPin={onCalendarPin} onUnpin={onCalendarUnpin}
             onRequestPin={onCalendarRequestPin}
             sourceTitle={pageTitle} />
+        ) : currentView.view === 'heatmap' ? (
+          <HeatmapView key={currentViewId} config={currentView.heatmap} pagination={pagination}
+            columns={orderedColumns} onOpenRow={onOpenRow} />
         ) : currentView.view === 'graph' ? (
           <GraphView
             key={`${pageId ?? ''}:${currentViewId}`}

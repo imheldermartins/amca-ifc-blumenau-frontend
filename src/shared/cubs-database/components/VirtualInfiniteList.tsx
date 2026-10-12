@@ -100,7 +100,7 @@ export function VirtualInfiniteList<T>({ items, itemKey, itemIds, renderItem, pa
         {renderItem(items[entry.index], entry.index)}
       </div>)}
     </div>
-    {stream?.isFetching || (pagination.loading && !stream) ? <div role="status" className="flex justify-center py-2"><Icon icon="lucide:loader-circle" className="size-4 animate-spin opacity-50" /><span className="sr-only">Carregando páginas</span></div> : null}
+    {(stream?.isFetching && !stream.isRefreshing) || (pagination.loading && !stream) ? <div role="status" className="flex justify-center py-2"><Icon icon="lucide:loader-circle" className="size-4 animate-spin opacity-50" /><span className="sr-only">Carregando páginas</span></div> : null}
     {stream?.error ? <button type="button" className="w-full px-3 py-2 text-xs text-p-red" onClick={() => pagination.retry ? pagination.retry(scope) : pagination.loadNext(scope)}>Não foi possível carregar. Tentar novamente</button> : null}
   </div>
 }

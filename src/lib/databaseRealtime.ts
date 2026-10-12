@@ -76,11 +76,14 @@ export function isRealtimeCellValue(value: unknown, columnType: CellColumnType):
     case 'date':
       return typeof value === 'string'
     case 'numeric':
+    case 'rollup':
       return typeof value === 'number' && Number.isFinite(value)
     case 'checkbox':
       return typeof value === 'boolean'
     case 'flow':
       return typeof value === 'object' && !Array.isArray(value)
+    case 'relation':
+      return Array.isArray(value) && value.every((id) => typeof id === 'string')
   }
 }
 
@@ -300,6 +303,8 @@ export function applyLocalColumnConfig(
   if ('format' in patch) applied.format = patch.format ?? undefined
   if ('currency' in patch) applied.currency = patch.currency ?? undefined
   if ('mask' in patch) applied.mask = patch.mask ?? undefined
+  if (patch.relation !== undefined) applied.relation = patch.relation
+  if (patch.rollup !== undefined) applied.rollup = patch.rollup
   return patchColumn(database, columnId, applied)
 }
 

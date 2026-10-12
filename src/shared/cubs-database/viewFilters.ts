@@ -494,6 +494,9 @@ export const mappedFilters = {
     defaultCondition: 'equals',
     conditions: [],
   },
+  // Relação e Resumo entram na projeção, mas ficam fora dos filtros no v1.
+  relation: { defaultCondition: 'equals', conditions: [] },
+  rollup: { defaultCondition: 'equals', conditions: [] },
 } satisfies Record<ColumnDataType, FilterTypeDefinition>
 
 export function getFilterCondition(

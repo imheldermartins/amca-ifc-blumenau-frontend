@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react'
+import type { MenuNode } from 'cubs-components'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { HeaderCol } from '../types'
@@ -71,9 +73,36 @@ describe('buildColumnHeaderMenuNodes', () => {
       }),
     )
 
-    nodes.find((node) => node.id === 'change-type')?.children?.[1]?.onSelect?.()
+    const sections = nodes.find((node) => node.id === 'change-type')?.children
+    expect(sections?.map((section) => section.id)).toEqual([
+      'change-type-section-base',
+      'change-type-section-automation',
+      'change-type-section-advanced',
+    ])
+
+    const baseMenu = sections?.[0]?.content as ReactElement<{ nodes: MenuNode[] }>
+    baseMenu.props.nodes.find((node) => node.id === 'change-type-numeric')?.onSelect?.()
     expect(onColumnTypeChange).toHaveBeenCalledWith('numeric')
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('traduz e ordena as seções de tipo usando o catálogo compartilhado', () => {
+    const nodes = buildColumnHeaderMenuNodes(
+      createContext({
+        onColumnTypeChange: vi.fn(),
+        labels: {
+          columnTypeSections: {
+            base: 'Base',
+            automation: 'Automação',
+            advanced: 'Avançado',
+          },
+        },
+      }),
+    )
+
+    const sections = nodes.find((node) => node.id === 'change-type')?.children
+    expect(sections?.map((section) => section.name)).toEqual(['Base', 'Automação', 'Avançado'])
+    expect(sections?.map((section) => section.separatorBefore)).toEqual([false, true, true])
   })
 
   it('usa somente o tratador de configuração compatível com o tipo atual', () => {

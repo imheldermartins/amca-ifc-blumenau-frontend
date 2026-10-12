@@ -4,10 +4,11 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode
 
 import type { CellChange, CellEditConflict, HeaderCol, RowData } from '../types'
 import type { ViewMockSettings } from '../viewSettings'
-import { cellErrorKey } from '../utils'
+import { cellErrorKey, formatNumericValue } from '../utils'
 import { TextCellEditor } from './cells/TextCellEditor'
 import type { DatabasePagination } from '../pagination'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
+import { RelationChips } from './cells/RelationCellEditor'
 
 const ROOT_SCOPE = { type: 'root' } as const
 
@@ -17,6 +18,11 @@ function displayValue(row: RowData, column: HeaderCol): string | null {
   if (column.type === 'select') {
     return column.options?.find((option) => option.id === value)?.label ?? null
   }
+  if (column.type === 'relation' && Array.isArray(value)) {
+    return value.map((id) => typeof id === 'string' ? column.relationTargets?.[id]?.title : undefined).filter(Boolean).join(', ') || null
+  }
+  if (column.type === 'rollup' && !column.rollupResult) return 'Configuração indisponível'
+  if (column.type === 'rollup' && column.format) return formatNumericValue(value, column.format)
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não'
   return typeof value === 'string' || typeof value === 'number' ? String(value) : null
 }
@@ -89,7 +95,11 @@ export function GridTile({
         {details.map(({ column, value }) => (
           <div key={column.id} className="flex justify-between gap-3 border-t border-divider pt-2">
             <dt className="truncate opacity-60">{column.title}</dt>
-            <dd className="max-w-[60%] truncate text-right">{value}</dd>
+            <dd className="max-w-[60%] truncate text-right">
+              {column.type === 'relation'
+                ? <RelationChips column={column} value={row.cells[column.id]?.value} />
+                : value}
+            </dd>
           </div>
         ))}
       </dl>

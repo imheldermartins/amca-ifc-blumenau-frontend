@@ -98,6 +98,18 @@ describe('PageWriteService.createColumn', () => {
       name: 'Coluna',
     })
   })
+
+  it('envia o tipo e a configuração obrigatória na criação de Relação', async () => {
+    const relation = { version: 1 as const, targetDatabaseId: 'database-2' }
+    api.post.mockResolvedValueOnce({ id: columnId })
+
+    await new PageWriteService().createColumn('parent-1', 'Coluna', 'relation', { relation })
+
+    expect(api.post).toHaveBeenCalledWith('/pages/parent/parent-1/columns?type=relation', {
+      name: 'Coluna',
+      relation,
+    })
+  })
 })
 
 describe('PageWriteService — atualização de coluna', () => {

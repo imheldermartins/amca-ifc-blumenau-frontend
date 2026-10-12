@@ -34,11 +34,15 @@ import type {
   FlowNode,
   FlowStepV2,
   FormViewConfig,
+  HeatmapConfig,
   HeaderCol,
   NumberFormat,
   OptionColor,
   PageTitleColumn,
   PublicKeyMetadata,
+  RelationConfig,
+  RollupConfig,
+  RollupResult,
   RowData,
   ViewFiltersV2,
 } from 'cubs-database'
@@ -55,7 +59,7 @@ import { OPTION_COLORS } from 'cubs-components'
 
 // --- Formato cru das respostas da API ---
 
-export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow'
+export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'rollup'
 
 /** Opção de uma coluna `select`; o valor da célula é o `id` dela, não o texto. */
 export interface ApiSelectOption {
@@ -73,6 +77,9 @@ export interface ApiPageColumnData {
   mask?: string
   publicKey?: PublicKeyMetadata
   flow?: unknown
+  relation?: RelationConfig
+  rollup?: RollupConfig
+  rollupResult?: RollupResult
 }
 
 /** GET /pages/parent/:id/columns */
@@ -139,7 +146,7 @@ export const TITLE_COLUMN_ID = 'page_title'
  */
 export const FALLBACK_VIEW_ID = '01KXVZ0000FALLBACKTABLE001'
 
-const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow']
+const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow', 'relation', 'rollup']
 
 // --- Helpers de desserialização (tolerantes: dado ruim vira ausência) ---
 
@@ -365,14 +372,16 @@ export function parseHeaderCols(
   const dataColumns = columns.map((column, index) => {
     const publicKey = reconciledColumnScope[index]!.publicKey
     const options = optionsByColumn.get(column.id)
+    const resolvedFormat = column.type === 'rollup' ? column.data?.rollupResult?.format : column.data?.format
     const format: NumberFormat | undefined =
-      column.data?.format === 'percentage' || column.data?.format === 'currency'
-        ? column.data.format
+      resolvedFormat === 'percentage' || resolvedFormat === 'currency'
+        ? resolvedFormat
         : undefined
     // currency/mask só entram se estiverem no vocabulário — lixo vira ausência,
     // como o format. São config PRESERVADO: podem vir junto de um tipo que não
     // os usa (a troca de tipo não-destrutiva do backend), e o render decide.
-    const currency: CurrencyCode | undefined = column.data?.currency === 'BRL' ? 'BRL' : undefined
+    const resolvedCurrency = column.type === 'rollup' ? column.data?.rollupResult?.currency : column.data?.currency
+    const currency: CurrencyCode | undefined = resolvedCurrency === 'BRL' ? 'BRL' : undefined
     const mask = isColumnMask(column.data?.mask) ? column.data.mask : undefined
     const flow = parseFlowDefinition(column.data?.flow)
     const button = column.data?.flowButton
@@ -392,6 +401,9 @@ export function parseHeaderCols(
       ...(mask && { mask }),
       ...(flow && { flow }),
       ...(flowButton && { flowButton }),
+      ...(column.data?.relation?.version === 1 && typeof column.data.relation.targetDatabaseId === 'string' && { relation: column.data.relation }),
+      ...(column.data?.rollup?.version === 1 && typeof column.data.rollup.relationColumnId === 'string' && { rollup: column.data.rollup }),
+      ...(column.data?.rollupResult?.type === 'numeric' && { rollupResult: column.data.rollupResult }),
     }
   })
 
@@ -511,6 +523,22 @@ function parseFormViewConfig(raw: unknown): FormViewConfig | undefined {
   }
 }
 
+function parseHeatmapConfig(raw: unknown): HeatmapConfig | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const value = raw as Record<string, unknown>
+  const period = value.period
+  if (value.version !== 1 || typeof value.dateColumnId !== 'string' || typeof value.checkboxColumnId !== 'string'
+    || !period || typeof period !== 'object' || Array.isArray(period)) return undefined
+  const parsedPeriod = period as Record<string, unknown>
+  if (parsedPeriod.mode === 'year') {
+    return { version: 1, dateColumnId: value.dateColumnId, checkboxColumnId: value.checkboxColumnId, period: { mode: 'year' } }
+  }
+  const count = parsedPeriod.monthCount
+  if (parsedPeriod.mode !== 'months' || typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 12) return undefined
+  return { version: 1, dateColumnId: value.dateColumnId, checkboxColumnId: value.checkboxColumnId,
+    period: { mode: 'months', monthCount: count as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 } }
+}
+
 /** Uma entrada de `page.data` só vira view se tiver o formato esperado. */
 function parseView(raw: unknown): DataViewType | null {
   if (!raw || typeof raw !== 'object') return null
@@ -524,6 +552,7 @@ function parseView(raw: unknown): DataViewType | null {
   const title = parsePageTitleColumn(candidate.title)
   const filters = parseViewFilters(candidate.filters as string | ViewFiltersV2 | null | undefined)
   const form = parseFormViewConfig(candidate.form)
+  const heatmap = parseHeatmapConfig(candidate.heatmap)
   const rankConfig = candidate.rowOrder as { version?: unknown; revision?: unknown } | null | undefined
   const rowOrder: DataViewType['rowOrder'] = rankConfig?.version === 2 && typeof rankConfig.revision === 'number' && Number.isSafeInteger(rankConfig.revision) && rankConfig.revision >= 0 ? { version: 2, revision: rankConfig.revision } : undefined
 
@@ -555,6 +584,7 @@ function parseView(raw: unknown): DataViewType | null {
     ...(Array.isArray(candidate.calendarPropertyIds) && { calendarPropertyIds }),
     ...(typeof candidate.calendarShowPropertyLabels === 'boolean' && { calendarShowPropertyLabels: candidate.calendarShowPropertyLabels }),
     ...(form && { form }),
+    ...(heatmap && { heatmap }),
     ...(parseBoardConfig(candidate.board) && { board: parseBoardConfig(candidate.board) }),
   }
 }

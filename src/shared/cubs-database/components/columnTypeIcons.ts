@@ -12,4 +12,6 @@ export const TYPE_ICON: Record<ColumnDataType, string> = {
   date: 'lucide:calendar',
   checkbox: 'lucide:square-check',
   flow: 'lucide:workflow',
+  relation: 'lucide:link-2',
+  rollup: 'lucide:sigma',
 }

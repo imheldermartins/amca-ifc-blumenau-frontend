@@ -1,14 +1,12 @@
-import { useCallback, useState } from 'react'
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import { forwardRef, useCallback, useState } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 
-export interface GuidedAddControlProps {
+export interface GuidedAddControlProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   axis: 'horizontal' | 'vertical'
   label: string
-  onClick: () => void
   busy?: boolean
-  className?: string
 }
 
 const INDICATOR_RADIUS = 14
@@ -19,7 +17,7 @@ const INDICATOR_RADIUS = 14
  * no eixo útil, sem escapar pelas extremidades. Em repouso, ambos os eixos
  * começam no `start`, independentemente do tamanho atual da base.
  */
-export function GuidedAddControl({ axis, label, onClick, busy, className }: GuidedAddControlProps) {
+export const GuidedAddControl = forwardRef<HTMLButtonElement, GuidedAddControlProps>(function GuidedAddControl({ axis, label, onClick, busy, className, ...buttonProps }, ref) {
   const [position, setPosition] = useState(INDICATOR_RADIUS)
 
   const handlePointerMove = useCallback(
@@ -43,6 +41,8 @@ export function GuidedAddControl({ axis, label, onClick, busy, className }: Guid
 
   return (
     <button
+      {...buttonProps}
+      ref={ref}
       type="button"
       aria-label={label}
       aria-busy={busy || undefined}
@@ -54,7 +54,7 @@ export function GuidedAddControl({ axis, label, onClick, busy, className }: Guid
         'group/guided-add relative block cursor-pointer overflow-hidden bg-background text-p-purple transition-colors hover:bg-p-purple-50 dark:hover:bg-contrast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple-500/30',
         axis === 'horizontal' ? 'h-9 w-full border-t border-divider' : 'h-full w-9 border-l border-divider',
         className,
-        busy && 'cursor-wait opacity-60',
+        busy && 'cursor-default',
       )}
     >
       <span
@@ -72,8 +72,8 @@ export function GuidedAddControl({ axis, label, onClick, busy, className }: Guid
         style={indicatorStyle}
         className="pointer-events-none absolute z-10 grid size-7 place-items-center rounded-full border border-p-purple/40 bg-contrast text-p-purple shadow-sm transition-[background-color,box-shadow] group-hover/guided-add:bg-p-purple-500 group-hover/guided-add:text-light-100 group-hover/guided-add:shadow-md group-hover/guided-add:shadow-p-purple/30"
       >
-        <Icon icon={busy ? 'lucide:loader-circle' : 'lucide:plus'} className={busy ? 'animate-spin' : undefined} fontSize={16} />
+        <Icon icon="lucide:plus" fontSize={16} />
       </span>
     </button>
   )
-}
+})
