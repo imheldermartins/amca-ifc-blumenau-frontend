@@ -8,7 +8,7 @@ import { PageRealtimeChannel, type PageStructureEvent } from '@/services/PageRea
 import { useSocket } from '@/hooks/useSocket'
 import type { RowOrderUpdatedPayload } from '@/services/realtime-contract-v1'
 import { pageViewScopeKey, type PageViewQueryProjection, type PageViewQueryRequest, type PageViewQueryScope } from '@/shared/cubs-database/pageViewQueryContract'
-import { mergeDatabaseGroups, refreshDatabaseGroups, mergeDatabaseWindow, shareDatabaseRows, trimDatabaseWindows, type CachedDatabaseWindow, type WindowViewport } from '@/lib/databaseWindowCache'
+import { mergeDatabaseGroups, refreshDatabaseGroups, mergeDatabaseWindow, mergeRelationTargets, shareDatabaseRows, trimDatabaseWindows, type CachedDatabaseWindow, type WindowViewport } from '@/lib/databaseWindowCache'
 import { patchDatabaseWindows, patchRowCells } from '@/lib/databaseLocalState'
 import { applyViewFilters } from 'cubs-database'
 
@@ -64,7 +64,7 @@ const affectsMembership = (options: PaginationOptions, projection: PageViewQuery
   columnId === options.view?.heatmap?.checkboxColumnId
 
 /** One transport, bounded view-wide cache, and independently scrollable streams. */
-export function useDatabasePagination(options: PaginationOptions): { pagination: DatabasePagination; bridge: DatabaseProjectionBridge; error: unknown } {
+export function useDatabasePagination(options: PaginationOptions): { pagination: DatabasePagination; bridge: DatabaseProjectionBridge; loadRelationOptions: typeof databaseService.listRelationOptions; error: unknown } {
   const client = useQueryClient()
   const owner = JSON.stringify([options.pageId, options.viewId, options.view?.view])
   const [requestedScope, updateScope] = useState<{ owner: string; scope: PageViewQueryScope }>({ owner, scope: ROOT })
@@ -111,6 +111,20 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     // Scroll callbacks may run before React's next render. Publish atomically.
     current.cache = next; renderCache(next)
   }, [])
+  const loadRelationOptions = useCallback<typeof databaseService.listRelationOptions>(async (databaseId, input) => {
+    const generation = session.generation
+    const page = await databaseService.listRelationOptions(databaseId, input)
+    if (session === sessionRef.current && !session.denied && session.generation === generation && session.cache.projection) {
+      const current = session.cache
+      const relationTargets = mergeRelationTargets(
+        current.projection?.relationTargets,
+        Object.fromEntries(page.items.map((target) => [target.id, target])),
+        [...current.windows.flatMap((window) => window.rows), ...Object.values(current.created).map((entry) => entry.row)],
+      )
+      commit(session, { ...current, projection: { ...session.cache.projection, relationTargets } })
+    }
+    return page
+  }, [commit, session])
   const initialParam: FetchParam = { scope, limit: 50 }
   if (options.view?.view === 'board') {
     const board = options.view.board
@@ -269,7 +283,9 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const groups = projection.groups ? param.groupCursor ? mergeDatabaseGroups(before.projection?.groups, projection.groups, true) : refreshDatabaseGroups(before.projection?.groups, projection.groups, partialGroups) : before.projection?.groups
     const failures = { ...before.failures }; delete failures[streamKey(param)]
     const preserveCatalogCursor = partialGroups && !param.groupCursor && (before.projection?.groups?.length ?? 0) > (projection.groups?.length ?? 0)
-    const nextProjection = { ...before.projection, ...projection, groups, days: projection.days ?? before.projection?.days,
+    const relationTargets = mergeRelationTargets(before.projection?.relationTargets, projection.relationTargets,
+      [...trimmed.windows.flatMap((window) => window.rows), ...Object.values(created).map((entry) => entry.row)])
+    const nextProjection = { ...before.projection, ...projection, relationTargets, groups, days: projection.days ?? before.projection?.days,
       ...(preserveCatalogCursor ? { groupsNextCursor: before.projection?.groupsNextCursor } : {}) }
     commit(current, { ...before, created, projection: nextProjection, windows: trimmed.windows, gaps, failures, navigation })
     const edges = trimmed.windows.filter((window) => window.key === streamKey(param))
@@ -351,6 +367,13 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
       current.interactions = Math.max(0, current.interactions - 1)
       current.pendingWrites = Math.max(0, current.pendingWrites - 1)
       if (move || [...changes, ...writes].some(change => affectsMembership(optionsRef.current, current.cache.projection, change.columnId))) invalidate()
+      // The invalidation timer may have elapsed while this HTTP write was
+      // pending. Releasing the final write must wake both reconciliation and
+      // any queued window requests, even when no React state changed.
+      if (!current.interactions && current.dirty && !current.timer && !current.running && !queryRef.current.isFetching) {
+        current.dirty = false; reconcileRef.current()
+      }
+      pumpRef.current()
     }
     return { commit: (confirmed, orderRevision) => finish(confirmed, false, orderRevision), rollback: () => finish(undefined, true) }
   }, [applyChanges, commit, invalidate])
@@ -560,5 +583,5 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     return { projection: cache.projection, streams, loading: enabled && !session.denied && query.isPending, error: cache.failures[pageViewScopeKey(scope)]?.error, deletedRowIds: cache.deletedRowIds, revoked: session.denied, navigation: cache.navigation,
       loadNext, loadPrevious, ensureScope, setScope, reportWindow, pinRow, onInteractionChange, loadGroups, retry }
   }, [cache, enabled, loadNext, loadPrevious, ensureScope, setScope, reportWindow, pinRow, onInteractionChange, loadGroups, retry, query.isFetching, query.isPending, session, scope])
-  return { pagination, bridge, error: query.error }
+  return { pagination, bridge, loadRelationOptions, error: query.error }
 }

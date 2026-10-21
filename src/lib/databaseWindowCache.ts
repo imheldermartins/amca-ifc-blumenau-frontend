@@ -1,4 +1,4 @@
-import type { RowData } from 'cubs-database'
+import type { RelationTarget, RowData } from 'cubs-database'
 import type { PageViewQueryGroup, PageViewQueryScope } from '@/shared/cubs-database/pageViewQueryContract'
 
 /** Header pages can share ancestors. Merge those ancestors, never duplicate them. */
@@ -36,6 +36,30 @@ export interface CachedDatabaseWindow {
   previousCursor: string | null
 }
 export interface WindowViewport { firstId?: string; lastId?: string; height?: number; visible?: boolean }
+
+/** Retain titles for every loaded row plus a bounded set of recent picker
+ * results. A later batch refreshes titles without erasing other windows. */
+export function mergeRelationTargets(
+  previous: Record<string, RelationTarget> = {},
+  incoming: Record<string, RelationTarget> = {},
+  rows: RowData[],
+  recentLimit = 250,
+): Record<string, RelationTarget> {
+  const targets = new Map(Object.entries(previous))
+  for (const [id, target] of Object.entries(incoming)) {
+    targets.delete(id)
+    targets.set(id, target)
+  }
+  const retained = new Set<string>()
+  for (const row of rows) for (const cell of Object.values(row.cells)) {
+    const value = cell?.value
+    if (Array.isArray(value)) for (const id of value) {
+      if (typeof id === 'string' && targets.has(id)) retained.add(id)
+    }
+  }
+  const recent = recentLimit > 0 ? [...targets.keys()].filter((id) => !retained.has(id)).slice(-recentLimit) : []
+  return Object.fromEntries([...retained, ...recent].map((id) => [id, targets.get(id)!]))
+}
 
 export function shareDatabaseRows(rows: RowData[], previous: ReadonlyMap<string, RowData>): RowData[] {
   return rows.map((row) => {

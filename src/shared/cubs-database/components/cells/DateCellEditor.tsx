@@ -42,8 +42,8 @@ export const DateCellEditor = memo(function DateCellEditor({
       size="sm"
       invalid={hasError}
       labels={labels?.datePicker}
-      className="h-full w-full"
-      triggerClassName="h-full min-h-8 cursor-pointer rounded-none px-2.5 py-1.5"
+      className="h-full w-full min-w-0 max-w-full overflow-hidden"
+      triggerClassName="h-full min-h-8 max-w-full cursor-pointer overflow-hidden rounded-none px-2.5 py-1.5"
     />
   )
 })

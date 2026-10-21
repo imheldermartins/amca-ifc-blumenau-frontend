@@ -26,7 +26,8 @@ export const CELL_EDITORS: Record<ColumnDataType, CellEditor> = {
   date: DateCellEditor,
   flow: null,
   relation: RelationCellEditor,
-  rollup: null,
+  extract_as: null,
+  formula: null,
 }
 
 export { CheckboxCellEditor } from './CheckboxCellEditor'

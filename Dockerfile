@@ -8,6 +8,11 @@ FROM node:24-alpine AS build
 
 WORKDIR /app
 
+# Produção usa o host dedicado da API; vazio mantém o fallback same-origin em
+# desenvolvimento. O socket.io deriva a origem deste mesmo valor.
+ARG VITE_CUBS_API_URL
+ENV VITE_CUBS_API_URL=${VITE_CUBS_API_URL}
+
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 

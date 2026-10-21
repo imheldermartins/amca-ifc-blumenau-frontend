@@ -16,7 +16,7 @@ export function CalendarProperties({ properties, compact = false, showLabels = t
     <dl
       data-calendar-properties
       className={cn(
-        'flex min-w-0 max-w-full flex-col items-start justify-start gap-2',
+        'flex w-full min-w-0 max-w-full flex-col items-start justify-start gap-2 overflow-hidden',
         compact && 'gap-1 text-sm leading-4',
         className,
       )}
@@ -26,9 +26,9 @@ export function CalendarProperties({ properties, compact = false, showLabels = t
         const content = render(property, { compact })
         if (content === null || content === undefined) return null
         return (
-          <div key={property.id} className={cn('flex min-w-0 max-w-full items-start justify-start', showLabels && 'gap-1.5')}>
-            <dt className={cn('shrink-0 text-dark-100 dark:text-light-900', !showLabels && 'sr-only')}>{property.label}:</dt>
-            <dd className="min-w-0 max-w-full overflow-hidden">{content}</dd>
+          <div key={property.id} className={cn('flex w-full min-w-0 max-w-full items-start justify-start overflow-hidden', showLabels && 'gap-1.5')}>
+            <dt className={cn('min-w-0 max-w-[50%] shrink truncate text-dark-100 dark:text-light-900', !showLabels && 'sr-only')}>{property.label}:</dt>
+            <dd className="min-w-0 max-w-full flex-1 overflow-hidden">{content}</dd>
           </div>
         )
       })}

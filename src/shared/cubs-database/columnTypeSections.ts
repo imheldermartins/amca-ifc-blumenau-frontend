@@ -9,7 +9,7 @@ import type { ColumnDataType } from './types'
 export const COLUMN_TYPE_SECTIONS = {
   base: ['text', 'numeric', 'select', 'date', 'checkbox'],
   automation: ['flow'],
-  advanced: ['relation', 'rollup'],
+  advanced: ['relation', 'extract_as', 'formula'],
 } as const satisfies Record<string, readonly ColumnDataType[]>
 
 export type ColumnTypeSectionKey = keyof typeof COLUMN_TYPE_SECTIONS

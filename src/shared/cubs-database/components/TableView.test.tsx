@@ -290,7 +290,7 @@ describe('TableView — criação de coluna por seção', () => {
           columnTypeSections: { base: 'Base', automation: 'Automação', advanced: 'Avançado' },
           columnTypes: {
             text: 'Texto', numeric: 'Número', select: 'Seleção', date: 'Data', checkbox: 'Checkbox',
-            flow: 'Flow', relation: 'Relação', rollup: 'Resumo',
+            flow: 'Flow', relation: 'Relação', extract_as: 'Resumo',
           },
         }}
       />,

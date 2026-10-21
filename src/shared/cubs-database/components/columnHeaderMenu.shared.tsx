@@ -215,6 +215,22 @@ class TextMaskNodeHandler extends ColumnMenuNodeHandler {
   }
 }
 
+class FormulaConfigurationNodeHandler extends ColumnMenuNodeHandler {
+  protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
+    if (context.columnType !== 'formula' || !context.onColumnTypeChange) return undefined
+    return {id:'formula-configure',name:'Editar fórmula',icon:'lucide:function-square',onSelect:()=>{context.onClose();context.onColumnTypeChange?.('formula')}}
+  }
+}
+
+class RelationConfigurationNodeHandler extends ColumnMenuNodeHandler {
+  protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
+    const type = context.columnType
+    if ((type !== 'relation' && type !== 'extract_as') || !context.onColumnTypeChange) return undefined
+    return {id: 'relation-configure', name: type === 'relation' ? 'Configurar relação' : 'Configurar resumo',
+      icon: 'lucide:settings-2', onSelect: () => {context.onClose(); context.onColumnTypeChange?.(type)}}
+  }
+}
+
 class FlowConfigurationNodeHandler extends ColumnMenuNodeHandler {
   protected createNode(context: ColumnHeaderMenuContext): MenuNode | undefined {
     if (context.columnType !== 'flow' || !context.onFlowConfigure) return undefined
@@ -258,6 +274,8 @@ function createColumnMenuChain(): ColumnMenuNodeHandler {
     .setNext(new NumericFormatNodeHandler())
     .setNext(new TextMaskNodeHandler())
     .setNext(new FlowConfigurationNodeHandler())
+    .setNext(new FormulaConfigurationNodeHandler())
+    .setNext(new RelationConfigurationNodeHandler())
     .setNext(new DeleteColumnNodeHandler())
   return first
 }

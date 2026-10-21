@@ -647,7 +647,7 @@
           "checkbox": "Checkbox",
           "flow": "Flow",
           "relation": "Relação",
-          "rollup": "Resumo"
+          "extract_as": "Resumo"
         },
         "secoes-tipos": {
           "base": "Base",

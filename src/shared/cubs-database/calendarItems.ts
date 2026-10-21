@@ -1,3 +1,4 @@
+import { formulaText } from './formulaValue'
 import { formatDatePickerValue, parseDatePickerValue, type CalendarItem, type CalendarProperty } from 'cubs-components'
 import type { ColumnDataType, HeaderCol, RowData } from './types'
 import { formatCellValue, formatNumericValue, inferColumnType } from './utils'
@@ -27,10 +28,11 @@ const mappedPropertyValues: Record<ColumnDataType, PropertyValueFormatter> = {
     ? column.options?.find((option) => option.id === value)?.label
     : undefined,
   flow: () => undefined,
+  formula: formulaText,
   relation: (value, column) => Array.isArray(value)
     ? value.map((id) => typeof id === 'string' ? column.relationTargets?.[id]?.title : undefined).filter(Boolean).join(', ')
     : undefined,
-  rollup: (value, column) => column.rollupResult
+  extract_as: (value, column) => column.rollupResult
     ? (column.format ? formatNumericValue(value, column.format) : formatCellValue(value))
     : 'Configuração indisponível',
 }

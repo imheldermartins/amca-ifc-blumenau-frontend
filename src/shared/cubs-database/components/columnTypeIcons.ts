@@ -13,5 +13,6 @@ export const TYPE_ICON: Record<ColumnDataType, string> = {
   checkbox: 'lucide:square-check',
   flow: 'lucide:workflow',
   relation: 'lucide:link-2',
-  rollup: 'lucide:sigma',
+  extract_as: 'lucide:sigma',
+  formula: 'lucide:function-square',
 }

@@ -32,7 +32,7 @@ export function createDefaultFormViewConfig(
 }
 
 export function formFieldColumns(columns: readonly HeaderCol[]): HeaderCol[] {
-  return columns.filter((column) => column.type !== 'flow' && column.type !== 'relation' && column.type !== 'rollup')
+  return columns.filter((column) => column.type !== 'flow' && column.type !== 'relation' && column.type !== 'extract_as' && column.type !== 'formula')
 }
 
 export function formInputFieldFromColumn(column: HeaderCol): FormInputField {

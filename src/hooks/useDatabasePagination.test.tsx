@@ -6,7 +6,8 @@ import { useDatabasePagination } from './useDatabasePagination'
 import { pageViewScopeKey, type PageViewQueryProjection, type PageViewQueryScope } from '@/shared/cubs-database/pageViewQueryContract'
 import type { DataViewType, ViewFiltersV2 } from 'cubs-database'
 const queryView = vi.hoisted(() => vi.fn())
-vi.mock('@/services/DatabaseService', () => ({ databaseService: { queryView } }))
+const listRelationOptions = vi.hoisted(() => vi.fn())
+vi.mock('@/services/DatabaseService', () => ({ databaseService: { queryView, listRelationOptions } }))
 vi.mock('@/hooks/useSocket', () => ({ useSocket: () => ({ socket: null }) }))
 const filters: ViewFiltersV2 = { version: 2, updatedAt: null, clauses: [], groupBy: [], passthrough: [] }
 const projection = (start = 0): PageViewQueryProjection => ({ version: 1, kind: 'table', pageId: 'page', viewId: 'view', queryKey: 'query', orderRevision: 1, total: 10000, windows: [{ key: 'root', scope: { type: 'root' }, rows: Array.from({ length: 50 }, (_, index) => ({ page_id: `row-${start + index}`, page_title: `Title ${start + index}`, page_columns: {} })), total: 10000, nextCursor: `cursor-${start + 50}`, previousCursor: start ? `cursor-${start}` : null }] })
@@ -33,7 +34,82 @@ function scopedProjection(scope: PageViewQueryScope, start = 0, kind: DataViewTy
   return result
 }
 describe('SQL projection pagination transport', () => {
-  beforeEach(() => { queryView.mockReset(); queryView.mockResolvedValue(projection()) })
+  beforeEach(() => { queryView.mockReset(); queryView.mockResolvedValue(projection()); listRelationOptions.mockReset() })
+  it('retains titles across batches and refreshes a title without losing other loaded relations', async () => {
+    const first = projection()
+    first.relationTargets = { first: { id: 'first', title: 'Primeira página' } }
+    queryView.mockResolvedValueOnce(first)
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const second = projection(50)
+    second.relationTargets = { second: { id: 'second', title: 'Segunda página' } }
+    queryView.mockResolvedValueOnce(second)
+    act(() => hook.result.current.pagination.loadNext({ type: 'root' }))
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows).toHaveLength(100))
+    expect(hook.result.current.pagination.projection?.relationTargets).toEqual({ ...first.relationTargets, ...second.relationTargets })
+    const refreshed = { ...first, relationTargets: { first: { id: 'first', title: null } } }
+    queryView.mockResolvedValueOnce(refreshed).mockResolvedValueOnce(second)
+    act(() => hook.result.current.bridge.onResync())
+    await waitFor(() => expect(queryView).toHaveBeenCalledTimes(4))
+    await waitFor(() => expect(hook.result.current.pagination.projection?.relationTargets).toEqual({
+      ...refreshed.relationTargets, ...second.relationTargets,
+    }))
+  })
+
+  it('shares picker titles with the projection without refetching rows or recreating the loader', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const loader = hook.result.current.loadRelationOptions
+    const target = { id: 'target', title: 'Título já carregado' }
+    listRelationOptions.mockResolvedValue({ items: [target], nextCursor: null })
+    await act(async () => { await loader('destination', { search: 'Título' }) })
+    expect(hook.result.current.pagination.projection?.relationTargets?.target).toEqual(target)
+    expect(hook.result.current.loadRelationOptions).toBe(loader)
+    expect(queryView).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not restore picker data after access is revoked', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    let resolve!: (value: { items: { id: string; title: string }[]; nextCursor: null }) => void
+    listRelationOptions.mockImplementation(() => new Promise((done) => { resolve = done }))
+    const pending = hook.result.current.loadRelationOptions('destination')
+    act(() => hook.result.current.bridge.onAccessDenied())
+    await act(async () => { resolve({ items: [{ id: 'hidden', title: 'Private' }], nextCursor: null }); await pending })
+    expect(hook.result.current.pagination.projection).toBeNull()
+  })
+
+  it.each(['commit', 'rollback'] as const)('resumes invalidation after a slow relation write %s, including concurrent writes', async (finish) => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    let first!: ReturnType<typeof hook.result.current.bridge.onLocalMutation>
+    let second!: typeof first
+    act(() => {
+      first = hook.result.current.bridge.onLocalMutation([{ rowId: 'row-0', columnId: 'relation', value: ['one'], previousValue: undefined }])
+      second = hook.result.current.bridge.onLocalMutation([{ rowId: 'row-1', columnId: 'relation', value: ['two'], previousValue: undefined }])
+      hook.result.current.bridge.onResync()
+    })
+    await act(async () => { await new Promise((done) => setTimeout(done, 230)) })
+    act(() => first[finish]())
+    expect(queryView).toHaveBeenCalledTimes(1)
+    act(() => second[finish]())
+    await waitFor(() => expect(queryView).toHaveBeenCalledTimes(2))
+  })
+
+  it('resumes a queued next page after a local write completes', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    let mutation!: ReturnType<typeof hook.result.current.bridge.onLocalMutation>
+    queryView.mockResolvedValueOnce(projection(50))
+    act(() => {
+      mutation = hook.result.current.bridge.onLocalMutation([{ rowId: 'row-0', columnId: 'relation', value: ['one'], previousValue: undefined }])
+      hook.result.current.pagination.loadNext({ type: 'root' })
+    })
+    expect(queryView).toHaveBeenCalledTimes(1)
+    act(() => mutation.commit())
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows).toHaveLength(100))
+    expect(queryView).toHaveBeenCalledTimes(2)
+  })
   it('loads one initial batch and advances by the API cursor', async () => {
     const hook = setup()
     await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))

@@ -1,4 +1,5 @@
 import type { ColumnDataType, HeaderCol, RowData } from './types'
+import { formatDatePickerValue } from 'cubs-components'
 import { formatCellValue, formatNumericValue } from './utils'
 
 export interface TableGroupNode {
@@ -79,5 +80,6 @@ export function formatTableGroupValue(
   }
   if (columnType === 'checkbox') return value === true ? labels.true : labels.false
   if (columnType === 'numeric') return formatNumericValue(value, column.format) || labels.empty
+  if (columnType === 'date') return formatDatePickerValue(value, labels.empty)
   return formatCellValue(value)
 }

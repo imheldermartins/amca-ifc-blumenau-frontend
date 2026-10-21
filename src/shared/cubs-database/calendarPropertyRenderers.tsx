@@ -1,3 +1,4 @@
+import { FormulaResult } from './components/FormulaResult'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
 import type { ReactNode } from 'react'
@@ -21,9 +22,9 @@ export type CalendarPropertyRenderer = (
  * tipo; esta é a única camada que decide como cada propriedade aparece.
  */
 export const mappedProps: Record<ColumnDataType, CalendarPropertyRenderer> = {
-  text: ({ value }) => <span className="block max-w-full truncate">{value}</span>,
-  numeric: ({ value }) => <span className="block max-w-full truncate tabular-nums">{value}</span>,
-  date: ({ value }) => <span className="block max-w-full truncate tabular-nums">{value}</span>,
+  text: ({ value }) => <span className="block min-w-0 max-w-full truncate">{value}</span>,
+  numeric: ({ value }) => <span className="block min-w-0 max-w-full truncate tabular-nums">{value}</span>,
+  date: ({ value }) => <span className="block min-w-0 max-w-full truncate tabular-nums">{value}</span>,
   checkbox: ({ rawValue }) => (
     <span className="inline-flex items-center gap-1">
       <Icon
@@ -46,8 +47,9 @@ export const mappedProps: Record<ColumnDataType, CalendarPropertyRenderer> = {
     ) : <span className="opacity-60">—</span>
   },
   flow: () => null,
+  formula: ({ rawValue }) => <FormulaResult value={rawValue} />,
   relation: ({ column, rawValue }) => <RelationChips column={column} value={rawValue} />,
-  rollup: ({ value, column }) => column.rollupResult
-    ? <span className="block max-w-full truncate tabular-nums">{value}</span>
-    : <span className="text-p-orange-600">Configuração indisponível</span>,
+  extract_as: ({ value, column }) => column.rollupResult
+    ? <span className="block min-w-0 max-w-full truncate tabular-nums">{value}</span>
+    : <span className="block min-w-0 max-w-full truncate text-p-orange-600">Configuração indisponível</span>,
 }

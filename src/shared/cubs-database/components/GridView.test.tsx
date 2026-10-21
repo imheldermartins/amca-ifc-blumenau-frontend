@@ -62,6 +62,43 @@ describe('GridView — título discreto', () => {
     expect(screen.getByRole('heading', { name: 'Projeto' })).not.toBeNull()
   })
 
+  it('formata datetime e confina o conteúdo ao card', () => {
+    const dateColumn = { id: 'starts_at', title: 'Início com um nome muito longo', type: 'date' as const }
+    const current = {
+      id: 'page-1',
+      cells: {
+        page_title: { value: 'Projeto' },
+        starts_at: { value: '2026-09-04T14:30:00.000Z' },
+      },
+    }
+    const { container } = render(<GridView columns={[titleColumn, dateColumn]} rows={[current]} tileSize="small" />)
+
+    expect(screen.getByText('04/09/2026 14:30')).not.toBeNull()
+    expect(screen.queryByText('2026-09-04T14:30:00.000Z')).toBeNull()
+    expect(container.querySelector('[data-list-row="page-1"]')?.className).toContain('overflow-hidden')
+    expect(screen.getByText('04/09/2026 14:30').closest('dd')?.className).toContain('truncate')
+  })
+
+  it('exibe somente as propriedades selecionadas, na ordem configurada', () => {
+    const ownerColumn = { id: 'owner', title: 'Responsável', type: 'text' as const }
+    const current = {
+      id: 'page-1',
+      cells: {
+        page_title: { value: 'Projeto' },
+        status: { value: 'Ativa' },
+        owner: { value: 'Marina' },
+      },
+    }
+    const { rerender } = render(<GridView columns={[titleColumn, statusColumn, ownerColumn]} rows={[current]} tileSize="medium" propertyIds={['owner']} />)
+
+    expect(screen.getByText('Marina')).not.toBeNull()
+    expect(screen.queryByText('Ativa')).toBeNull()
+
+    rerender(<GridView columns={[titleColumn, statusColumn, ownerColumn]} rows={[current]} tileSize="medium" propertyIds={[]} />)
+    expect(screen.queryByText('Marina')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Projeto' })).not.toBeNull()
+  })
+
   it('adota o título remoto, cancela o rascunho e não grava por cima no blur', () => {
     const onCellChange = vi.fn()
     const onCellEditConflict = vi.fn()

@@ -75,6 +75,32 @@ describe('Grid mock', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Pequeno' }))
     expect(document.querySelector('[data-grid-container]')?.className).toContain('minmax(180px,1fr)')
   })
+
+  it('seleciona e persiste as propriedades visíveis da Grid', async () => {
+    const onGridConfigChange = vi.fn()
+    const settings = { grid: { view: 'grid' as const, name: 'Grade', urlKey: { key: 'grade', aliases: [] }, filters: emptyViewFilters(), orderedHeaderCols: [], gridPropertyIds: ['status'] } }
+    const columns = [
+      { id: 'page_title', key: 'title' as const, title: 'Nome', type: 'text' as const },
+      { id: 'status', title: 'Status', type: 'text' as const },
+      { id: 'owner', title: 'Responsável', type: 'text' as const },
+    ]
+    const gridRows = [{ id: 'child-1', cells: { page_title: { value: 'Página A' }, status: { value: 'Ativa' }, owner: { value: 'Marina' } } }]
+    const props = { settings, headerCols: columns, rows: gridRows, onGridConfigChange }
+    const { rerender } = render(<CubsDatabase {...props} />)
+
+    expect(screen.getByText('Ativa')).not.toBeNull()
+    expect(screen.queryByText('Marina')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Configurações da view' }))
+    const drawer = screen.getByRole('dialog', { name: 'Configurações da view' })
+    const owner = within(drawer).getByRole('checkbox', { name: 'Mostrar propriedade: Responsável' })
+    fireEvent.click(owner)
+    fireEvent.blur(owner, { relatedTarget: within(drawer).getByRole('button', { name: 'Fechar configurações da view' }) })
+
+    expect(onGridConfigChange).toHaveBeenCalledExactlyOnceWith('grid', { gridPropertyIds: ['status', 'owner'] })
+    rerender(<CubsDatabase {...props} settings={{ grid: { ...settings.grid, gridPropertyIds: ['owner'] } }} />)
+    expect(screen.queryByText('Ativa')).toBeNull()
+    expect(screen.getByText('Marina')).not.toBeNull()
+  })
 })
 
 describe('Graph mock', () => {

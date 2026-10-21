@@ -92,7 +92,7 @@ export const BoardCard = memo(function BoardCard({ row, columns, color, showLabe
   const commit = (column: HeaderCol, value: unknown) => {
     if (!overlay && !locked(column)) onCellChange?.({ rowId: row.id, columnId: column.id, value, previousValue: row.cells[column.id]?.value })
   }
-  return <article data-board-card={row.id} inert={overlay || undefined} aria-hidden={overlay || undefined} className={cn('group relative w-full min-w-0 rounded-xl border border-foreground/10 p-3 text-sm shadow-sm', BACKGROUNDS[color], overlay && 'pointer-events-none shadow-lg')}
+  return <article data-board-card={row.id} inert={overlay || undefined} aria-hidden={overlay || undefined} className={cn('group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-foreground/10 p-3 text-sm shadow-sm', BACKGROUNDS[color], overlay && 'pointer-events-none shadow-lg')}
     onDoubleClick={(event) => {
       if (!overlay && !(event.target as HTMLElement).closest('button,input,textarea,[role="combobox"]')) onEdit?.(row.id)
     }} onKeyDown={(event) => { if (editing && event.key === 'Escape') onFinish?.() }}>
@@ -108,12 +108,12 @@ export const BoardCard = memo(function BoardCard({ row, columns, color, showLabe
       {editing && !overlay ? <button type="button" aria-label="Concluir edição" title="Concluir edição" onClick={onFinish} className="flex size-6 shrink-0 items-center justify-center rounded hover:bg-active"><Icon icon="lucide:check" className="size-4" /></button> : null}
       {onOpenRow ? <button type="button" aria-label={`Abrir ${title}`} onClick={() => !overlay && onOpenRow(row)} className="flex size-6 shrink-0 items-center justify-center rounded opacity-50 hover:bg-active hover:opacity-100"><Icon icon="lucide:arrow-up-right" className="size-4" /></button> : null}
     </div>
-    {properties.length ? <dl className="mt-3 flex min-w-0 flex-col items-start gap-2">
+    {properties.length ? <dl className="mt-3 flex w-full min-w-0 max-w-full flex-col items-start gap-2 overflow-hidden">
       {properties.map((property) => {
         const column = property.column
         const Editor = CELL_EDITORS[property.type]
-        return <div key={property.id} className={cn('flex w-full min-w-0 items-start', showLabels && 'gap-1.5')}>
-          <dt className={cn('shrink-0 text-xs opacity-60', !showLabels && 'sr-only')}>{property.label}:</dt>
+        return <div key={property.id} className={cn('flex w-full min-w-0 max-w-full items-start overflow-hidden', showLabels && 'gap-1.5')}>
+          <dt className={cn('min-w-0 max-w-[50%] shrink truncate text-xs opacity-60', !showLabels && 'sr-only')}>{property.label}:</dt>
           <dd className="min-w-0 flex-1 overflow-hidden">
             {property.type === 'flow' ? <FlowActionButton column={column} disabled={locked(column) || !column.flow || !onFlowOpen}
               onClick={() => !overlay && onFlowOpen?.(row, column)} />

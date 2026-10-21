@@ -6,7 +6,7 @@ import { createDefaultFormViewConfig } from '../formView'
 import { mappedForm, type ViewMockSettings } from '../viewSettings'
 import { PrioritySelect, type PrioritySelectLabels } from './PrioritySelect'
 
-function CalendarPropertyVisibility({
+function PropertyVisibility({
   options,
   value,
   onChange,
@@ -112,6 +112,8 @@ export function ViewSettingsForm({
   calendarLabels,
   calendarPropertyIds,
   onCalendarPropertyIdsChange,
+  gridPropertyIds,
+  onGridPropertyIdsChange,
   calendarPropertyLabels,
   form,
   onFormChange,
@@ -132,6 +134,8 @@ export function ViewSettingsForm({
   calendarLabels?: { dateProperty: string; colorProperty: string; defaultColor: string; showPropertyLabels: string }
   calendarPropertyIds?: string[]
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
+  gridPropertyIds?: string[]
+  onGridPropertyIdsChange?: (columnIds: string[]) => void
   calendarPropertyLabels?: PrioritySelectLabels
   form?: FormViewConfig
   onFormChange?: (form: FormViewConfig) => void
@@ -172,7 +176,7 @@ export function ViewSettingsForm({
           onValueChange={(selectColumnId) => onBoardChange?.({ selectColumnId, optionOrder: [], collapsedOptionIds: [] })} />
         <Checkbox label="Mostrar nomes das propriedades" checked={board?.showPropertyLabels !== false} disabled={!onBoardChange}
           onCheckedChange={(showPropertyLabels) => onBoardChange?.({ showPropertyLabels })} />
-        <CalendarPropertyVisibility options={columns.filter((column) => column.key !== 'title').map((column) => ({ value: column.id, label: column.title }))}
+        <PropertyVisibility options={columns.filter((column) => column.key !== 'title').map((column) => ({ value: column.id, label: column.title }))}
           value={board?.propertyIds ?? columns.filter((column) => column.key !== 'title').map((column) => column.id)}
           onChange={onBoardChange ? (propertyIds) => onBoardChange({ propertyIds }) : undefined} disabled={!onBoardChange}
           labels={calendarPropertyLabels ?? { trigger: 'Propriedades visíveis', search: 'Buscar propriedade', empty: 'Nenhuma propriedade', drag: 'Reordenar propriedade', select: 'Mostrar propriedade', priority: 'Posição', clear: 'Ocultar todas' }} />
@@ -194,7 +198,7 @@ export function ViewSettingsForm({
             onCheckedChange={(calendarShowPropertyLabels) => onCalendarChange?.({ calendarShowPropertyLabels })}
           />
         </div>
-        <CalendarPropertyVisibility
+        <PropertyVisibility
           options={propertyColumns.map((column) => ({ value: column.id, label: column.title }))}
           value={visiblePropertyIds}
           onChange={onCalendarPropertyIdsChange}
@@ -264,6 +268,13 @@ export function ViewSettingsForm({
           )}
         </div>
       ))}
+      {type === 'grid' ? <PropertyVisibility
+        options={columns.filter((column) => column.key !== 'title').map((column) => ({ value: column.id, label: column.title }))}
+        value={gridPropertyIds ?? columns.filter((column) => column.key !== 'title').map((column) => column.id)}
+        onChange={onGridPropertyIdsChange}
+        labels={calendarPropertyLabels ?? { trigger: 'Propriedades visíveis', search: 'Buscar propriedade', empty: 'Nenhuma propriedade', drag: 'Reordenar propriedade', select: 'Mostrar propriedade', priority: 'Posição', clear: 'Ocultar todas' }}
+        disabled={!onGridPropertyIdsChange}
+      /> : null}
     </div>
   )
 }

@@ -11,6 +11,7 @@ export interface DrawerProps {
   accessibleTitle: string
   closeLabel: string
   className?: string
+  panelClassName?: string
   children: ReactNode
 }
 
@@ -21,6 +22,7 @@ export function Drawer({
   accessibleTitle,
   closeLabel,
   className,
+  panelClassName,
   children,
 }: DrawerProps) {
   return (
@@ -41,6 +43,7 @@ export function Drawer({
             'border-l border-divider',
             'data-[state=open]:animate-in data-[state=open]:slide-in-from-right',
             'data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right',
+            panelClassName,
           )}
         >
           <Dialog.Title className="sr-only">{accessibleTitle}</Dialog.Title>

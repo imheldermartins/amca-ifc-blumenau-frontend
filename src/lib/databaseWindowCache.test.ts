@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { mergeDatabaseGroups, refreshDatabaseGroups, mergeDatabaseWindow, shareDatabaseRows, trimDatabaseWindows, type CachedDatabaseWindow } from './databaseWindowCache'
+import { mergeDatabaseGroups, refreshDatabaseGroups, mergeDatabaseWindow, mergeRelationTargets, shareDatabaseRows, trimDatabaseWindows, type CachedDatabaseWindow } from './databaseWindowCache'
 const batch = (id: number, key = 'root'): CachedDatabaseWindow => ({ id, key, scope: { type: 'root' }, rows: Array.from({ length: 50 }, (_, index) => ({ id: `${id}-${index}`, cells: { page_title: { value: `${id}-${index}` } } })), total: 10000, nextCursor: `next-${id}`, previousCursor: `prev-${id}` })
 describe('bounded database windows', () => {
+  it('retains loaded relation titles, bounds picker results and accepts authoritative empty titles', () => {
+    const selected = { id: 'selected', title: 'Selected' }
+    const discarded = { id: 'discarded', title: 'Discarded' }
+    const first = { id: 'first', title: 'First' }
+    const last = { id: 'last', title: 'Last' }
+    const rows = [{ id: 'row', cells: { relation: { value: ['selected'] } } }]
+    const result = mergeRelationTargets({ selected, discarded }, { first, last }, rows, 1)
+    expect(result).toEqual({ selected, last })
+    expect(mergeRelationTargets(result, { selected: { ...selected, title: null } }, rows, 0))
+      .toEqual({ selected: { ...selected, title: null } })
+    expect(mergeRelationTargets(result, {}, [], 1)).toEqual({ last })
+  })
   it('keeps 250 hydrated rows with a 10k-row dataset and protects the viewport', () => {
     const windows = Array.from({ length: 200 }, (_, index) => batch(index))
     const result = trimDatabaseWindows(windows, new Map([['root', { firstId: '198-0', lastId: '199-49' }]]), new Set())

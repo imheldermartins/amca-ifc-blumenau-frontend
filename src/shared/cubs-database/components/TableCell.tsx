@@ -1,3 +1,4 @@
+import { FormulaResult } from './FormulaResult'
 import { memo, useCallback } from 'react'
 import { Icon } from '@iconify/react'
 import { cn, formatDatePickerValue } from 'cubs-components'
@@ -26,6 +27,7 @@ function CellValue({
   value: unknown
   column: HeaderCol
 }) {
+  if (type === 'formula') return <FormulaResult value={value} />
   if (type === 'checkbox') {
     return (
       <span className="flex w-full flex-1 items-center justify-center">
@@ -49,19 +51,19 @@ function CellValue({
     return <OptionChip option={option} />
   }
   if (type === 'relation') return <RelationChips column={column} value={value} />
-  if (type === 'rollup' && !column.rollupResult) {
+  if (type === 'extract_as' && !column.rollupResult) {
     return <span className="truncate text-xs text-p-orange-600">Configuração indisponível</span>
   }
-  if ((type === 'numeric' || type === 'rollup') && column.format) {
+  if ((type === 'numeric' || type === 'extract_as') && column.format) {
     // O `format` vale nos DOIS modos: o read-only exibe o MESMO texto que o
     // editor ("R$ 1.299,00" / "42%"), não o número cru do armazenamento.
-    return <span className="truncate tabular-nums">{formatNumericValue(value, column.format)}</span>
+    return <span className="min-w-0 max-w-full flex-1 truncate tabular-nums">{formatNumericValue(value, column.format)}</span>
   }
   if (type === 'date') {
-    return <span className="truncate tabular-nums">{formatDatePickerValue(value)}</span>
+    return <span className="min-w-0 max-w-full flex-1 truncate tabular-nums">{formatDatePickerValue(value)}</span>
   }
   return (
-    <span className={cn('truncate', type === 'numeric' && 'tabular-nums')}>
+    <span className={cn('min-w-0 max-w-full flex-1 truncate', type === 'numeric' && 'tabular-nums')}>
       {formatCellValue(value)}
     </span>
   )
@@ -71,7 +73,7 @@ function formatConflictValue(type: ColumnDataType, value: unknown, column: Heade
   if (type === 'select' && typeof value === 'string') {
     return column.options?.find((option) => option.id === value)?.label ?? formatCellValue(value)
   }
-  if ((type === 'numeric' || type === 'rollup') && column.format) return formatNumericValue(value, column.format)
+  if ((type === 'numeric' || type === 'extract_as') && column.format) return formatNumericValue(value, column.format)
   if (type === 'relation') return Array.isArray(value) ? `${value.length} página${value.length === 1 ? '' : 's'}` : ''
   if (type === 'date') return formatDatePickerValue(value)
   return formatCellValue(value)
@@ -223,7 +225,7 @@ export const TableCell = memo(function TableCell({
         className={cn(
           // Centraliza editores compactos (ex.: TextField h-8) dentro da
           // altura canônica da linha, sem criar sobra apenas embaixo.
-          'flex shrink-0 items-center border-l border-divider',
+          'flex min-w-0 shrink-0 items-center overflow-hidden border-l border-divider',
           type === 'checkbox' && 'items-center justify-center',
           isLast && 'border-r',
           hasError && 'bg-p-red-500/10 ring-1 ring-inset ring-p-red dark:bg-p-red-500/15',
@@ -249,7 +251,7 @@ export const TableCell = memo(function TableCell({
       role="cell"
       title={locked ? 'Coluna bloqueada' : undefined}
       className={cn(
-        'flex shrink-0 items-center border-l border-divider px-2.5 py-1.5 text-sm',
+        'flex min-w-0 shrink-0 items-center overflow-hidden border-l border-divider px-2.5 py-1.5 text-sm',
         type === 'checkbox' && 'justify-center',
         isLast && 'border-r',
       )}

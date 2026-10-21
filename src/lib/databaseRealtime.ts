@@ -76,12 +76,13 @@ export function isRealtimeCellValue(value: unknown, columnType: CellColumnType):
     case 'date':
       return typeof value === 'string'
     case 'numeric':
-    case 'rollup':
+    case 'extract_as':
       return typeof value === 'number' && Number.isFinite(value)
     case 'checkbox':
       return typeof value === 'boolean'
     case 'flow':
       return typeof value === 'object' && !Array.isArray(value)
+    case 'formula': return false // Computed per user through authorized projections.
     case 'relation':
       return Array.isArray(value) && value.every((id) => typeof id === 'string')
   }

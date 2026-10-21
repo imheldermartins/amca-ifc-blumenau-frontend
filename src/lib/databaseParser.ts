@@ -59,7 +59,7 @@ import { OPTION_COLORS } from 'cubs-components'
 
 // --- Formato cru das respostas da API ---
 
-export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'rollup'
+export type ApiColumnType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'extract_as' | 'formula'
 
 /** Opção de uma coluna `select`; o valor da célula é o `id` dela, não o texto. */
 export interface ApiSelectOption {
@@ -70,6 +70,7 @@ export interface ApiSelectOption {
 }
 
 export interface ApiPageColumnData {
+  formula?: { version: 1; source: string; revision?: number }
   flowButton?: { label: string | null; icon: string }
   options?: ApiSelectOption[]
   format?: 'percentage' | 'currency'
@@ -146,7 +147,7 @@ export const TITLE_COLUMN_ID = 'page_title'
  */
 export const FALLBACK_VIEW_ID = '01KXVZ0000FALLBACKTABLE001'
 
-const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow', 'relation', 'rollup']
+const COLUMN_TYPES: readonly ColumnDataType[] = ['text', 'numeric', 'select', 'date', 'checkbox', 'flow', 'relation', 'extract_as', 'formula']
 
 // --- Helpers de desserialização (tolerantes: dado ruim vira ausência) ---
 
@@ -372,7 +373,7 @@ export function parseHeaderCols(
   const dataColumns = columns.map((column, index) => {
     const publicKey = reconciledColumnScope[index]!.publicKey
     const options = optionsByColumn.get(column.id)
-    const resolvedFormat = column.type === 'rollup' ? column.data?.rollupResult?.format : column.data?.format
+    const resolvedFormat = column.type === 'extract_as' ? column.data?.rollupResult?.format : column.data?.format
     const format: NumberFormat | undefined =
       resolvedFormat === 'percentage' || resolvedFormat === 'currency'
         ? resolvedFormat
@@ -380,7 +381,7 @@ export function parseHeaderCols(
     // currency/mask só entram se estiverem no vocabulário — lixo vira ausência,
     // como o format. São config PRESERVADO: podem vir junto de um tipo que não
     // os usa (a troca de tipo não-destrutiva do backend), e o render decide.
-    const resolvedCurrency = column.type === 'rollup' ? column.data?.rollupResult?.currency : column.data?.currency
+    const resolvedCurrency = column.type === 'extract_as' ? column.data?.rollupResult?.currency : column.data?.currency
     const currency: CurrencyCode | undefined = resolvedCurrency === 'BRL' ? 'BRL' : undefined
     const mask = isColumnMask(column.data?.mask) ? column.data.mask : undefined
     const flow = parseFlowDefinition(column.data?.flow)
@@ -401,6 +402,7 @@ export function parseHeaderCols(
       ...(mask && { mask }),
       ...(flow && { flow }),
       ...(flowButton && { flowButton }),
+      ...(column.data?.formula?.version === 1 && typeof column.data.formula.source === 'string' && { formula: column.data.formula }),
       ...(column.data?.relation?.version === 1 && typeof column.data.relation.targetDatabaseId === 'string' && { relation: column.data.relation }),
       ...(column.data?.rollup?.version === 1 && typeof column.data.rollup.relationColumnId === 'string' && { rollup: column.data.rollup }),
       ...(column.data?.rollupResult?.type === 'numeric' && { rollupResult: column.data.rollupResult }),
@@ -548,6 +550,7 @@ function parseView(raw: unknown): DataViewType | null {
 
   const columnWidths = parseColumnWidths(candidate.columnWidths)
   const orderedRows = parseIdList(candidate.orderedRows)
+  const gridPropertyIds = parseIdList(candidate.gridPropertyIds)
   const calendarPropertyIds = parseIdList(candidate.calendarPropertyIds)
   const title = parsePageTitleColumn(candidate.title)
   const filters = parseViewFilters(candidate.filters as string | ViewFiltersV2 | null | undefined)
@@ -579,6 +582,7 @@ function parseView(raw: unknown): DataViewType | null {
     ...(typeof candidate.tileSize === 'string' && ['small', 'medium', 'large'].includes(candidate.tileSize) && {
       tileSize: candidate.tileSize as NonNullable<DataViewType['tileSize']>,
     }),
+    ...(Array.isArray(candidate.gridPropertyIds) && { gridPropertyIds }),
     ...(typeof candidate.dateColumnId === 'string' && { dateColumnId: candidate.dateColumnId }),
     ...((typeof candidate.colorColumnId === 'string' || candidate.colorColumnId === null) && { colorColumnId: candidate.colorColumnId }),
     ...(Array.isArray(candidate.calendarPropertyIds) && { calendarPropertyIds }),

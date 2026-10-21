@@ -35,7 +35,7 @@ const columns: HeaderCol[] = [
   },
   { id: DATE_ID, title: 'Data', type: 'date', publicKey: { key: 'data', aliases: [] } },
   { id: RELATION_ID, title: 'Relação', type: 'relation', publicKey: { key: 'relacao', aliases: [] }, relation: { version: 1, targetDatabaseId: '01KXVZ00000000000000000010' } },
-  { id: ROLLUP_ID, title: 'Resumo', type: 'rollup', publicKey: { key: 'resumo', aliases: [] }, rollup: { version: 1, relationColumnId: RELATION_ID, operation: 'count' }, rollupResult: { type: 'numeric' } },
+  { id: ROLLUP_ID, title: 'Resumo', type: 'extract_as', publicKey: { key: 'resumo', aliases: [] }, rollup: { version: 1, relationColumnId: RELATION_ID, operation: 'count' }, rollupResult: { type: 'numeric' } },
   { id: FLOW_ID, title: 'Disparar', type: 'flow' },
 ]
 

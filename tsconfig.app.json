@@ -8,6 +8,8 @@
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
     "strict": true,
+    "allowJs": true,
+    "checkJs": false,
     "paths": {
       "@/*": ["./src/*"],
       "@components/*": ["./src/components/*"],

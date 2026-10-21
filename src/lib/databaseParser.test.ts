@@ -111,6 +111,14 @@ describe('databaseParser — tipos de view', () => {
     expect(parsed[VIEW_ID].tileSize).toBe(tileSize)
   })
 
+  it('preserva inclusive a seleção vazia de propriedades da Grade', () => {
+    const visible = parseViewSettings({ [VIEW_ID]: { view: 'grid', name: 'Grade', gridPropertyIds: ['status', 42, 'owner'] } })
+    const hidden = parseViewSettings({ [VIEW_ID]: { view: 'grid', name: 'Grade', gridPropertyIds: [] } })
+
+    expect(visible[VIEW_ID].gridPropertyIds).toEqual(['status', 'owner'])
+    expect(hidden[VIEW_ID].gridPropertyIds).toEqual([])
+  })
+
   it.each([undefined, null, 'enorme', 240, ['small'], { size: 'small' }])('ignora tamanho inválido ou legado (%j)', (tileSize) => {
     const parsed = parseViewSettings({ [VIEW_ID]: { view: 'grid', name: 'Grade', tileSize } })
     expect(parsed[VIEW_ID].tileSize).toBeUndefined()

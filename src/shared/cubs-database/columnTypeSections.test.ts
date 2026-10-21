@@ -7,7 +7,7 @@ describe('COLUMN_TYPE_SECTIONS', () => {
     expect(COLUMN_TYPE_SECTIONS).toEqual({
       base: ['text', 'numeric', 'select', 'date', 'checkbox'],
       automation: ['flow'],
-      advanced: ['relation', 'rollup'],
+      advanced: ['relation', 'extract_as', 'formula'],
     })
   })
 })

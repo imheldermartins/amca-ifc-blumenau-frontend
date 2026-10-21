@@ -1,5 +1,7 @@
+import { FormulaResult } from './FormulaResult'
+import { formulaText } from '../formulaValue'
 import { Icon } from '@iconify/react'
-import { cn } from 'cubs-components'
+import { cn, formatDatePickerValue } from 'cubs-components'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import type { CellChange, CellEditConflict, HeaderCol, RowData } from '../types'
@@ -15,14 +17,16 @@ const ROOT_SCOPE = { type: 'root' } as const
 function displayValue(row: RowData, column: HeaderCol): string | null {
   const value = row.cells[column.id]?.value
   if (value === null || value === undefined || value === '') return null
+  if (column.type === 'formula') return formulaText(value)
   if (column.type === 'select') {
     return column.options?.find((option) => option.id === value)?.label ?? null
   }
   if (column.type === 'relation' && Array.isArray(value)) {
     return value.map((id) => typeof id === 'string' ? column.relationTargets?.[id]?.title : undefined).filter(Boolean).join(', ') || null
   }
-  if (column.type === 'rollup' && !column.rollupResult) return 'Configuração indisponível'
-  if (column.type === 'rollup' && column.format) return formatNumericValue(value, column.format)
+  if (column.type === 'date') return formatDatePickerValue(value)
+  if (column.type === 'extract_as' && !column.rollupResult) return 'Configuração indisponível'
+  if (column.type === 'extract_as' && column.format) return formatNumericValue(value, column.format)
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não'
   return typeof value === 'string' || typeof value === 'number' ? String(value) : null
 }
@@ -30,6 +34,7 @@ function displayValue(row: RowData, column: HeaderCol): string | null {
 export function GridTile({
   row,
   columns,
+  propertyIds,
   onOpen,
   onCellChange,
   onCellEditConflict,
@@ -38,6 +43,7 @@ export function GridTile({
 }: {
   row: RowData
   columns: HeaderCol[]
+  propertyIds?: string[]
   onOpen?: (row: RowData) => void
   onCellChange?: (change: CellChange) => void
   onCellEditConflict?: (conflict: CellEditConflict) => void
@@ -51,14 +57,18 @@ export function GridTile({
   const displayedTitle = hasTitle ? title : 'Sem Título'
   const titleLocked = lockedColumnKeys?.has('title') || (titleColumn && lockedColumnKeys?.has(titleColumn.id))
   const titleError = titleColumn && cellErrors?.has(cellErrorKey(row.id, titleColumn.id))
-  const details = columns.filter((column) => column.id !== titleColumn?.id)
+  const propertyColumns = propertyIds === undefined
+    ? columns.filter((column) => column.id !== titleColumn?.id)
+    : propertyIds
+      .map((id) => columns.find((column) => column.id === id))
+      .filter((column): column is HeaderCol => Boolean(column && column.id !== titleColumn?.id))
+  const details = propertyColumns
     .map((column) => ({ column, value: displayValue(row, column) }))
     .filter((entry) => entry.value !== null)
-    .slice(0, 4)
 
   return (
-    <article data-list-row={row.id} className="group flex min-h-40 flex-col rounded-xl border border-divider bg-background p-4 shadow-sm transition-shadow hover:shadow-md">
-      <div className="mb-4 flex items-start gap-2">
+    <article data-list-row={row.id} className="group flex min-h-40 w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-divider bg-background p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className="mb-4 flex min-w-0 items-start gap-2 overflow-hidden">
         <Icon icon="lucide:file-text" fontSize={18} className="mt-0.5 shrink-0" />
         <h3 className={cn('min-w-0 flex-1 break-words font-semibold', titleError && 'text-p-red')}>
           {titleColumn && onCellChange && !titleLocked ? (
@@ -91,12 +101,12 @@ export function GridTile({
           </button>
         )}
       </div>
-      <dl className="mt-auto grid gap-2 text-xs">
+      <dl className="mt-auto grid min-w-0 max-w-full gap-2 overflow-hidden text-xs">
         {details.map(({ column, value }) => (
-          <div key={column.id} className="flex justify-between gap-3 border-t border-divider pt-2">
-            <dt className="truncate opacity-60">{column.title}</dt>
-            <dd className="max-w-[60%] truncate text-right">
-              {column.type === 'relation'
+          <div key={column.id} className="flex min-w-0 max-w-full justify-between gap-3 overflow-hidden border-t border-divider pt-2">
+            <dt className="min-w-0 truncate opacity-60">{column.title}</dt>
+            <dd className="min-w-0 max-w-[60%] overflow-hidden truncate text-right">
+              {column.type === 'formula' ? <FormulaResult value={row.cells[column.id]?.value} /> : column.type === 'relation'
                 ? <RelationChips column={column} value={row.cells[column.id]?.value} />
                 : value}
             </dd>
@@ -133,6 +143,7 @@ export function GridView({
   columns,
   rows,
   tileSize,
+  propertyIds,
   emptyLabel,
   onOpenRow,
   onCellChange,
@@ -144,6 +155,7 @@ export function GridView({
   columns: HeaderCol[]
   rows: RowData[]
   tileSize: ViewMockSettings['tileSize']
+  propertyIds?: string[]
   emptyLabel?: string
   onOpenRow?: (row: RowData) => void
   onCellChange?: (change: CellChange) => void
@@ -165,7 +177,7 @@ export function GridView({
   const bands = useMemo(() => Array.from({ length: Math.ceil(rows.length / lanes) }, (_, index) => rows.slice(index * lanes, (index + 1) * lanes)), [rows, lanes])
   const bandKey = useCallback((band: RowData[]) => band[0].id, [])
   const bandIds = useCallback((band: RowData[]) => band.map((row) => row.id), [])
-  const renderTile = (row: RowData) => <GridTile key={row.id} row={row} columns={columns} onOpen={onOpenRow}
+  const renderTile = (row: RowData) => <GridTile key={row.id} row={row} columns={columns} propertyIds={propertyIds} onOpen={onOpenRow}
     onCellChange={onCellChange} onCellEditConflict={onCellEditConflict} cellErrors={cellErrors} lockedColumnKeys={lockedColumnKeys} />
   if (pagination) return <div ref={container}>
     <VirtualInfiniteList items={bands} itemKey={bandKey} itemIds={bandIds} scope={ROOT_SCOPE} stream={pagination.streams.root} pagination={pagination} estimateSize={160} gap={12}

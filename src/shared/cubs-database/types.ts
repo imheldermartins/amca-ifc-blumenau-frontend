@@ -8,7 +8,14 @@
  */
 
 /** Tipos de dado que uma coluna pode ter. */
-export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'rollup'
+export type ColumnDataType = 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'flow' | 'relation' | 'extract_as' | 'formula'
+
+export interface FormulaConfig {
+  version: 1
+  source: string
+  revision?: number
+  expectedRevision?: number
+}
 
 export interface RelationTarget {
   id: string
@@ -18,8 +25,15 @@ export interface RelationTarget {
 export interface RelationConfig {
   version: 1
   targetDatabaseId: string
+  cardinality?: 'one' | 'many'
+  inverseColumnId?: string
+  inverseName?: string
+  inverseCardinality?: 'one' | 'many'
 }
 
+export interface RelationInput extends Omit<RelationConfig, 'inverseColumnId'> {
+  bidirectional?: boolean
+}
 export type RollupOperation = 'count' | 'sum' | 'min' | 'max'
 
 export interface RollupConfig {
@@ -225,11 +239,12 @@ export type ColumnMask = 'cpf' | 'cep' | 'phone-br' | 'date' | 'email'
  * `onColumnConfigChange` — o app manda ao backend, que mescla (ver mergeData).
  */
 export interface ColumnConfigPatch {
+  formula?: FormulaConfig
   flowButton?: FlowButtonConfig
   format?: NumberFormat | null
   currency?: CurrencyCode | null
   mask?: ColumnMask | null
-  relation?: RelationConfig
+  relation?: RelationInput
   rollup?: RollupConfig
 }
 
@@ -453,6 +468,8 @@ export interface DataViewType {
   columnWidths?: Record<string, number>
   /** Tamanho dos cards da Grade; ausente = médio. Persistido por visualização. */
   tileSize?: 'small' | 'medium' | 'large'
+  /** Propriedades exibidas nos cards da Grade, já na ordem escolhida. Ausente = todas. */
+  gridPropertyIds?: string[]
   /** Coluna `date` usada pela projeção Calendar. Ausente = primeira disponível. */
   dateColumnId?: string
   /** Coluna `select` usada como cor. `null` força o roxo padrão. */
@@ -537,9 +554,10 @@ export interface HeaderCol {
   relation?: RelationConfig
   rollup?: RollupConfig
   rollupResult?: RollupResult
-  /** Catálogo autorizado retornado junto da projeção, usado para os chips. */
+  /** Títulos autorizados de todas as relações da projeção, somente para exibir chips; não são opções do seletor. */
   relationTargets?: Record<string, RelationTarget>
-  /** Busca paginada do seletor múltiplo; injetada pelo host. */
+  formula?: FormulaConfig
+  /** Busca paginada restrita à database de destino desta relação; injetada pelo host. */
   loadRelationOptions?: (input: { search?: string; cursor?: string; limit?: number }) => Promise<{ items: RelationTarget[]; nextCursor: string | null }>
   /**
    * Config PRESERVADO de outros tipos. A troca de tipo é não-destrutiva

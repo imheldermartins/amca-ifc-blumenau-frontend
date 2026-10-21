@@ -43,7 +43,7 @@ describe('CalendarProperties', () => {
   it('dispatches every value through mappedProps in a vertical property area', () => {
     render(<CalendarProperties properties={properties} />)
 
-    expect(Object.keys(mappedProps).sort()).toEqual(['checkbox', 'date', 'flow', 'numeric', 'relation', 'rollup', 'select', 'text'])
+    expect(Object.keys(mappedProps).sort()).toEqual(['checkbox', 'date', 'extract_as', 'flow', 'formula', 'numeric', 'relation', 'select', 'text'])
     const area = screen.getByText('Status:').closest('[data-calendar-properties]')
     expect(area?.className).toContain('flex-col')
     expect(area?.className).toContain('justify-start')

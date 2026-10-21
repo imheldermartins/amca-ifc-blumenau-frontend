@@ -182,7 +182,7 @@ export class PageWriteService {
    * Troca o TIPO da coluna por atualização parcial. Manda só `type`; config e
    * valores existentes ficam intactos.
    */
-  changeColumnType(parentId: string, columnId: string, type: string, config?: ColumnConfigPatch): Promise<unknown> {
+  changeColumnType(parentId: string, columnId: string, type: string, config?: ColumnConfigPatch): Promise<ApiPageColumn> {
     return apiService.put(`/pages/parent/${parentId}/columns/${columnId}`, { type, ...config })
   }
 

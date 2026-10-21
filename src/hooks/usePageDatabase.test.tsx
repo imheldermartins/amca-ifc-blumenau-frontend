@@ -439,6 +439,18 @@ describe('usePageDatabase — título da página aberta', () => {
 })
 
 describe('usePageDatabase — criação de coluna', () => {
+  it('does not overwrite a confirmed formula rename or restore a deleted column with a late save response', async () => {
+    const {result}=renderHook(()=>usePageDatabase(PAGE_ID),{wrapper:createWrapper()})
+    await waitFor(()=>expect(result.current.loading).toBe(false))
+    const column={id:NEW_COLUMN_ID,parent_id:PAGE_ID,name:'Fórmula',type:'formula' as const,data:{formula:{version:1 as const,source:'1',revision:1}}}
+    act(()=>result.current.handlers.onFormulaSaved(column))
+    act(()=>result.current.realtimeOptions.onEvent?.({type:'column-updated',payload:{pageId:PAGE_ID,columnId:NEW_COLUMN_ID,column:{...column,name:'Nome confirmado'},updatedAt:'2026-10-19T12:00:00.000Z',originUserId:'other'}}))
+    act(()=>result.current.handlers.onFormulaSaved(column))
+    expect(result.current.database?.headerCols.find(item=>item.id===NEW_COLUMN_ID)?.title).toBe('Nome confirmado')
+    act(()=>result.current.realtimeOptions.onStructureChanged?.({type:'column-deleted',payload:{pageId:PAGE_ID,columnId:NEW_COLUMN_ID,updatedAt:'2026-10-19T12:00:01.000Z',originUserId:'other'}}))
+    act(()=>result.current.handlers.onFormulaSaved(column))
+    expect(result.current.database?.headerCols.some(item=>item.id===NEW_COLUMN_ID)).toBe(false)
+  })
   const createdColumn = {
     id: NEW_COLUMN_ID, parent_id: PAGE_ID, name: 'Coluna', type: 'text' as const,
     data: { publicKey: { key: 'coluna', aliases: [] } },

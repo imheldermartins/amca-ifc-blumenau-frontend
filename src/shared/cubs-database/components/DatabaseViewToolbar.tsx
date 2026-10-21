@@ -92,6 +92,8 @@ export interface DatabaseViewToolbarProps {
   onCalendarChange?: (patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarShowPropertyLabels'>) => void
   calendarPropertyIds?: string[]
   onCalendarPropertyIdsChange?: (columnIds: string[]) => void
+  gridPropertyIds?: string[]
+  onGridPropertyIdsChange?: (columnIds: string[]) => void
   form?: FormViewConfig
   onFormChange?: (form: FormViewConfig) => void
   heatmap?: HeatmapConfig
@@ -134,6 +136,8 @@ export function DatabaseViewToolbar({
   onCalendarChange,
   calendarPropertyIds,
   onCalendarPropertyIdsChange,
+  gridPropertyIds,
+  onGridPropertyIdsChange,
   board,
   onBoardChange,
   form,
@@ -157,7 +161,7 @@ export function DatabaseViewToolbar({
     [columns],
   )
   const valueColumns = useMemo(
-    () => columns.filter((column) => !['flow', 'relation', 'rollup'].includes(columnTypes[column.id])),
+    () => columns.filter((column) => !['flow', 'relation', 'extract_as', 'formula'].includes(columnTypes[column.id])),
     [columnTypes, columns],
   )
   const validGroupBy = document.groupBy.filter((id) =>
@@ -319,6 +323,7 @@ export function DatabaseViewToolbar({
           columns={columns} calendar={calendar} onCalendarChange={onCalendarChange}
           calendarLabels={{ dateProperty: labels.dateProperty ?? 'Propriedade de data', colorProperty: labels.colorProperty ?? 'Propriedade de cor', defaultColor: labels.defaultColor ?? 'Automática (primeira seleção)', showPropertyLabels: labels.showPropertyLabels ?? 'Mostrar nomes das propriedades' }}
           calendarPropertyIds={calendarPropertyIds} onCalendarPropertyIdsChange={onCalendarPropertyIdsChange}
+          gridPropertyIds={gridPropertyIds} onGridPropertyIdsChange={onGridPropertyIdsChange}
           calendarPropertyLabels={{ trigger: labels.visibleProperties ?? 'Propriedades visíveis', search: labels.searchColumns, empty: labels.noColumns, drag: labels.dragProperty ?? 'Reordenar propriedade', select: labels.selectProperty ?? 'Mostrar propriedade', priority: labels.priority, clear: labels.hideAllProperties ?? 'Ocultar todas' }}
           form={form}
           onFormChange={onFormChange}

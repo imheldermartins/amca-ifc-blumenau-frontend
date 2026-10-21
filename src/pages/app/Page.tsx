@@ -1,3 +1,4 @@
+import {FormulaDrawer, type FormulaTarget} from '@/components/FormulaDrawer'
 import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
@@ -28,7 +29,6 @@ import { useColumnLocks, usePageTitleLock } from '@/hooks/useColumnLocks'
 import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { useDatabasePagination, type DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
 import { useSchedule } from '@/hooks/useSchedule'
-import { databaseService } from '@/services/DatabaseService'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
 
@@ -98,6 +98,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
   const [pinRequestTarget, setPinRequestTarget] = useState<SchedulePinRequestTarget | null>(null)
   const [publicationViewId, setPublicationViewId] = useState<string | null>(null)
+  const [formulaTarget,setFormulaTarget]=useState<{pageId:string;config:FormulaTarget}|null>(null)
   const [columnConfigTarget, setColumnConfigTarget] = useState<ColumnRelationRollupTarget | null>(null)
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
@@ -219,7 +220,8 @@ export function Page({ pageId, initialTitle }: PageProps) {
         checkbox: i18n('pages.app.cubs-database.tipos.checkbox'),
         flow: i18n('pages.app.cubs-database.tipos.flow'),
         relation: i18n('pages.app.cubs-database.tipos.relation'),
-        rollup: i18n('pages.app.cubs-database.tipos.rollup'),
+        extract_as: i18n('pages.app.cubs-database.tipos.extract_as'),
+        formula: 'Fórmula',
       },
       columnTypeSections: {
         base: i18n('pages.app.cubs-database.secoes-tipos.base'),
@@ -378,24 +380,25 @@ export function Page({ pageId, initialTitle }: PageProps) {
   )
 
   const handleColumnTypeChange = useCallback((columnId: string, type: ColumnDataType) => {
-    if (type === 'relation' || type === 'rollup') {
+    if(type === 'formula'){const column=columns.find(column=>column.id===columnId);if(column)setFormulaTarget({pageId,config:{column}});return}
+    if (type === 'relation' || type === 'extract_as') {
       setColumnConfigTarget({ mode: 'update', columnId, type })
       return
     }
     handlers.onColumnTypeChange(columnId, type)
-  }, [handlers])
+  }, [handlers,columns,pageId])
 
   const handleAddColumn = useCallback((type: ColumnDataType) => {
-    if (type === 'relation' || type === 'rollup') {
+    if(type === 'formula'){setFormulaTarget({pageId,config:{}});return}
+    if (type === 'relation' || type === 'extract_as') {
       setColumnConfigTarget({ mode: 'create', type })
       return
     }
     handlers.onAddColumn(type)
-  }, [handlers])
+  }, [handlers,pageId])
 
-  const handleConfiguredColumnType = useCallback((target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => {
-    if (target.mode === 'create') handlers.onAddColumn(target.type, config)
-    else handlers.onColumnTypeChange(target.columnId, target.type, config)
+  const handleConfiguredColumnType = useCallback(async (target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => {
+    await handlers.onConfiguredColumnSave(target.type, config, target.mode === 'update' ? target.columnId : undefined)
   }, [handlers])
 
   const handleDuplicateView = useCallback(async (viewId: string) => {
@@ -505,7 +508,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
               {...(mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers : {})}
               onCellChange={mayEditRows && !columnLocks.isPending && !columnLocks.isError ? handlers.onCellChange : undefined}
               onColumnTypeChange={mayEdit ? handleColumnTypeChange : undefined}
-              onLoadRelationOptions={(databaseId, input) => databaseService.listRelationOptions(databaseId, input)}
+              onLoadRelationOptions={paged.loadRelationOptions}
               onDeleteRow={permissions.data?.isOwner ? handlers.onDeleteRow : undefined}
               onDeleteRows={permissions.data?.isOwner ? handlers.onDeleteRows : undefined}
               deletingRows={deletingRows}
@@ -566,6 +569,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
         viewId={publicationViewId}
         lang={currentLang}
       />
+      <FormulaDrawer key={pageId} pageId={pageId} target={formulaTarget?.pageId===pageId?formulaTarget.config:null} onClose={()=>setFormulaTarget(null)} onSaved={handlers.onFormulaSaved}/>
       <ColumnRelationRollupDialog
         target={columnConfigTarget}
         workspaceId={workspaceId ?? undefined}

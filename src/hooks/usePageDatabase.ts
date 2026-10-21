@@ -40,7 +40,7 @@ import {
   restoreLocalRowDeleted,
   type RealtimeClock,
 } from '@/lib/databaseRealtime'
-import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase } from '@/lib/databaseParser'
+import { FALLBACK_VIEW_ID, TITLE_COLUMN_ID, type ParsedDatabase, type ApiPageColumn, parseHeaderCols } from '@/lib/databaseParser'
 import { classifyWriteError } from '@/lib/errors'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
@@ -112,6 +112,8 @@ export interface UsePageDatabaseResult {
     onBoardMove: (viewId: string, input: BoardMoveInput) => Promise<void>
     onBoardCreateRow: (input: BoardCreateInput) => Promise<RowData | undefined>
     onAddRow: () => void
+    onFormulaSaved: (column: ApiPageColumn) => void
+    onConfiguredColumnSave: (type: ColumnDataType, config: ColumnConfigPatch, columnId?: string) => Promise<void>
     onAddColumn: (type?: ColumnDataType, config?: ColumnConfigPatch) => void
     onCellChange: (change: CellChange) => void
     onCellEditConflict: (conflict: CellEditConflict) => void
@@ -131,7 +133,7 @@ export interface UsePageDatabaseResult {
     onColumnOrderChange: (viewId: string, orderedHeaderCols: string[]) => void
     onColumnWidthChange: (viewId: string, columnWidths: Record<string, number>) => void
     onCalendarConfigChange: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds'>) => void
-    onGridConfigChange: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
+    onGridConfigChange: (viewId: string, patch: Pick<DataViewType, 'tileSize' | 'gridPropertyIds'>) => void
     onFormConfigChange: (viewId: string, form: FormViewConfig) => void
     onHeatmapConfigChange: (viewId: string, heatmap: HeatmapConfig) => void
     onFormSubmit: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
@@ -1062,6 +1064,33 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
     }, [handleWriteError, pageId, updateDatabase]),
     // `.mutate` tem identidade estável (React Query garante), então serve
     // direto de handler sem `useCallback` — e mantém o memo da célula intacto.
+    onFormulaSaved: (column: ApiPageColumn) => {
+      updateDatabase(current => {
+        if(!current)return current
+        if(clockRef.current[`structure:column-deleted:${column.id}`])return current
+        const existing=current.headerCols.find(item=>item.id===column.id)
+        if(existing?.formula?.revision!==undefined&&existing.formula.revision>=(column.data?.formula?.revision??0))return current
+        const parsed=parseHeaderCols([column],i18n('pages.app.cubs-database.coluna-titulo')).find(item=>item.id===column.id)
+        if(!parsed)return current
+        return {...current,headerCols:current.headerCols.some(item=>item.id===column.id)?current.headerCols.map(item=>item.id===column.id?parsed:item):[...current.headerCols,parsed]}
+      })
+      paginationBridge?.current?.onResync()
+    },
+    onConfiguredColumnSave: async (type: ColumnDataType, config: ColumnConfigPatch, columnId?: string) => {
+      if (!pageId) throw new Error('Página indisponível')
+      const saved = columnId
+        ? await pageWriteService.changeColumnType(pageId, columnId, type, config)
+        : await pageWriteService.createColumn(pageId, i18n('pages.app.cubs-database.nova-coluna'), type, config)
+      if (!mountedRef.current || currentPageIdRef.current !== pageId) return
+      updateDatabase(current => {
+        if (!current || clockRef.current[`structure:column-deleted:${saved.id}`]) return current
+        const parsed = parseHeaderCols([saved], i18n('pages.app.cubs-database.coluna-titulo')).find(column => column.id === saved.id)
+        if (!parsed) return current
+        return {...current, headerCols: current.headerCols.some(column => column.id === saved.id)
+          ? current.headerCols.map(column => column.id === saved.id ? parsed : column) : [...current.headerCols, parsed]}
+      })
+      paginationBridge?.current?.onResync()
+    },
     onCellChange: cellMutation.mutate,
     onDeleteRow: rowDeleteMutation.mutate,
     onDeleteRows: deleteSelectedRows,
@@ -1202,7 +1231,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       [saveViewPatch],
     ),
     onGridConfigChange: useCallback(
-      (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => saveViewPatch(viewId, patch),
+      (viewId: string, patch: Pick<DataViewType, 'tileSize' | 'gridPropertyIds'>) => saveViewPatch(viewId, patch),
       [saveViewPatch],
     ),
     onFormConfigChange: useCallback(

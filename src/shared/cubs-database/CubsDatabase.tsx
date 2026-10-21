@@ -247,8 +247,8 @@ export interface CubsDatabaseProps {
   onViewFiltersChange?: (viewId: string, filters: ViewFiltersV2) => void
   /** Persiste somente a configuração específica da view Calendar. */
   onCalendarConfigChange?: (viewId: string, patch: Pick<DataViewType, 'dateColumnId' | 'colorColumnId' | 'calendarPropertyIds' | 'calendarShowPropertyLabels'>) => void
-  /** Persiste o tamanho dos cards no snapshot da view Grade. */
-  onGridConfigChange?: (viewId: string, patch: Pick<DataViewType, 'tileSize'>) => void
+  /** Persiste tamanho e propriedades visíveis no snapshot da view Grade. */
+  onGridConfigChange?: (viewId: string, patch: Pick<DataViewType, 'tileSize' | 'gridPropertyIds'>) => void
   /** Persiste a configuração específica da view Form no snapshot. */
   onFormConfigChange?: (viewId: string, form: FormViewConfig) => void
   onHeatmapConfigChange?: (viewId: string, heatmap: NonNullable<DataViewType['heatmap']>) => void
@@ -418,6 +418,10 @@ export function CubsDatabase({
   const stableCalendarPropertyIds = useSemanticValue(
     currentView.calendarPropertyIds,
     JSON.stringify(currentView.calendarPropertyIds ?? null),
+  )
+  const stableGridPropertyIds = useSemanticValue(
+    currentView.gridPropertyIds,
+    JSON.stringify(currentView.gridPropertyIds ?? null),
   )
   const stableForm = useSemanticValue(
     currentView.form,
@@ -590,6 +594,8 @@ export function CubsDatabase({
         onCalendarChange={onCalendarConfigChange ? (patch) => onCalendarConfigChange(currentViewId, patch) : undefined}
         calendarPropertyIds={stableCalendarPropertyIds}
         onCalendarPropertyIdsChange={onCalendarConfigChange ? (calendarPropertyIds) => onCalendarConfigChange(currentViewId, { calendarPropertyIds }) : undefined}
+        gridPropertyIds={stableGridPropertyIds}
+        onGridPropertyIdsChange={onGridConfigChange ? (gridPropertyIds) => onGridConfigChange(currentViewId, { gridPropertyIds }) : undefined}
         board={stableBoard}
         onBoardChange={onBoardConfigChange ? (patch) => onBoardConfigChange(currentViewId, patch) : undefined}
         form={stableForm}
@@ -680,6 +686,7 @@ export function CubsDatabase({
             rows={filteredRows}
             pagination={pagination}
             tileSize={mockSettings.tileSize}
+            propertyIds={stableGridPropertyIds}
             emptyLabel={emptyLabel}
             onOpenRow={onOpenRow}
             onCellChange={onCellChange}
