@@ -17,7 +17,7 @@ import { TextCellEditor } from './cells/TextCellEditor'
 import { useExternalDraft } from './cells/useExternalDraft'
 import { FlowActionButton } from './FlowActionButton'
 import { FlowEditorDialog } from './FlowEditorDialog'
-import type { DatabasePagination } from '../pagination'
+import { rowMoveAnchor, type DatabasePagination } from '../pagination'
 import { pageViewScopeKey, type PageViewQueryScope } from '../pageViewQueryContract'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
 
@@ -510,11 +510,12 @@ export function BoardView({ columns, rows, allRows = rows, config, onConfigChang
     const ids = current[key]!, index = ids.indexOf(moving.id)
     if (key === moving.optionKey && ids.join('|') === groups[key]?.join('|')) { reset(); return }
     const anchors = { beforeId: ids[index + 1], afterId: ids[index - 1] }
+    const persistedAnchor = rowMoveAnchor(ids, index)
     const orderedRows = pagination ? undefined : boardRowOrder(allRows, moving.id, anchors.beforeId, anchors.afterId)
     setPending(true)
     try { await onMove({ rowId: moving.id, selectColumnId: column.id, optionId: key === BOARD_UNASSIGNED ? null : key,
       ...(pagination ? { previousOptionId: moving.optionKey === BOARD_UNASSIGNED ? null : moving.optionKey,
-        ...anchors, ...(!anchors.beforeId && !anchors.afterId ? { boundary: 'start' as const } : {}) } : { orderedRows }) }) }
+        ...persistedAnchor } : { orderedRows }) }) }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível mover o card') }
     finally { setPending(false); setDraftGroups(null); setDraftOrder(null) }
   }

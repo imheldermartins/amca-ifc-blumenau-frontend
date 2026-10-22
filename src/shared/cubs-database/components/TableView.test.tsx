@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { DatabasePagination } from '../pagination'
 import { TableView } from './TableView'
 
 afterEach(() => {
@@ -347,6 +348,34 @@ describe('TableView — dropdown das páginas', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Ações da página' })[0])
     fireEvent.click(screen.getByRole('menuitem', { name: 'Mover para baixo' }))
     expect(onRowOrderChange).toHaveBeenCalledWith(['row-2', 'row-1'])
+  })
+
+  it('envia uma única âncora ao mover uma linha paginada entre duas vizinhas', () => {
+    const onRowMove = vi.fn()
+    const pagedRows = [...rows, { id: 'row-3', cells: { name: { value: 'Caio' } } }]
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(320)
+    const pagination: DatabasePagination = {
+      projection: { version: 1, kind: 'table', pageId: 'root', viewId: 'view', queryKey: 'query', orderRevision: 1, total: 3, windows: [] },
+      streams: { root: { scope: { type: 'root' }, rows: pagedRows, total: 3, hasNextPage: false,
+        hasPreviousPage: false, isFetching: false, beforeHeight: 0, afterHeight: 0 } },
+      loadNext: vi.fn(), loadPrevious: vi.fn(), ensureScope: vi.fn(), setScope: vi.fn(), loading: false,
+    }
+    render(
+      <TableView
+        columns={columns}
+        rows={pagedRows}
+        pagination={pagination}
+        onRowMove={onRowMove}
+        labels={{ rowActions: 'Ações da página' }}
+      />,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Ações da página' })[0])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Mover para baixo' }))
+
+    expect(onRowMove).toHaveBeenCalledExactlyOnceWith({ rowId: 'row-1', beforeId: 'row-3' })
   })
 
   it('renderiza DragOverlay da linha ativa e não abre o menu no click pós-drag', async () => {

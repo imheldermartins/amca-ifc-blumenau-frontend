@@ -173,6 +173,39 @@ describe('usePageDatabase — Board writes', () => {
     expect(dependencies.patchView).not.toHaveBeenCalled()
     expect(bridge.current.onLocalMutation.mock.results[0].value.commit).toHaveBeenCalledWith(expect.any(Array), 8)
   })
+  it('materializes the fallback before moving a paginated Table row', async () => {
+    const bridge = projectionBridge()
+    const materializedId = '01KXVZ00000000000000000009'
+    const view = {
+      view: 'table' as const,
+      name: 'Tabela',
+      urlKey: { key: 'tabela', aliases: [] },
+      filters: emptyFilters(),
+      orderedHeaderCols: [COLUMN_ID],
+      rowOrder: { version: 2 as const, revision: 0 },
+    }
+    dependencies.loadPage.mockResolvedValueOnce({
+      ...database('inicial'),
+      settings: { [FALLBACK_VIEW_ID]: view },
+    })
+    dependencies.createView.mockResolvedValueOnce({ viewId: materializedId, view })
+    dependencies.moveRow.mockResolvedValueOnce({ rowId: ROW_ID, orderRevision: 8 })
+
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID, bridge), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await result.current.handlers.onRowMove(FALLBACK_VIEW_ID, { rowId: ROW_ID, afterId: NEW_ROW_ID })
+    })
+
+    expect(dependencies.createView).toHaveBeenCalledExactlyOnceWith(PAGE_ID, 'table', 'Tabela', undefined)
+    expect(dependencies.moveRow).toHaveBeenCalledExactlyOnceWith(PAGE_ID, materializedId, {
+      rowId: ROW_ID, afterId: NEW_ROW_ID, expectedOrderRevision: 7,
+    })
+    expect(dependencies.moveRow).not.toHaveBeenCalledWith(PAGE_ID, FALLBACK_VIEW_ID, expect.anything())
+    expect(result.current.database?.settings[FALLBACK_VIEW_ID]).toBeUndefined()
+    expect(result.current.database?.settings[materializedId]).toEqual(view)
+    expect(bridge.current.onLocalMutation.mock.results[0].value.commit).toHaveBeenCalledWith([], 8)
+  })
   it.each([false, true])('registers the new draft only after select assignment settles (failure=%s)', async (fails) => {
     const bridge = projectionBridge()
     const cell = deferred<unknown>()

@@ -47,7 +47,7 @@ import { TYPE_ICON } from './columnTypeIcons'
 import { useSortableSensors } from './dndSensors'
 import { useShiftKey } from './useShiftKey'
 import { FlowEditorDialog } from './FlowEditorDialog'
-import type { DatabasePagination, DatabaseRowMove } from '../pagination'
+import { rowMoveAnchor, type DatabasePagination, type DatabaseRowMove } from '../pagination'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
 import { ServerTableGroups } from './ServerTableGroups'
 import {
@@ -538,7 +538,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       if (from < 0 || to < 0) return
       const next = arrayMove(localRows, from, to)
       setLocalRows(next)
-      if (pagination) void onRowMove?.({ rowId: String(active.id), beforeId: next[to + 1]?.id, afterId: next[to - 1]?.id })
+      if (pagination) void onRowMove?.({ rowId: String(active.id), ...rowMoveAnchor(next.map((row) => row.id), to) })
       else onRowOrderChange?.(next.map((row) => row.id))
     },
     [localRows, onRowOrderChange, onRowMove, pagination, suppressRowHandleMenuAfterDrag],
@@ -560,7 +560,7 @@ export function TableView({ columns, rows, groupBy = [], columnWidths, cellError
       if (rowIndex < 0 || targetIndex < 0 || targetIndex >= localRows.length) return
       const next = arrayMove(localRows, rowIndex, targetIndex)
       setLocalRows(next)
-      if (pagination) void onRowMove?.({ rowId: localRows[rowIndex].id, beforeId: next[targetIndex + 1]?.id, afterId: next[targetIndex - 1]?.id })
+      if (pagination) void onRowMove?.({ rowId: localRows[rowIndex].id, ...rowMoveAnchor(next.map((row) => row.id), targetIndex) })
       else onRowOrderChange?.(next.map((row) => row.id))
     },
     [localRows, onRowOrderChange, onRowMove, pagination],

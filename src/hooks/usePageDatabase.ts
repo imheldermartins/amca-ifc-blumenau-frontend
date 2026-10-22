@@ -1208,10 +1208,14 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       if (!pageId) return
       const local = beginLocalMutation([], input)
       try {
-        const result = await pageWriteService.moveRow(pageId, viewId, { ...input, expectedOrderRevision: paginationBridge?.current?.orderRevision ?? 0 })
+        const targetId = viewId === FALLBACK_VIEW_ID
+          ? await enqueueViewWrite(async () => await materializeFallbackView() ?? materializedFallbackRef.current.viewId)
+          : viewId
+        if (!targetId) throw new Error('View ausente')
+        const result = await pageWriteService.moveRow(pageId, targetId, { ...input, expectedOrderRevision: paginationBridge?.current?.orderRevision ?? 0 })
         local.commit(undefined, result.orderRevision)
       } catch (error) { local.rollback(); handleWriteError(error); throw error }
-    }, [pageId, paginationBridge, handleWriteError, beginLocalMutation]),
+    }, [pageId, paginationBridge, handleWriteError, beginLocalMutation, enqueueViewWrite, materializeFallbackView]),
     onColumnOrderChange: useCallback(
       (viewId: string, orderedHeaderCols: string[]) => {
         saveViewPatch(viewId, { orderedHeaderCols })

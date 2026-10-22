@@ -79,6 +79,31 @@ describe('BoardView', () => {
     expect(pagination.pinRow).toHaveBeenCalledWith('one', true)
     expect(pagination.pinRow).toHaveBeenCalledWith('one', false)
   })
+  it('sends only the next card as anchor when inserting into a populated paginated lane', async () => {
+    const move = vi.fn(async () => undefined)
+    const destination = { ...rows[1], cells: { ...rows[1].cells, [SELECT]: { value: SECOND } } }
+    const pagination: DatabasePagination = {
+      projection: { version: 1, kind: 'board', pageId: 'root', viewId: 'board', queryKey: 'q', orderRevision: 1, total: 2, windows: [],
+        groups: [{ key: FIRST, value: FIRST, label: 'Primeiro', color: 'blue', path: [], total: 1 },
+          { key: SECOND, value: SECOND, label: 'Segundo', color: 'orange', path: [], total: 1 }] },
+      streams: {
+        [`board:${FIRST}`]: { scope: { type: 'board', optionId: FIRST }, rows: [rows[0]], total: 1, hasNextPage: false, hasPreviousPage: false, isFetching: false, beforeHeight: 0, afterHeight: 0 },
+        [`board:${SECOND}`]: { scope: { type: 'board', optionId: SECOND }, rows: [destination], total: 1, hasNextPage: false, hasPreviousPage: false, isFetching: false, beforeHeight: 0, afterHeight: 0 },
+      },
+      loadNext: vi.fn(), loadPrevious: vi.fn(), ensureScope: vi.fn(), setScope: vi.fn(),
+      pinRow: vi.fn(), onInteractionChange: vi.fn(), loading: false,
+    }
+    render(<BoardView columns={columns} rows={[rows[0], destination]} onMove={move} onCellChange={vi.fn()} pagination={pagination} />)
+    const item = dragStart()
+    const target = { id: 'card:two', data: { current: { kind: 'card', rowId: 'two', optionKey: SECOND } }, rect: { top: 0, height: 124 } }
+    act(() => dnd.props.onDragOver?.({ active: item, over: target } as never))
+    await act(async () => { dnd.props.onDragEnd?.({ active: item, over: target } as never) })
+
+    expect(move).toHaveBeenCalledExactlyOnceWith({
+      rowId: 'one', selectColumnId: SELECT, optionId: SECOND,
+      previousOptionId: FIRST, beforeId: 'two',
+    })
+  })
   it('renames only the selected option by ULID and preserves its color and siblings', () => {
     const change = vi.fn()
     render(<BoardView columns={columns} rows={rows} onColumnOptionsChange={change} />)

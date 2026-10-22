@@ -41,3 +41,13 @@ export interface DatabaseRowMove {
   afterId?: string
   boundary?: 'start' | 'end'
 }
+
+export type DatabaseRowMoveAnchor = Pick<DatabaseRowMove, 'beforeId' | 'afterId' | 'boundary'>
+
+/** The move contract accepts one relative anchor, never both neighbors. */
+export function rowMoveAnchor(rowIds: readonly string[], index: number): DatabaseRowMoveAnchor {
+  const beforeId = rowIds[index + 1]
+  if (beforeId) return { beforeId }
+  const afterId = rowIds[index - 1]
+  return afterId ? { afterId } : { boundary: 'start' }
+}
