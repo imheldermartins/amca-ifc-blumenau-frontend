@@ -24,6 +24,25 @@ import { ViewSettingsForm } from './ViewSettingsForm'
 import { DEFAULT_VIEW_MOCK_SETTINGS, type ViewMockSettings } from '../viewSettings'
 import { ColumnLockSettings } from './ColumnLockSettings'
 
+interface DatabaseHeaderControls {
+  groupBy: boolean
+  filters: boolean
+  filterChips: boolean
+  createRow: boolean
+}
+
+/** Controles válidos por projeção; evita condicionais divergentes no header e na drawer. */
+const DATABASE_HEADER_CONTROLS = {
+  table: { groupBy: true, filters: true, filterChips: true, createRow: true },
+  grid: { groupBy: false, filters: true, filterChips: true, createRow: true },
+  board: { groupBy: false, filters: true, filterChips: true, createRow: true },
+  calendar: { groupBy: false, filters: true, filterChips: true, createRow: true },
+  timeline: { groupBy: false, filters: true, filterChips: true, createRow: true },
+  graph: { groupBy: false, filters: true, filterChips: true, createRow: true },
+  form: { groupBy: false, filters: false, filterChips: false, createRow: false },
+  heatmap: { groupBy: false, filters: true, filterChips: true, createRow: true },
+} satisfies Record<DataViewKind, DatabaseHeaderControls>
+
 export interface DatabaseViewToolbarLabels {
   newPage: string
   viewType: string
@@ -167,6 +186,7 @@ export function DatabaseViewToolbar({
   const validGroupBy = document.groupBy.filter((id) =>
     valueColumns.some((column) => column.id === id),
   )
+  const headerControls = DATABASE_HEADER_CONTROLS[viewKind]
   const viewOptions = useMemo(
     () =>
       (availableViewKinds.includes(viewKind)
@@ -216,8 +236,7 @@ export function DatabaseViewToolbar({
       {includeSettingsButton && viewKind === 'form' ? (
         <div ref={formHeaderPortalRef} className="min-h-9" data-form-view-header-controls />
       ) : null}
-      {viewKind !== 'form' ? <>
-        {viewKind !== 'board' ? <PrioritySelect
+      {headerControls.groupBy ? <PrioritySelect
           options={valueColumns.map((column) => ({ value: column.id, label: column.title }))}
           value={validGroupBy}
           onValueChange={changeGroups}
@@ -233,6 +252,7 @@ export function DatabaseViewToolbar({
             clear: labels.clearGroups,
           }}
         /> : null}
+      {headerControls.filters ? (
         <FilterPopover
           columns={valueColumns}
           columnTypes={columnTypes}
@@ -255,9 +275,9 @@ export function DatabaseViewToolbar({
             conditions: labels.conditions,
           }}
         />
-      </> : null}
+      ) : null}
 
-      {viewKind !== 'form' ? document.clauses.map((clause, index) => {
+      {headerControls.filterChips ? document.clauses.map((clause, index) => {
         const column = columnsById.get(clause.columnId)
         const columnType = column ? columnTypes[column.id] : undefined
         if (!column || !columnType || columnType === 'flow') return null
@@ -278,9 +298,9 @@ export function DatabaseViewToolbar({
         )
       }) : null}
 
-      {(onAddRow && viewKind !== 'form') || syncStatus ? (
+      {(onAddRow && headerControls.createRow) || syncStatus ? (
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          {onAddRow && viewKind !== 'form' ? (
+          {onAddRow && headerControls.createRow ? (
             <Tooltip content={labels.newPage} delayDuration={0}>
               <Button
                 type="button"

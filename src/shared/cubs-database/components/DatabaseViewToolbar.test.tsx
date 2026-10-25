@@ -160,6 +160,39 @@ describe('DatabaseViewToolbar', () => {
     ).toContain('Grade')
   })
 
+  it.each<DataViewKind>(['grid', 'board', 'calendar', 'timeline', 'graph', 'form', 'heatmap'])(
+    'oculta Agrupar por na visualização %s',
+    (viewKind) => {
+      render(
+        <DatabaseViewToolbar
+          viewKind={viewKind}
+          columns={[{ id: 'area', title: 'Área', type: 'text' }]}
+          rows={[]}
+          filters={emptyViewFilters()}
+          labels={labels}
+          onChange={vi.fn()}
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: 'Agrupar por' })).toBeNull()
+    },
+  )
+
+  it('mantém Agrupar por na visualização Tabela', () => {
+    render(
+      <DatabaseViewToolbar
+        viewKind="table"
+        columns={[{ id: 'area', title: 'Área', type: 'text' }]}
+        rows={[]}
+        filters={emptyViewFilters()}
+        labels={labels}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Agrupar por' })).not.toBeNull()
+  })
+
   it('não oferece conversão para Form sem coluna Flow disponível', async () => {
     render(
       <DatabaseViewToolbar
