@@ -4,6 +4,7 @@ import { Checkbox, IconPicker, Select, Switch, TextField, type IconPickerLabels 
 import type { BoardViewConfig, CatalogIcon, DataViewKind, DataViewType, FormViewConfig, HeatmapConfig, HeaderCol } from '../types'
 import { createDefaultFormViewConfig } from '../formView'
 import { mappedForm, type ViewMockSettings } from '../viewSettings'
+import { heatmapRuleDescription } from '../heatmap'
 import { PrioritySelect, type PrioritySelectLabels } from './PrioritySelect'
 
 function PropertyVisibility({
@@ -236,14 +237,23 @@ export function ViewSettingsForm({
         />
       </> : null}
       {type === 'heatmap' && heatmap ? <>
+        <h3 className="text-sm font-semibold">Regra do mapa de calor</h3>
         <Select label="Propriedade de data" aria-label="Propriedade de data" value={heatmap.dateColumnId}
           options={dateColumns.map((column) => ({ value: column.id, label: column.title }))}
           disabled={!onHeatmapChange}
           onValueChange={(dateColumnId) => onHeatmapChange?.({ ...heatmap, dateColumnId })} />
-        <Select label="Propriedade concluída" aria-label="Propriedade concluída" value={heatmap.checkboxColumnId}
-          options={checkboxColumns.map((column) => ({ value: column.id, label: column.title }))}
-          disabled={!onHeatmapChange}
-          onValueChange={(checkboxColumnId) => onHeatmapChange?.({ ...heatmap, checkboxColumnId })} />
+        <fieldset className="grid gap-2">
+          <legend className="mb-2 text-sm">Checkboxes consideradas (pelo menos uma)</legend>
+          {checkboxColumns.map((column) => {
+            const checked = heatmap.checkboxColumnIds.includes(column.id)
+            return <Checkbox key={column.id} label={column.title} checked={checked}
+              disabled={!onHeatmapChange || (checked && heatmap.checkboxColumnIds.length === 1)}
+              onCheckedChange={(selected) => onHeatmapChange?.({ ...heatmap,
+                checkboxColumnIds: selected ? [...heatmap.checkboxColumnIds, column.id] : heatmap.checkboxColumnIds.filter((id) => id !== column.id),
+              })} />
+          })}
+        </fieldset>
+        <p className="text-xs opacity-70">{heatmapRuleDescription(heatmap, columns)}. Semana: domingo a sábado.</p>
         <Select label="Período" aria-label="Período" value={heatmap.period.mode === 'year' ? 'year' : String(heatmap.period.monthCount)}
           disabled={!onHeatmapChange}
           options={[...Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: `${index + 1} ${index === 0 ? 'mês' : 'meses'}` })), { value: 'year', label: 'Ano contínuo' }]}

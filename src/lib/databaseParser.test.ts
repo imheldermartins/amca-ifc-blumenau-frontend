@@ -11,6 +11,17 @@ import {
 
 const VIEW_ID = '01KXVZ0000VIEW00000000001'
 
+describe('databaseParser — heatmap', () => {
+  it('normaliza o formato legado e preserva a seleção múltipla', () => {
+    const common = { dateColumnId: 'date', period: { mode: 'year' } }
+    const parse = (heatmap: unknown) => parseViewSettings({ [VIEW_ID]: { view: 'heatmap', name: 'Mapa', heatmap } })[VIEW_ID]?.heatmap
+    expect(parse({ ...common, version: 1, checkboxColumnId: 'done' })).toEqual({ ...common, version: 2, checkboxColumnIds: ['done'] })
+    expect(parse({ ...common, version: 2, checkboxColumnIds: ['done', 'review'] })).toEqual({ ...common, version: 2, checkboxColumnIds: ['done', 'review'] })
+    expect(parse({ ...common, version: 2, checkboxColumnIds: [] })).toBeUndefined()
+    expect(parse({ ...common, version: 2, checkboxColumnIds: ['done', 'done'] })).toBeUndefined()
+  })
+})
+
 describe('databaseParser — coluna mestra de título', () => {
   it('mantém title como key e lê o column_name/máscara da view', () => {
     const parsed = parseDatabase({

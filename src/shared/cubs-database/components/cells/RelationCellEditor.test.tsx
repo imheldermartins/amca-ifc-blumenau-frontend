@@ -28,9 +28,9 @@ describe('RelationCellEditor — destination scope', () => {
   it('preserves the selected title through toggles, search and close before projection hydration', async () => {
     const loadRelationOptions = vi.fn().mockResolvedValueOnce({ items: [output], nextCursor: null })
       .mockResolvedValue({ items: [], nextCursor: null })
-    function Harness({ targets }: { targets?: HeaderCol['relationTargets'] }) {
+    function Harness({ targets, disabled }: { targets?: HeaderCol['relationTargets']; disabled?: boolean }) {
       const [value, setValue] = useState<unknown>(null)
-      return <RelationCellEditor rowId="row" value={value} onCommit={setValue}
+      return <RelationCellEditor rowId="row" value={value} onCommit={setValue} disabled={disabled}
         column={{ ...column, relationTargets: targets, loadRelationOptions }} />
     }
     const view = render(<Harness />)
@@ -42,6 +42,13 @@ describe('RelationCellEditor — destination scope', () => {
     expect(trigger.textContent).toBe('—')
     fireEvent.click(screen.getByRole('button', { name: output.title }))
     expect(trigger.textContent).toBe(output.title)
+    view.rerender(<Harness disabled />)
+    expect((trigger as HTMLButtonElement).disabled).toBe(true)
+    expect(trigger.textContent).toBe(output.title)
+    expect(screen.queryByRole('textbox', { name: 'Buscar páginas' })).toBeNull()
+    view.rerender(<Harness />)
+    expect(trigger.textContent).toBe(output.title)
+    fireEvent.click(trigger)
     fireEvent.change(screen.getByRole('textbox', { name: 'Buscar páginas' }), { target: { value: 'inexistente' } })
     await screen.findByText('Nenhuma página encontrada')
     expect(trigger.textContent).toBe(output.title)

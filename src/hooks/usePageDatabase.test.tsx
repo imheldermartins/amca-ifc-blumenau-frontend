@@ -1422,31 +1422,34 @@ describe('usePageDatabase — snapshot da view', () => {
     })
   })
 
-  it('troca a projeção da view otimisticamente e persiste somente seu tipo', async () => {
+  it('troca a projeção somente após o PATCH confirmar o novo tipo', async () => {
     const viewId = '01KXVZ0000VIEW00000000001'
+    const originalView: ParsedDatabase['settings'][string] = {
+      view: 'table' as const,
+      name: 'Tabela',
+      urlKey: { key: 'tabela', aliases: [] },
+      filters: emptyFilters(),
+      orderedHeaderCols: [COLUMN_ID],
+    }
     dependencies.loadPage.mockResolvedValueOnce({
       ...database('inicial'),
-      settings: {
-        [viewId]: {
-          view: 'table',
-          name: 'Tabela',
-          urlKey: { key: 'tabela', aliases: [] },
-          filters: emptyFilters(),
-          orderedHeaderCols: [COLUMN_ID],
-        },
-      },
+      settings: { [viewId]: originalView },
     })
+    const request = deferred<{ viewId: string; view: ParsedDatabase['settings'][string] }>()
+    dependencies.patchView.mockReturnValueOnce(request.promise)
 
     const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
     await waitFor(() => expect(result.current.database).not.toBeNull())
 
     act(() => result.current.handlers.onViewKindChange(viewId, 'timeline'))
 
-    expect(result.current.database?.settings[viewId].view).toBe('timeline')
+    expect(result.current.database?.settings[viewId].view).toBe('table')
     await waitFor(() => expect(dependencies.patchView).toHaveBeenCalledTimes(1))
     expect(dependencies.patchView).toHaveBeenCalledWith(PAGE_ID, viewId, {
       view: 'timeline',
     })
+    await act(async () => request.resolve({ viewId, view: { ...originalView, view: 'timeline' } }))
+    await waitFor(() => expect(result.current.database?.settings[viewId].view).toBe('timeline'))
     expect(dependencies.loadPage).toHaveBeenCalledTimes(1)
   })
 

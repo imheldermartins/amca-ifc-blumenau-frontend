@@ -28,9 +28,11 @@ export function RelationChips({ column, value, compact = true }: { column: Heade
   </span>
 }
 
-export const RelationCellEditor = memo(function RelationCellEditor({ column, value, onCommit }: CellEditorProps) {
+export const RelationCellEditor = memo(function RelationCellEditor({ column, value, onCommit, inputId, disabled = false }: CellEditorProps & { inputId?: string; disabled?: boolean }) {
   const selected = idsOf(value)
-  const [open, setOpen] = useState(false)
+  const [requestedOpen, setOpen] = useState(false)
+  const open = requestedOpen && !disabled
+  useEffect(() => { if (disabled) setOpen(false) }, [disabled])
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<OptionsState | null>(null)
   const destination = JSON.stringify([column.id, column.relation?.targetDatabaseId])
@@ -110,7 +112,7 @@ export const RelationCellEditor = memo(function RelationCellEditor({ column, val
   }
 
   return <Popover open={open} onOpenChange={setOpen} className="w-72" trigger={
-    <button type="button" aria-label={column.title} className="flex h-full w-full items-center px-2.5 py-1.5 text-left">
+    <button id={inputId} type="button" disabled={disabled} aria-label={column.title} className="flex h-full w-full items-center px-2.5 py-1.5 text-left disabled:cursor-not-allowed disabled:opacity-50">
       <RelationChips column={{
         ...column,
         relationTargets: { ...(selectedTitles.destination === destination ? selectedTitles.targets : {}), ...column.relationTargets },

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
+import { DatabaseMentionColumnsProvider } from './mentions'
 import { Icon } from '@iconify/react'
 import { cn, type ContextMenuItem } from 'cubs-components'
 
@@ -557,6 +558,7 @@ export function CubsDatabase({
   )
 
   return (
+    <DatabaseMentionColumnsProvider value={headerCols}>
     <section className={cn('w-full', className)}>
       {pagination?.error && !pagination.projection ? <button type="button" className="w-full rounded-md border border-p-red/20 px-3 py-2 text-sm text-p-red" onClick={() => pagination.retry?.()}>Não foi possível carregar as páginas. Tentar novamente</button> : null}
       <ViewTabsBar
@@ -752,5 +754,6 @@ export function CubsDatabase({
         )}
       </div>
     </section>
+    </DatabaseMentionColumnsProvider>
   )
 }

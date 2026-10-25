@@ -61,16 +61,26 @@ const affectsMembership = (options: PaginationOptions, projection: PageViewQuery
   (options.view?.view !== 'board' && options.filters.groupBy.includes(columnId)) ||
   columnId === options.view?.board?.selectColumnId || columnId === projection?.selectColumnId ||
   columnId === options.view?.dateColumnId || columnId === projection?.dateColumnId ||
-  columnId === options.view?.heatmap?.checkboxColumnId
+  columnId === options.view?.heatmap?.dateColumnId ||
+  Boolean(options.view?.heatmap?.checkboxColumnIds.includes(columnId))
 
 /** One transport, bounded view-wide cache, and independently scrollable streams. */
 export function useDatabasePagination(options: PaginationOptions): { pagination: DatabasePagination; bridge: DatabaseProjectionBridge; loadRelationOptions: typeof databaseService.listRelationOptions; error: unknown } {
   const client = useQueryClient()
   const owner = JSON.stringify([options.pageId, options.viewId, options.view?.view])
   const [requestedScope, updateScope] = useState<{ owner: string; scope: PageViewQueryScope }>({ owner, scope: ROOT })
+  const calendarDateColumn = options.view?.view === 'calendar'
+    ? options.view.dateColumnId === undefined
+      ? options.columns?.find((column) => column.type === 'date')
+      : options.columns?.find((column) => column.id === options.view?.dateColumnId && column.type === 'date')
+    : undefined
   // Calendar's period belongs to that view. Changing views starts at root on
   // the very first request, before cleanup effects from the previous owner.
-  const scope = (options.view?.view === 'calendar' || options.view?.view === 'heatmap') && requestedScope.owner === owner ? requestedScope.scope : ROOT
+  // An unconfigured Calendar remains on root: its empty/configuration state is
+  // valid UI and must not issue invalid day/range queries to the API.
+  const scope = ((options.view?.view === 'calendar' && calendarDateColumn) || options.view?.view === 'heatmap') && requestedScope.owner === owner
+    ? requestedScope.scope
+    : ROOT
   const enabled = options.enabled && Boolean(options.viewId) && options.view?.view !== 'form' && options.view?.view !== 'timeline'
   // Display preferences and filter ACK timestamps don't change SQL membership.
   // Every HTTP request still carries the full filter document.
@@ -549,12 +559,18 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
   }, [])
   const loadGroups = useCallback(() => { const cursor = sessionRef.current.cache.projection?.groupsNextCursor; if (cursor) enqueue({ scope: ROOT, groupCursor: cursor, limit: 50 }) }, [enqueue])
   const setScope = useCallback((target: PageViewQueryScope) => {
+    if (optionsRef.current.view?.view === 'heatmap' && target.type === 'heatmap') {
+      // A day is a detail stream of the current heatmap, not a new period.
+      // Retain aggregates and let each day own its rows and pagination cursors.
+      ensureScope(target)
+      return
+    }
     if (optionsRef.current.view?.view !== 'calendar') return
     // The initial API projection may already cover the requested visible days.
     // Keep that batch rather than recreating the query merely to adopt its scope.
     if (sessionRef.current.cache.windows.some((window) => window.scope.type === 'calendar' && !window.scope.day && pageViewScopeKey(window.scope) === pageViewScopeKey(target))) return
     updateScope((previous) => previous.owner === ownerRef.current && pageViewScopeKey(previous.scope) === pageViewScopeKey(target) ? previous : { owner: ownerRef.current, scope: target })
-  }, [])
+  }, [ensureScope])
   const retry = useCallback((target?: PageViewQueryScope) => {
     const current = sessionRef.current, id = pageViewScopeKey(target ?? scopeRef.current), failure = current.cache.failures[id]
     if (!failure || current.denied) return

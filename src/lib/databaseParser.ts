@@ -529,15 +529,19 @@ function parseHeatmapConfig(raw: unknown): HeatmapConfig | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
   const value = raw as Record<string, unknown>
   const period = value.period
-  if (value.version !== 1 || typeof value.dateColumnId !== 'string' || typeof value.checkboxColumnId !== 'string'
+  const checkboxColumnIds = value.version === 1 ? [value.checkboxColumnId] : value.checkboxColumnIds
+  if ((value.version !== 1 && value.version !== 2) || typeof value.dateColumnId !== 'string'
+    || !Array.isArray(checkboxColumnIds) || !checkboxColumnIds.length
+    || !checkboxColumnIds.every((id): id is string => typeof id === 'string' && id.length > 0)
+    || new Set(checkboxColumnIds).size !== checkboxColumnIds.length
     || !period || typeof period !== 'object' || Array.isArray(period)) return undefined
   const parsedPeriod = period as Record<string, unknown>
   if (parsedPeriod.mode === 'year') {
-    return { version: 1, dateColumnId: value.dateColumnId, checkboxColumnId: value.checkboxColumnId, period: { mode: 'year' } }
+    return { version: 2, dateColumnId: value.dateColumnId, checkboxColumnIds, period: { mode: 'year' } }
   }
   const count = parsedPeriod.monthCount
   if (parsedPeriod.mode !== 'months' || typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 12) return undefined
-  return { version: 1, dateColumnId: value.dateColumnId, checkboxColumnId: value.checkboxColumnId,
+  return { version: 2, dateColumnId: value.dateColumnId, checkboxColumnIds,
     period: { mode: 'months', monthCount: count as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 } }
 }
 

@@ -62,7 +62,7 @@ function createDefaultHeatmapConfig(columns: readonly { id: string; type?: Colum
   const dateColumnId = columns.find((column) => column.type === 'date')?.id
   const checkboxColumnId = columns.find((column) => column.type === 'checkbox')?.id
   return dateColumnId && checkboxColumnId
-    ? { version: 1, dateColumnId, checkboxColumnId, period: { mode: 'months', monthCount: 12 } }
+    ? { version: 2, dateColumnId, checkboxColumnIds: [checkboxColumnId], period: { mode: 'months', monthCount: 12 } }
     : undefined
 }
 
@@ -607,14 +607,22 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       }
       const current = settingsRef.current[viewId]
       if (!current) return
-      const settings = {
-        ...settingsRef.current,
-        [viewId]: { ...current, ...patch, ...(patch.board && { board: { ...current.board, ...patch.board } }) },
+      const changesProjection = patch.view !== undefined && patch.view !== current.view
+      if (!changesProjection) {
+        const settings = {
+          ...settingsRef.current,
+          [viewId]: { ...current, ...patch, ...(patch.board && { board: { ...current.board, ...patch.board } }) },
+        }
+        settingsRef.current = settings
+        updateDatabase((database) => (database ? { ...database, settings } : database))
       }
-      settingsRef.current = settings
-      updateDatabase((database) => (database ? { ...database, settings } : database))
 
-      void enqueueViewWrite(() => pageWriteService.patchView(pageId, viewId, patch)).catch(handleWriteError)
+      void enqueueViewWrite(async () => {
+        const response = await pageWriteService.patchView(pageId, viewId, patch)
+        // Alterar o tipo antes do ACK desmontaria a projeção atual e consultaria
+        // o backend com um tipo que ele ainda não persistiu, produzindo 409.
+        if (changesProjection) rememberView(viewId, response.view)
+      }).catch(handleWriteError)
     },
     [enqueueViewWrite, handleWriteError, materializeFallbackView, pageId, rememberView, updateDatabase],
   )

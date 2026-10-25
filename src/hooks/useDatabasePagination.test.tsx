@@ -1,10 +1,11 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useDatabasePagination } from './useDatabasePagination'
 import { pageViewScopeKey, type PageViewQueryProjection, type PageViewQueryScope } from '@/shared/cubs-database/pageViewQueryContract'
-import type { DataViewType, ViewFiltersV2 } from 'cubs-database'
+import type { DataViewType, HeaderCol, ViewFiltersV2 } from 'cubs-database'
+import { HeatmapView } from '@/shared/cubs-database/components/HeatmapView'
 const queryView = vi.hoisted(() => vi.fn())
 const listRelationOptions = vi.hoisted(() => vi.fn())
 vi.mock('@/services/DatabaseService', () => ({ databaseService: { queryView, listRelationOptions } }))
@@ -18,11 +19,11 @@ function setup(enabled = true) {
   const hook = renderHook(() => useDatabasePagination({ pageId: 'page', viewId: 'view', view: { view: 'table', name: 'Tabela' } as DataViewType, filters: { version: 2, updatedAt: null, clauses: [], groupBy: [], passthrough: [] }, enabled, onRows }), { wrapper })
   return { ...hook, onRows }
 }
-function dynamicSetup(kind: DataViewType['view'] = 'table', initialFilters = filters, initialView?: DataViewType) {
+function dynamicSetup(kind: DataViewType['view'] = 'table', initialFilters = filters, initialView?: DataViewType, columns?: HeaderCol[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
   const onRows = vi.fn()
-  const initialProps = { viewId: 'view', view: initialView ?? { view: kind, name: kind } as DataViewType, filters: initialFilters }
+  const initialProps = { viewId: 'view', view: initialView ?? { view: kind, name: kind } as DataViewType, filters: initialFilters, columns }
   const hook = renderHook((props: typeof initialProps) => useDatabasePagination({ pageId: 'page', enabled: true, onRows, ...props }), { wrapper, initialProps })
   return { ...hook, onRows, initialProps }
 }
@@ -35,6 +36,55 @@ function scopedProjection(scope: PageViewQueryScope, start = 0, kind: DataViewTy
 }
 describe('SQL projection pagination transport', () => {
   beforeEach(() => { queryView.mockReset(); queryView.mockResolvedValue(projection()); listRelationOptions.mockReset() })
+  it('loads heatmap day details through the real hook, preserving aggregates and isolating delayed day responses', async () => {
+    const days = { '2026-10-01': { total: 70, checked: 13 }, '2026-10-02': { total: 0, checked: 0 } }
+    const period = { type: 'heatmap', from: '2026-10-01', to: '2026-10-02' } as const
+    let finishDay!: (response: PageViewQueryProjection) => void
+    queryView.mockImplementation(async (_page, _view, input) => {
+      if (!input.scope?.day) return { ...projection(), kind: 'heatmap', windows: [], heatmapDays: days }
+      if (input.scope.day === '2026-10-01' && !input.cursor) return new Promise<PageViewQueryProjection>((resolve) => { finishDay = resolve })
+      if (input.scope.day === '2026-10-02') return { ...scopedProjection(input.scope, 0, 'heatmap'), windows: [{ ...scopedProjection(input.scope).windows[0], rows: [], total: 0, nextCursor: null }], heatmapDays: days }
+      return { ...scopedProjection(input.scope, 50, 'heatmap'), heatmapDays: days }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const config = { version: 2 as const, dateColumnId: 'date', checkboxColumnIds: ['done', 'review'], period: { mode: 'year' as const } }
+    const view = { view: 'heatmap', name: 'Mapa', heatmap: config } as DataViewType
+    function Harness() {
+      const { pagination } = useDatabasePagination({ pageId: 'page', viewId: 'view', view, enabled: true, filters, onRows: () => undefined })
+      return <HeatmapView config={config} pagination={pagination} columns={[]} />
+    }
+    const mounted = render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: /^1 de outubro/i }))
+    await waitFor(() => expect(finishDay).toBeTypeOf('function'))
+    expect(screen.getByText('Carregando páginas…')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^2 de outubro/i })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^2 de outubro/i }))
+    await act(async () => finishDay({ ...scopedProjection({ ...period, day: '2026-10-01' }, 0, 'heatmap'), heatmapDays: days }))
+    await screen.findByText('Nenhuma página neste dia.')
+    expect(screen.queryByRole('button', { name: 'Title 0' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /^1 de outubro/i }))
+    await screen.findByRole('button', { name: 'Title 0' })
+    fireEvent.click(screen.getByRole('button', { name: 'Carregar mais' }))
+    await screen.findByRole('button', { name: 'Title 99' })
+    expect(screen.getAllByRole('button', { name: /^Title / })).toHaveLength(100)
+    mounted.unmount()
+    client.clear()
+  })
+  it.each(['done', 'review', 'date'])('refreshes heatmap aggregates after a realtime change to %s outside loaded rows', async (columnId) => {
+    const days = { '2026-10-01': { total: 70, checked: 13 } }
+    queryView.mockResolvedValue({ ...projection(), kind: 'heatmap', windows: [], heatmapDays: days })
+    const heatmap = { version: 2 as const, dateColumnId: 'date', checkboxColumnIds: ['done', 'review'], period: { mode: 'year' as const } }
+    const hook = dynamicSetup('heatmap', filters, { view: 'heatmap', name: 'Mapa', heatmap } as DataViewType)
+    await waitFor(() => expect(hook.result.current.pagination.projection?.heatmapDays).toEqual(days))
+    const freshDays = { '2026-10-01': { total: 70, checked: 14 } }
+    queryView.mockResolvedValue({ ...projection(), kind: 'heatmap', windows: [], heatmapDays: freshDays })
+    act(() => hook.result.current.bridge.onEvent({ type: 'cell-updated', payload: {
+      pageId: 'page', rowId: 'unseen', columnId, columnType: columnId === 'date' ? 'date' : 'checkbox',
+      value: columnId === 'date' ? '2026-10-01T00:00:00.000Z' : true, updatedAt: '2026-10-24T12:00:00.000Z', originUserId: 'user',
+    } }))
+    await waitFor(() => expect(hook.result.current.pagination.projection?.heatmapDays).toEqual(freshDays))
+    hook.unmount()
+  })
   it('retains titles across batches and refreshes a title without losing other loaded relations', async () => {
     const first = projection()
     first.relationTargets = { first: { id: 'first', title: 'Primeira página' } }
@@ -247,7 +297,9 @@ describe('SQL projection pagination transport', () => {
   })
   it('starts every new owner at root after a Calendar period was selected', async () => {
     queryView.mockImplementation(async (_page: string, _view: string, input: { scope: PageViewQueryScope }) => scopedProjection(input.scope))
-    const hook = dynamicSetup('calendar')
+    const hook = dynamicSetup('calendar', filters, undefined, [
+      { id: 'date', title: 'Data', type: 'date' },
+    ])
     await waitFor(() => expect(hook.result.current.pagination.projection).not.toBeNull())
     act(() => hook.result.current.pagination.setScope({ type: 'calendar', from: '2026-10-01', to: '2026-10-31' }))
     await waitFor(() => expect(queryView.mock.calls.at(-1)?.[2].scope.type).toBe('calendar'))
@@ -440,6 +492,20 @@ describe('SQL projection pagination transport', () => {
     await act(async () => {})
     expect(queryView).toHaveBeenCalledTimes(1)
     expect(hook.result.current.pagination.streams[pageViewScopeKey(period)].rows).toHaveLength(50)
+  })
+  it('keeps an unconfigured Calendar on the root projection instead of requesting an invalid period', async () => {
+    const root = projection()
+    root.kind = 'calendar'
+    queryView.mockResolvedValue(root)
+    const hook = dynamicSetup('calendar', filters, { view: 'calendar', name: 'Calendário' } as DataViewType, [
+      { id: 'title', key: 'title', title: 'Nome', type: 'text' },
+    ])
+    await waitFor(() => expect(hook.result.current.pagination.projection).not.toBeNull())
+    act(() => hook.result.current.pagination.setScope({ type: 'calendar', from: '2026-10-01', to: '2026-10-31' }))
+    await act(async () => {})
+    expect(queryView).toHaveBeenCalledTimes(1)
+    expect(queryView.mock.calls[0]?.[2].scope).toEqual({ type: 'root' })
+    expect(hook.result.current.pagination.error).toBeUndefined()
   })
   it('loads rows under StrictMode effect replay', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
