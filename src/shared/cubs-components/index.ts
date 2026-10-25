@@ -1,4 +1,6 @@
 export { Button } from './Button'
+export { Dock } from './Dock'
+export type { DockItem, DockProps } from './Dock'
 export { Calendar, CalendarItemContent } from './Calendar'
 export { CalendarDetailsDialog } from './CalendarDetailsDialog'
 export type { CalendarDetailsDialogLabels, CalendarDetailsDialogProps } from './CalendarDetailsDialog'
@@ -87,3 +89,5 @@ export type {
 } from './lib/dateValue'
 
 export { CUBS_COMPONENTS_VERSION } from './version'
+export { MentionTextField } from './MentionTextField'
+export type { MentionInputConfig, MentionInputOption, MentionTextFieldProps } from './MentionTextField'

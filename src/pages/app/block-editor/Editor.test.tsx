@@ -1,12 +1,28 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render as testingRender, screen, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { Editor } from './Editor'
 import { BLOCK_DRAG_ACTIVATION_CONSTRAINT } from './editorDndConfig'
+import { ModalProvider } from '@/contexts/ModalContext'
+
+const render = (ui: ReactElement) => testingRender(ui, { wrapper: ModalProvider })
 
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('block editor interactions', () => {
+  it('returns focus and the empty-line hint after inserting from the block library', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 360, 100))
+    vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
+    const { container } = render(<Editor />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar bloco' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Mais' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Texto rico' }))
+    await waitFor(() => {
+      expect(document.activeElement).toBe(container.querySelector('.ProseMirror'))
+      expect(container.querySelectorAll('p[data-placeholder]')).toHaveLength(1)
+    })
+  })
   it('uses the PageShell width and opens the block menu with a simple click', async () => {
     const { container } = render(<Editor />)
     const dragHandle = await screen.findByRole('button', { name: 'Arrastar bloco' })
@@ -14,14 +30,37 @@ describe('block editor interactions', () => {
 
     expect(editorShell?.className).toContain('w-full')
     expect(editorShell?.className).not.toContain('px-5')
+    expect(container.querySelector('p[data-placeholder]')).not.toBeNull()
+    fireEvent.focus(container.querySelector('.ProseMirror')!)
     expect(
       container.querySelector('p[data-placeholder]')?.getAttribute('data-placeholder'),
     ).toBe('Digite ou use @ para mencionar uma página ou membro')
+    fireEvent.blur(container.querySelector('.ProseMirror')!)
+    expect(container.querySelector('p[data-placeholder]')).not.toBeNull()
 
     fireEvent.click(dragHandle)
 
     expect(screen.getByRole('menu')).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /Distribuir igualmente/ })).toBeTruthy()
+  })
+
+  it('does not show the mention hint for a non-empty rich-text paragraph', async () => {
+    const { container } = render(<Editor content={{
+      type: 'doc',
+      content: [{
+        type: 'blockRow', attrs: { id: 'row-1' }, content: [{
+          type: 'blockColumn', attrs: { id: 'column-1', span: 100 }, content: [{
+            type: 'editableBlock', attrs: { id: 'block-1', kind: 'richText', indent: 0 },
+            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Conteúdo' }] }],
+          }],
+        }],
+      }],
+    }} />)
+
+    await waitFor(() => {
+      expect(container.querySelector('p')?.textContent).toBe('Conteúdo')
+      expect(container.querySelector('p[data-placeholder]')).toBeNull()
+    })
   })
 
   it('requires a short hold before starting block drag-and-drop', () => {
@@ -101,7 +140,7 @@ describe('block editor interactions', () => {
       bubbles: true, cancelable: true, button: 0, clientX: 160, clientY: 178,
     }))
     await waitFor(() => expect(Array.from(container.querySelectorAll('[data-block-id]'), (node) => node.getAttribute('data-block-id'))).toEqual(['b', 'a']))
-    expect(onChange).toHaveBeenCalledOnce()
+    await waitFor(() => expect(onChange).toHaveBeenCalledOnce())
     expect(container.querySelector('[data-drag-placeholder]')).toBeNull()
     cleanup()
     await new Promise((resolve) => setTimeout(resolve, 60))

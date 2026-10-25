@@ -1,5 +1,7 @@
 import { Editor, getSchema } from '@tiptap/core'
+import { fireEvent } from '@testing-library/react'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
+import { DecorationSet } from '@tiptap/pm/view'
 import { describe, expect, it } from 'vitest'
 
 import { createEditorExtensions, createNextBlockSeed } from './editorExtensions'
@@ -7,6 +9,62 @@ import type { EditorBlockKind } from './types'
 
 const schema = getSchema(createEditorExtensions())
 
+describe('focused empty line placeholder', () => {
+  it.each(['heading', 'bulletList', 'taskList'])('shows the initial hint inside an empty %s line and hides it after typing', (kind) => {
+    const content = kind === 'heading' ? [{ type: 'heading', attrs: { level: 2 } }]
+      : [{ type: kind, content: [{ type: kind === 'taskList' ? 'taskItem' : 'listItem', content: [{ type: 'paragraph' }] }] }]
+    const editor = new Editor({ extensions: createEditorExtensions(), content: { type: 'doc', content: [{ type: 'blockRow', content: [{ type: 'blockColumn', content: [{ type: 'editableBlock', attrs: { kind: kind === 'heading' ? 'richText' : kind === 'taskList' ? 'checkList' : 'bulletList' }, content }] }] }] } })
+    try {
+      const hints = () => editor.state.plugins.flatMap((plugin) => {
+        const decorations = plugin.props.decorations?.call(plugin, editor.state)
+        return decorations instanceof DecorationSet ? decorations.find() : []
+      })
+      expect(hints()).toHaveLength(1)
+      fireEvent.focus(editor.view.dom)
+      expect(hints()).toHaveLength(1)
+      editor.commands.insertContent('Texto')
+      expect(hints()).toHaveLength(0)
+      fireEvent.blur(editor.view.dom)
+      expect(hints()).toHaveLength(0)
+    } finally { editor.destroy() }
+  })
+  it('shows from loading in an empty document, follows the selected line and never enters saved JSON', () => {
+    const editor = new Editor({ extensions: createEditorExtensions(), content: {
+      type: 'doc', content: [{ type: 'blockRow', attrs: { id: 'row' }, content: [{
+        type: 'blockColumn', attrs: { id: 'column', span: 100 }, content: ['a', 'b'].map((id) => ({
+          type: 'editableBlock', attrs: { id, kind: 'richText', indent: 0 }, content: [{ type: 'paragraph' }],
+        })),
+      }] }],
+    } })
+    try {
+      const paragraphs: number[] = []
+      editor.state.doc.descendants((node, position) => { if (node.type.name === 'paragraph') paragraphs.push(position + 1) })
+      const json = editor.getJSON()
+      const hints = () => editor.state.plugins.flatMap((plugin) => {
+        const decorations = plugin.props.decorations?.call(plugin, editor.state)
+        return decorations instanceof DecorationSet ? decorations.find() : []
+      })
+      expect(hints()).toHaveLength(1)
+      editor.commands.setTextSelection(paragraphs[0]!)
+      fireEvent.focus(editor.view.dom)
+      expect(hints()).toHaveLength(1)
+      expect(hints()[0].from).toBe(paragraphs[0]! - 1)
+      editor.commands.setTextSelection(paragraphs[1]!)
+      expect(hints()).toHaveLength(1)
+      expect(hints()[0].from).toBe(paragraphs[1]! - 1)
+      fireEvent.blur(editor.view.dom)
+      expect(hints()).toHaveLength(1)
+      expect(editor.getJSON()).toEqual(json)
+      fireEvent.focus(editor.view.dom)
+      editor.commands.insertContent('Conteúdo')
+      expect(hints()).toHaveLength(0)
+      editor.commands.setTextSelection(paragraphs[0]!)
+      expect(hints()).toHaveLength(1)
+      fireEvent.blur(editor.view.dom)
+      expect(hints()).toHaveLength(0)
+    } finally { editor.destroy() }
+  })
+})
 function sourceBlock(
   kind: EditorBlockKind,
   content: ProseMirrorNode,
@@ -59,7 +117,6 @@ describe('createNextBlockSeed', () => {
     }
   })
 })
-
 describe('new block on Enter', () => {
   it('adds the next block to the same column instead of creating another row', () => {
     const editor = new Editor({
@@ -116,7 +173,6 @@ describe('new block on Enter', () => {
     }
   })
 })
-
 describe('empty document invariant', () => {
   it('keeps an editable block after selecting and deleting the whole document', () => {
     const editor = new Editor({
@@ -169,42 +225,6 @@ describe('empty document invariant', () => {
 
       expect(editor.commands.insertContent('Recomeço')).toBe(true)
       expect(editor.state.doc.textContent).toBe('Recomeço')
-    } finally {
-      editor.destroy()
-    }
-  })
-})
-
-describe('text block placeholder', () => {
-  it('adds the mention hint only to an empty rich-text paragraph', () => {
-    const editor = new Editor({
-      extensions: createEditorExtensions(),
-      content: {
-        type: 'doc',
-        content: [{
-          type: 'blockRow',
-          attrs: { id: 'row-1' },
-          content: [{
-            type: 'blockColumn',
-            attrs: { id: 'column-1', span: 100 },
-            content: [{
-              type: 'editableBlock',
-              attrs: { id: 'block-1', kind: 'richText', indent: 0 },
-              content: [{ type: 'paragraph' }],
-            }],
-          }],
-        }],
-      },
-    })
-
-    try {
-      const paragraph = editor.view.dom.querySelector('p[data-placeholder]')
-      expect(paragraph?.getAttribute('data-placeholder')).toBe(
-        'Digite ou use @ para mencionar uma página ou membro',
-      )
-
-      editor.commands.insertContent('Conteúdo')
-      expect(editor.view.dom.querySelector('p[data-placeholder]')).toBeNull()
     } finally {
       editor.destroy()
     }

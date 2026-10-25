@@ -7,6 +7,8 @@ export type EditorBlockKind =
   | 'checkList'
   | 'image'
   | 'formSubmit'
+  | 'mathBlock'
+  | 'codeBlock'
 
 export interface EditorBlockActionProps {
   editor: Editor

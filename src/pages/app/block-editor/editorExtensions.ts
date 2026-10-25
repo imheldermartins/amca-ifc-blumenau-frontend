@@ -19,6 +19,9 @@ import {
   EditableBlockView,
 } from './EditorNodeViews'
 import { ImageBlock, ImageClipboard } from './imageBlock'
+import { EditorCodeBlock } from './codeBlock'
+import { createEditorMention, EDITOR_MENTION_PLUGIN_KEY } from './editorMention'
+import type { MentionOption } from '@/shared/mentions'
 import type { EditorBlockKind } from './types'
 
 const BLOCK_KINDS = new Set<EditorBlockKind>([
@@ -28,6 +31,8 @@ const BLOCK_KINDS = new Set<EditorBlockKind>([
   'checkList',
   'image',
   'formSubmit',
+  'mathBlock',
+  'codeBlock',
 ])
 
 function normalizeIndent(value: unknown): number {
@@ -166,7 +171,15 @@ const NewBlockOnEnter = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      Enter: () => insertBlockAfterCurrentItem(this.editor),
+      Enter: () => this.editor.isActive('codeBlock') || EDITOR_MENTION_PLUGIN_KEY.getState(this.editor.state)?.active ? false : insertBlockAfterCurrentItem(this.editor),
+      ArrowDown: () => {
+        const { $from, empty } = this.editor.state.selection
+        const depth = ancestorDepth(this.editor, 'editableBlock')
+        if (!empty || depth === null || !this.editor.isActive('codeBlock')
+          || $from.parentOffset !== $from.parent.content.size
+          || $from.indexAfter(depth) !== $from.node(depth).childCount) return false
+        return insertBlockAfterCurrentItem(this.editor)
+      },
       Tab: () => adjustCurrentBlockIndent(this.editor, 1),
       'Shift-Tab': () => adjustCurrentBlockIndent(this.editor, -1),
     }
@@ -219,29 +232,33 @@ const TextBlockPlaceholder = Extension.create({
   name: 'textBlockPlaceholder',
 
   addProseMirrorPlugins() {
+    const { editor } = this
     return [
       new Plugin({
         props: {
           decorations(state) {
-            const decorations: Decoration[] = []
-            state.doc.descendants((node, position, parent) => {
-              if (
-                node.type.name !== 'paragraph' ||
-                node.content.size > 0 ||
-                parent?.type.name !== 'editableBlock' ||
-                normalizeKind(parent.attrs.kind) !== 'richText'
-              ) {
-                return
-              }
-
-              decorations.push(Decoration.node(position, position + node.nodeSize, {
+            const { $from, empty } = state.selection
+            const node = $from.parent
+            let documentEmpty = state.doc.textContent.length === 0
+            if (documentEmpty) state.doc.descendants((candidate) => {
+              if (candidate.isLeaf && !['text', 'hardBreak'].includes(candidate.type.name)) documentEmpty = false
+              return documentEmpty
+            })
+            let block: ProseMirrorNode | null = null
+            for (let depth = $from.depth - 1; depth > 0; depth--) {
+              if ($from.node(depth).type.name === 'editableBlock') { block = $from.node(depth); break }
+            }
+            if ((!editor.isFocused && !documentEmpty) || !empty || !node.isTextblock || node.type.name === 'codeBlock' || node.content.size > 0
+              || !block || ['image', 'formSubmit', 'mathBlock', 'codeBlock'].includes(normalizeKind(block.attrs.kind))) {
+              return DecorationSet.empty
+            }
+            const position = $from.before()
+            return DecorationSet.create(state.doc, [Decoration.node(position, position + node.nodeSize, {
                 class: 'cubs-editor-text-placeholder',
                 'data-placeholder': i18n(
                   'pages.block-editor.editor.text-placeholder',
                 ),
-              }))
-            })
-            return DecorationSet.create(state.doc, decorations)
+            })])
           },
         },
       }),
@@ -323,7 +340,7 @@ export const EditableBlock = Node.create({
   name: 'editableBlock',
   group: 'blockItem',
   content:
-    '(paragraph|heading|bulletList|orderedList|taskList|blockquote|codeBlock|horizontalRule|callout|imageBlock)+',
+    '(paragraph|heading|bulletList|orderedList|taskList|blockquote|codeBlock|horizontalRule|callout|imageBlock|blockMath)+',
   defining: true,
   isolating: true,
 
@@ -384,7 +401,7 @@ export const Callout = Node.create({
   },
 })
 
-export function createEditorExtensions() {
+export function createEditorExtensions(options: { onMathClick?: (position: number) => void; mentionOptions?: () => MentionOption[] } = {}) {
   return [
     StarterKit.configure({
       document: false,
@@ -392,6 +409,7 @@ export function createEditorExtensions() {
       link: { openOnClick: false, defaultProtocol: 'https' },
       trailingNode: false,
       dropcursor: false,
+      codeBlock: false,
     }),
     BlockDocument,
     TaskList,
@@ -410,7 +428,12 @@ export function createEditorExtensions() {
     TextStyle,
     Color,
     Highlight.configure({ multicolor: true }),
-    Mathematics.configure({ katexOptions: { throwOnError: false } }),
+    Mathematics.configure({ katexOptions: { throwOnError: false },
+      inlineOptions: { onClick: options.onMathClick ? (_node, pos) => options.onMathClick?.(pos) : undefined },
+      blockOptions: { onClick: options.onMathClick ? (_node, pos) => options.onMathClick?.(pos) : undefined },
+    }),
+    EditorCodeBlock,
+    createEditorMention(options.mentionOptions),
     BlockRow,
     BlockColumn,
     EditableBlock,

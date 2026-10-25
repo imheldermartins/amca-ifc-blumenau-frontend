@@ -61,6 +61,8 @@ describe('editor block catalog', () => {
     ['bullet-list', 'bulletList', 'bulletList'],
     ['numbered-list', 'enumerateList', 'orderedList'],
     ['check-list', 'checkList', 'taskList'],
+    ['math-block', 'mathBlock', 'blockMath'],
+    ['code-block', 'codeBlock', 'codeBlock'],
   ] as const)('insere %s depois do bloco atual', (optionId, kind, nodeType) => {
     const currentEditor = createEditor()
 

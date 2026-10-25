@@ -12,12 +12,16 @@ export type EditorBlockOptionId =
   | 'numbered-list'
   | 'check-list'
   | 'form-submit'
+  | 'math-block'
+  | 'code-block'
 
 export type EditorBlockContentPreset =
   | 'paragraph'
   | 'bulletList'
   | 'orderedList'
   | 'taskList'
+  | 'blockMath'
+  | 'codeBlock'
 
 export interface EditorBlockPayloadPreset {
   action: 'insert' | 'select-image' | 'select-form'
@@ -122,6 +126,16 @@ export const EDITOR_BLOCK_OPTIONS = {
       attrs: { indent: 0 },
     },
   },
+  'math-block': {
+    id: 'math-block', icon: 'lucide:sigma', labelKey: 'pages.block-editor.blocks.math-block',
+    descriptionKey: 'pages.block-editor.block-library.descriptions.math-block',
+    payload: { action: 'insert', kind: 'mathBlock', content: 'blockMath', attrs: { indent: 0 } },
+  },
+  'code-block': {
+    id: 'code-block', icon: 'lucide:code', labelKey: 'pages.block-editor.blocks.code-block',
+    descriptionKey: 'pages.block-editor.block-library.descriptions.code-block',
+    payload: { action: 'insert', kind: 'codeBlock', content: 'codeBlock', attrs: { indent: 0 } },
+  },
 } as const satisfies Record<EditorBlockOptionId, EditorBlockOption>
 
 export const EDITOR_BLOCK_OPTION_IDS = [
@@ -131,9 +145,17 @@ export const EDITOR_BLOCK_OPTION_IDS = [
   'numbered-list',
   'check-list',
   'form-submit',
+  'math-block',
+  'code-block',
 ] as const satisfies readonly EditorBlockOptionId[]
 
 export const DEFAULT_EDITOR_BLOCK_OPTION_ID: EditorBlockOptionId = 'text'
+
+export const EDITOR_BLOCK_SECTIONS: { labelKey: string; options: EditorBlockOptionId[] }[] = [
+  { labelKey: 'pages.block-editor.block-library.sections.text', options: ['text', 'bullet-list', 'numbered-list', 'check-list'] },
+  { labelKey: 'pages.block-editor.block-library.sections.technical', options: ['math-block', 'code-block'] },
+  { labelKey: 'pages.block-editor.block-library.sections.media', options: ['image', 'form-submit'] },
+]
 
 const EDITOR_BLOCK_OPTION_BY_KIND: Record<EditorBlockKind, EditorBlockOptionId> = {
   richText: 'text',
@@ -142,6 +164,8 @@ const EDITOR_BLOCK_OPTION_BY_KIND: Record<EditorBlockKind, EditorBlockOptionId> 
   enumerateList: 'numbered-list',
   checkList: 'check-list',
   formSubmit: 'form-submit',
+  mathBlock: 'math-block',
+  codeBlock: 'code-block',
 }
 
 export function editorBlockOptionForKind(kind: string): EditorBlockOption {
@@ -154,6 +178,8 @@ const CONTENT_BUILDERS: Record<
   EditorBlockContentPreset,
   (schema: Schema) => ProseMirrorNode
 > = {
+  blockMath: (schema) => schema.nodes.blockMath.create({ latex: 'x^2' }),
+  codeBlock: (schema) => schema.nodes.codeBlock.create({ language: 'plaintext' }),
   paragraph: (schema) => schema.nodes.paragraph.create(),
   bulletList: (schema) => schema.nodes.bulletList.create(
     null,

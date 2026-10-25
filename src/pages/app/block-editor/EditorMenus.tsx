@@ -9,6 +9,7 @@ import { Typography } from '@components/Typography'
 import { i18n } from '@/lib/i18n'
 
 import { adjustCurrentBlockIndent } from './editorExtensions'
+import { insertBlockFromCatalog } from './blockCatalog'
 import { EDITOR_IMAGE_ACCEPT, insertImageFile } from './imageBlock'
 
 interface EditorMenusProps {
@@ -119,7 +120,7 @@ function EmphasisGroup({ editor }: EditorMenusProps) {
   )
 }
 
-type InsertMode = 'actions' | 'link' | 'equation'
+type InsertMode = 'actions' | 'link'
 
 function InsertGroup({ editor }: EditorMenusProps) {
   const [open, setOpen] = useState(false)
@@ -142,12 +143,6 @@ function InsertGroup({ editor }: EditorMenusProps) {
     const href = value.trim()
     if (!href) editor.chain().focus().extendMarkRange('link').unsetLink().run()
     else editor.chain().focus().extendMarkRange('link').setLink({ href }).run()
-    close()
-  }
-
-  const applyEquation = () => {
-    const latex = value.trim()
-    if (latex) editor.chain().focus().insertInlineMath({ latex }).run()
     close()
   }
 
@@ -195,10 +190,15 @@ function InsertGroup({ editor }: EditorMenusProps) {
             label={i18n('pages.block-editor.toolbar.equation')}
             icon="lucide:sigma"
             onSelect={() => {
-              setValue('x^2 + y^2 = z^2')
-              setMode('equation')
+              const position = editor.state.selection.from
+              close()
+              editor.chain().focus().insertInlineMath({ latex: 'x^2' }).setNodeSelection(position).run()
             }}
           />
+          <ToolbarButton label={i18n('pages.block-editor.blocks.math-block')} icon="lucide:square-sigma"
+            onSelect={() => { close(); insertBlockFromCatalog(editor, 'math-block') }} />
+          <ToolbarButton label={i18n('pages.block-editor.blocks.code-block')} icon="lucide:square-code"
+            onSelect={() => { close(); insertBlockFromCatalog(editor, 'code-block') }} />
           <ImageUploadButton editor={editor} onSelect={close} />
         </div>
       ) : (
@@ -207,21 +207,16 @@ function InsertGroup({ editor }: EditorMenusProps) {
             size="sm"
             surface="background"
             className="min-w-0 flex-1"
-            label={i18n(
-              mode === 'link'
-                ? 'pages.block-editor.toolbar.link-value'
-                : 'pages.block-editor.toolbar.equation-value',
-            )}
+            label={i18n('pages.block-editor.toolbar.link-value')}
             value={value}
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter') return
               event.preventDefault()
-              if (mode === 'link') applyLink()
-              else applyEquation()
+              applyLink()
             }}
           />
-          <Button className="h-9 px-3" onClick={mode === 'link' ? applyLink : applyEquation}>
+          <Button className="h-9 px-3" onClick={applyLink}>
             <Icon icon="lucide:check" fontSize={16} />
             <Typography variant="caption" as="span" className="sr-only">
               {i18n('pages.block-editor.toolbar.apply')}
@@ -426,7 +421,7 @@ export function EditorMenus({ editor }: EditorMenusProps) {
     to: number
   }) => {
     selectionRef.current = state.selection
-    return !selectionRef.current.empty && from !== to
+    return !selectionRef.current.empty && from !== to && !editor.isActive('inlineMath') && !editor.isActive('blockMath') && !editor.isActive('codeBlock')
   }, [])
 
   return (

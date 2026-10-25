@@ -210,6 +210,57 @@
   padding: 0.1rem 0.35rem;
 }
 
+.cubs-editor .tiptap-mathematics-render[data-type='block-math'] {
+  width: 100%;
+  text-align: center;
+  overflow-x: auto;
+  padding: 0.75rem;
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--p-purple) 7%, transparent);
+  cursor: pointer;
+}
+
+.cubs-editor .tiptap-mathematics-render[data-type='block-math'] .katex-display {
+  text-align: center;
+}
+
+.cubs-editor-code-block {
+  margin: 0.35rem 0;
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: 0.65rem;
+  background: color-mix(in oklab, var(--active) 60%, var(--background));
+}
+
+.cubs-editor .cubs-editor-code-block pre {
+  margin: 0;
+  overflow-x: auto;
+  padding: 0.85rem;
+  tab-size: 4;
+}
+
+.cubs-editor .cubs-editor-code-block pre code {
+  display: block;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  white-space: pre;
+}
+
+.cubs-editor-code-block .hljs-comment,
+.cubs-editor-code-block .hljs-quote { color: color-mix(in oklab, var(--foreground) 50%, transparent); }
+.cubs-editor-code-block .hljs-keyword,
+.cubs-editor-code-block .hljs-selector-tag,
+.cubs-editor-code-block .hljs-type { color: var(--p-purple); }
+.cubs-editor-code-block .hljs-string,
+.cubs-editor-code-block .hljs-attr,
+.cubs-editor-code-block .hljs-addition { color: var(--p-green); }
+.cubs-editor-code-block .hljs-number,
+.cubs-editor-code-block .hljs-literal,
+.cubs-editor-code-block .hljs-symbol { color: var(--p-yellow); }
+.cubs-editor-code-block .hljs-title,
+.cubs-editor-code-block .hljs-built_in { color: var(--p-blue); }
+
 .cubs-editor-image-block {
   margin: 0.35rem 0;
   max-width: 100%;
@@ -287,13 +338,13 @@
   cursor: grab;
   opacity: 0;
   touch-action: none;
-  transition: background-color 120ms ease, opacity 120ms ease, transform 120ms ease;
+  transition: opacity 120ms ease, transform 120ms ease;
 }
 
 .group\/editor-block:hover > .cubs-editor-drag-handle,
 .cubs-editor-drag-handle:focus-visible,
 .cubs-editor-drag-handle:hover {
-  background: var(--active);
+  background: transparent;
   opacity: 1;
   outline: none;
 }

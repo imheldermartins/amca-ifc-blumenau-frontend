@@ -1,17 +1,24 @@
 import { Editor } from '@tiptap/core'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
 
 import { BlockInsertDock } from './BlockInsertDock'
 import { createEditorExtensions } from './editorExtensions'
+import { ModalProvider } from '@/contexts/ModalContext'
 
 let editor: Editor | null = null
+
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 480, 100))
+})
 
 afterEach(() => {
   cleanup()
   editor?.destroy()
   editor = null
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 function createEditor() {
@@ -41,70 +48,75 @@ function createEditor() {
   return editor
 }
 
+const renderDock = (dock: ReactNode) => render(<ModalProvider>{dock}</ModalProvider>)
+
 describe('BlockInsertDock', () => {
-  it('insere texto no clique antes que o hover de dois segundos abra a dock', () => {
+  it('abre por clique sem inserir texto nem depender de hover', () => {
     vi.useFakeTimers()
     const currentEditor = createEditor()
-    render(<BlockInsertDock editor={currentEditor} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco de texto' })
+    renderDock(<BlockInsertDock editor={currentEditor} />)
+    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
     const control = addButton.closest('[data-block-insert-control]')
     expect(control).not.toBeNull()
 
     fireEvent.pointerEnter(control!)
-    act(() => vi.advanceTimersByTime(1_000))
-    fireEvent.click(addButton)
-    act(() => vi.advanceTimersByTime(2_000))
-
+    act(() => vi.advanceTimersByTime(3_000))
     expect(screen.queryByRole('toolbar', { name: 'Tipos de bloco' })).toBeNull()
+    fireEvent.click(addButton)
+    expect(screen.getByRole('toolbar', { name: 'Tipos de bloco' })).toBeTruthy()
     const column = currentEditor.state.doc.firstChild?.firstChild
-    expect(column?.childCount).toBe(2)
-    expect(column?.child(1).attrs.kind).toBe('richText')
+    expect(column?.childCount).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Texto rico' }))
+    expect(column?.childCount).toBe(1)
+    expect(currentEditor.state.doc.firstChild?.firstChild?.childCount).toBe(2)
+    expect(screen.queryByRole('toolbar', { name: 'Tipos de bloco' })).toBeNull()
   })
 
-  it('abre a dock somente após dois segundos e expõe o catálogo principal', () => {
+  it('mantém a dock aberta ao sair com o mouse e fecha no segundo clique', () => {
     vi.useFakeTimers()
-    render(<BlockInsertDock editor={createEditor()} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco de texto' })
+    renderDock(<BlockInsertDock editor={createEditor()} />)
+    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
     const control = addButton.closest('[data-block-insert-control]')
 
-    fireEvent.pointerEnter(control!)
-    act(() => vi.advanceTimersByTime(1_999))
-    expect(screen.queryByRole('toolbar', { name: 'Tipos de bloco' })).toBeNull()
-
-    act(() => vi.advanceTimersByTime(1))
+    fireEvent.click(addButton)
+    fireEvent.pointerLeave(control!)
     expect(screen.getByRole('toolbar', { name: 'Tipos de bloco' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Imagem' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Lista numerada' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Ver mais blocos' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Mais' })).toBeTruthy()
+    fireEvent.click(addButton)
+    expect(screen.queryByRole('toolbar', { name: 'Tipos de bloco' })).toBeNull()
   })
 
-  it('abre a biblioteca completa com compressão máxima fixa', () => {
+  it('abre Mais com seções de tipos e sem detalhes técnicos sobre compressão', () => {
     vi.useFakeTimers()
-    render(<BlockInsertDock editor={createEditor()} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco de texto' })
-    fireEvent.pointerEnter(addButton.closest('[data-block-insert-control]')!)
-    act(() => vi.advanceTimersByTime(2_000))
+    renderDock(<BlockInsertDock editor={createEditor()} />)
+    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    fireEvent.click(addButton)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Ver mais blocos' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mais' }))
 
-    expect(screen.getByRole('dialog', { name: 'Todos os blocos' })).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
-    expect(screen.getByText('Compressão máxima')).toBeTruthy()
-    expect(screen.getByText('Data URL base64 no bloco')).toBeTruthy()
+    expect(screen.queryByText('Compressão máxima')).toBeNull()
+    expect(screen.queryByText('Data URL base64 no bloco')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Texto e listas' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Matemática e código' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Equação em bloco' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Enviar formulário' })).toBeNull()
   })
 
   it('só oferece e insere o bloco de formulário quando existe uma view form', () => {
     vi.useFakeTimers()
     const currentEditor = createEditor()
-    render(<BlockInsertDock editor={currentEditor} forms={[{
+    renderDock(<BlockInsertDock editor={currentEditor} forms={[{
       viewId: '01KXVZ00000000000000000001',
       label: 'Enviar inscrição',
       icon: 'lucide:send',
     }]} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco de texto' })
-    fireEvent.pointerEnter(addButton.closest('[data-block-insert-control]')!)
-    act(() => vi.advanceTimersByTime(2_000))
+    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    fireEvent.click(addButton)
+    fireEvent.click(screen.getByRole('button', { name: 'Mais' }))
     fireEvent.click(screen.getByRole('button', { name: 'Enviar formulário' }))
     const column = currentEditor.state.doc.firstChild?.firstChild
     expect(column?.child(1).attrs.kind).toBe('formSubmit')
