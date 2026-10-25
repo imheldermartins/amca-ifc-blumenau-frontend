@@ -88,7 +88,7 @@ export function FormulaDrawer({pageId,target,onClose,onSaved}:Props){
   const insert=(text:string,inside=false)=>{
     const element=editor.current
     const start=element?.selectionStart??caret,end=element?.selectionEnd??caret
-    const chain=inside&&start===end&&/[)\w}]$/.test(source.slice(0,start))&&!/\s$/.test(source.slice(0,start))?'.':''
+    const chain=inside&&text!=='index()'&&start===end&&/[)\w}]$/.test(source.slice(0,start))&&!/\s$/.test(source.slice(0,start))?'.':''
     const addition=chain+text
     setSource(source.slice(0,start)+addition+source.slice(end))
     const position=start+addition.length-(inside?1:0)
@@ -141,7 +141,7 @@ export function FormulaDrawer({pageId,target,onClose,onSaved}:Props){
         const key=ref.symbol.title?`title:${ref.symbol.databaseId}`:ref.symbol.id
         return <TextField key={key} size="sm" label={ref.symbol.name} value={samples[key]??''} placeholder={ref.symbol.type==='numeric'?'0':ref.symbol.type==='checkbox'?'true / false':'Texto'} onChange={event=>setSamples(current=>({...current,[key]:event.target.value}))}/>
       })}</div>
-      <div className="mt-3 flex min-h-8 items-center rounded-md bg-contrast px-2" aria-label="Resultado da prévia"><FormulaResult value={preview?.ok?preview.value:preview?{kind:'formula-error',message:preview.error.message}:null}/></div>
+      <div className="mt-3 flex min-h-8 items-center rounded-md bg-contrast px-2" aria-label="Resultado da prévia">{preview&&!preview.ok&&preview.error.code==='PAGE_INDEX'?<span className="text-xs opacity-60">A posição está disponível somente com uma página real.</span>:<FormulaResult value={preview?.ok?preview.value:preview?{kind:'formula-error',message:preview.error.message}:null}/>}</div>
     </div>:null}
     <TextField size="sm" aria-label="Buscar referências" placeholder="Buscar propriedades e funções…" value={search} onChange={event=>setSearch(event.target.value)}/>
     <div className="min-h-24 flex-1 overflow-y-scroll overscroll-contain" aria-label="Referências disponíveis">
