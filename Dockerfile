@@ -1,10 +1,7 @@
 # Frontend Cub's — build Vite servido por nginx na porta 80.
-#
-# O nginx também faz proxy de /api/v1 e /socket.io para o backend (ver
-# nginx/nginx.conf) — por isso o build NÃO define VITE_CUBS_API_URL:
-# o app chama a própria origem e o nginx encaminha (.env.production).
-# O .dockerignore exclui o .env local para ele não vazar no bundle.
-FROM node:24-alpine AS build
+# A produção define VITE_CUBS_API_URL para o host dedicado da API; o .dockerignore
+# exclui envs locais para que segredos nunca entrem no contexto do build.
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS build
 
 WORKDIR /app
 
@@ -19,7 +16,7 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:alpine@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d
 
 COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
