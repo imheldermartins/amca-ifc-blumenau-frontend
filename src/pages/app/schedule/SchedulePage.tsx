@@ -19,10 +19,10 @@ import {
   type CalendarRenderers,
 } from 'cubs-components'
 
-import { Modal } from '@/components/Modal'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useSchedule } from '@/hooks/useSchedule'
+import { useModal } from '@/hooks/useModal'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState } from '@/lib/pageNavigation'
 import { THEME } from '@/lib/theme'
@@ -68,7 +68,7 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
   const [mode, setMode] = useState<CalendarMode>('month')
   const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches)
   const [selected, setSelected] = useState<ScheduleItem | null>(null)
-  const [pendingUnpin, setPendingUnpin] = useState<Extract<ScheduleItem, { type: 'page' }> | null>(null)
+  const { openModal } = useModal()
   const reducedMotion = useReducedMotion()
   const allItems = useMemo<ScheduleItem[]>(() => flatten(items).map((item) => ({ ...item, children: undefined })), [items])
   const pinnedPages = allItems.filter((item) => item.type === 'page' && pinnedIds.has(item.id)) as Array<Extract<ScheduleItem, { type: 'page' }>>
@@ -83,6 +83,10 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
   const selectProperties = page?.data.properties.filter((property) => property.type === 'select') ?? []
   const source = selected?.type === 'page' ? selected.data.sourceTitle : selected?.type === 'chart' ? selected.data.source : undefined
   const calendarRenderers = mode === 'month' ? renderers : timeGridRenderers
+  const openUnpinConfirmation = (item: Extract<ScheduleItem, { type: 'page' }>) => openModal({
+    size: 'sm',
+    content: ({ closeModal }) => <UnpinConfirmation item={item} onClose={closeModal} onUnpin={onUnpin} />,
+  })
 
   return <section className="@container/schedule flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden bg-background scheme-light dark:scheme-dark" aria-label={t('title')}>
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-divider px-3 py-2">
@@ -123,7 +127,7 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
                 <span className={cn('mt-1 block text-[11px]', THEME.textMuted)}>{formatCalendarDate(item.start, locale, { day: 'numeric', month: 'short', ...(!item.allDay && { hour: '2-digit', minute: '2-digit' }) })}</span>
                 {status && <span className={cn('mt-2 flex min-w-0 items-center gap-1.5 text-[10px]', THEME.textMuted)}><span className={cn('size-1.5 shrink-0 rounded-full', OPTION_COLOR_SWATCH[item.color ?? 'purple'])} aria-hidden="true" /><span className="truncate">{status.value}</span></span>}
               </button>
-              <button type="button" aria-pressed aria-label={i18n('pages.app.schedule.unpinNamed', { title: item.title })} title={t('unpin')} disabled={pendingPageId === item.id} onClick={() => setPendingUnpin(item)} className={cn('absolute right-2.5 top-2.5 flex size-7 items-center justify-center rounded-md bg-transparent outline-none hover:bg-active hover:text-foreground focus-visible:ring-2 focus-visible:ring-p-purple disabled:opacity-45', THEME.textMuted)}>
+              <button type="button" aria-pressed aria-label={i18n('pages.app.schedule.unpinNamed', { title: item.title })} title={t('unpin')} disabled={pendingPageId === item.id} onClick={() => openUnpinConfirmation(item)} className={cn('absolute right-2.5 top-2.5 flex size-7 items-center justify-center rounded-md bg-transparent outline-none hover:bg-active hover:text-foreground focus-visible:ring-2 focus-visible:ring-p-purple disabled:opacity-45', THEME.textMuted)}>
                 <Icon icon={pendingPageId === item.id ? 'lucide:loader-circle' : 'solar:pin-bold'} className={cn('size-3.5', pendingPageId === item.id && 'animate-spin')} />
               </button>
             </article>
@@ -140,17 +144,39 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
       </>}
       renderActions={(item) => item.type === 'page' ? <>
         {onOpenPage ? <Button variant="text" color="from-theme" onClick={() => onOpenPage(item)}>{t('openPage')}</Button> : null}
-        <Button variant="filled" color="purple" disabled={pendingPageId === item.id} onClick={() => { if (pinnedIds.has(item.id)) setPendingUnpin(item); else void onPin(item, item.data.colorColumnId) }}>
+        <Button variant="filled" color="purple" disabled={pendingPageId === item.id} onClick={() => {
+          if (!pinnedIds.has(item.id)) {
+            void onPin(item, item.data.colorColumnId)
+            return
+          }
+          openUnpinConfirmation(item)
+        }}>
           {pendingPageId === item.id ? <Icon icon="lucide:loader-circle" className="mr-2 size-4 animate-spin" /> : <Icon icon={pinnedIds.has(item.id) ? 'solar:pin-bold' : 'lucide:pin'} className="mr-2 size-4" />}{t(pinnedIds.has(item.id) ? 'unpin' : 'pin')}
         </Button>
       </> : null}
     />
-    <Modal open={Boolean(pendingUnpin)} onOpenChange={(open) => { if (!open) setPendingUnpin(null) }} size="sm" accessibleTitle={t('unpinTitle')}>
-      <h2 className="text-base font-semibold">{t('unpinTitle')}</h2>
-      <p className={cn('mt-2 text-sm', THEME.textMuted)}>{i18n('pages.app.schedule.unpinDescription', { title: pendingUnpin?.title })}</p>
-      <div className="mt-4 flex justify-end gap-2"><Button variant="text" color="from-theme" autoFocus onClick={() => setPendingUnpin(null)}>{t('cancel')}</Button><Button variant="filled" color="purple" disabled={pendingPageId === pendingUnpin?.id} onClick={() => { if (!pendingUnpin) return; void Promise.resolve(onUnpin(pendingUnpin)).then((saved) => { if (saved !== false) setPendingUnpin(null) }) }}>{t('unpinConfirm')}</Button></div>
-    </Modal>
   </section>
+}
+
+function UnpinConfirmation({ item, onClose, onUnpin }: {
+  item: Extract<ScheduleItem, { type: 'page' }>
+  onClose: () => void
+  onUnpin: ScheduleSurfaceProps['onUnpin']
+}) {
+  const [pending, setPending] = useState(false)
+  const t = (key: string) => i18n(`pages.app.schedule.${key}`)
+  return <>
+    <p className={cn('mt-2 text-sm', THEME.textMuted)}>{i18n('pages.app.schedule.unpinDescription', { title: item.title })}</p>
+    <div className="mt-4 flex justify-end gap-2">
+      <Button variant="text" color="from-theme" autoFocus disabled={pending} onClick={onClose}>{t('cancel')}</Button>
+      <Button variant="filled" color="purple" disabled={pending} onClick={() => {
+        setPending(true)
+        void Promise.resolve(onUnpin(item)).then((saved) => {
+          if (saved !== false) onClose()
+        }).finally(() => setPending(false))
+      }}>{t('unpinConfirm')}</Button>
+    </div>
+  </>
 }
 
 export function SchedulePage() {

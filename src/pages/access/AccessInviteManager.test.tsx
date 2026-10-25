@@ -6,6 +6,7 @@ vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
 vi.mock('@/contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: 'owner' } }) }))
 vi.mock('@/services/AccessService', async (original) => ({ ...await original<typeof import('@/services/AccessService')>(), accessService: mocks }))
 import { i18n } from '@/lib/i18n'
+import { ModalProvider } from '@/contexts/ModalContext'
 import type { AccessMember, AccessRole, AccessScope, ScopeAccess } from '@/services/AccessService'
 import { AccessMembersPanel } from './AccessMembersPanel'
 import { AccessInviteManager } from './AccessInviteManager'
@@ -18,7 +19,7 @@ const owner = { ...ana, id: 'owner', name: 'Helder', email: 'helder@example.test
 const invitation = { invite: { id: 'invite-1' }, inviteUrl: null, notificationPending: false }
 function mount(element = <AccessMembersPanel scope="workspace" id="workspace-1" />) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={client}>{element}</QueryClientProvider>)
+  render(<QueryClientProvider client={client}><ModalProvider>{element}</ModalProvider></QueryClientProvider>)
   return client
 }
 const searchInput = () => screen.getByRole('searchbox', { name: i18n('access.search-collaborators') })
@@ -89,7 +90,7 @@ describe('gestão compartilhada de colaboradores', () => {
     mount(<AccessMembersPanel scope="page" id="page-1" onMembersChanged={changed} />)
     await screen.findByText('Ana')
     fireEvent.click(screen.getByRole('button', { name: 'Permissões de Ana' }))
-    const dialog = screen.getByRole('dialog', { name: i18n('access.permissions') })
+    const dialog = screen.getByRole('dialog')
     expect(within(dialog).getAllByRole('radio')).toHaveLength(2)
     expect(within(dialog).queryByText(/Pode visualizar|template existente|Acesso padrão/)).toBeNull()
     fireEvent.click(within(dialog).getByLabelText('Equipe'))
@@ -103,7 +104,7 @@ describe('gestão compartilhada de colaboradores', () => {
     await screen.findByText('Ana')
     fireEvent.click(screen.getByRole('button', { name: 'Ações de Ana' }))
     fireEvent.click(screen.getByRole('button', { name: i18n('access.remove-collaborator') }))
-    const dialog = screen.getByRole('dialog', { name: i18n('access.remove-collaborator') })
+    const dialog = screen.getByRole('dialog')
     expect(mocks.removeMember).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: i18n('access.remove-collaborator') }))
     await within(dialog).findByRole('alert')

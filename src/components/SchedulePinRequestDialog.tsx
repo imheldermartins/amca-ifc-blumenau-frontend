@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { Icon } from '@iconify/react'
 import { Button, cn } from 'cubs-components'
 import type { CalendarPinInput } from 'cubs-database'
 
-import { Modal } from '@/components/Modal'
 import { useFeedback } from '@/contexts/FeedbackContext'
 import { i18n } from '@/lib/i18n'
 import { THEME } from '@/lib/theme'
@@ -15,29 +14,21 @@ export interface SchedulePinRequestTarget extends CalendarPinInput {
 }
 
 export function SchedulePinRequestDialog({
-  open,
-  onOpenChange,
+  onClose,
   workspaceId,
   target,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   workspaceId: string | null
-  target: SchedulePinRequestTarget | null
+  target: SchedulePinRequestTarget
 }) {
   const feedback = useFeedback()
   const [search, setSearch] = useState('')
   const [recipientId, setRecipientId] = useState<string | null>(null)
-  useEffect(() => {
-    if (!open) return
-    setSearch('')
-    setRecipientId(null)
-  }, [open, target?.pageId])
-
   const recipients = useQuery({
     queryKey: ['schedule-pin-recipients', workspaceId ?? 'none', target?.pageId ?? 'none'],
     queryFn: () => scheduleService.recipients(workspaceId!, target!.pageId),
-    enabled: Boolean(open && workspaceId && target),
+    enabled: Boolean(workspaceId),
   })
   const filtered = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase()
@@ -61,7 +52,7 @@ export function SchedulePinRequestDialog({
         }),
         variant: 'success',
       })
-      onOpenChange(false)
+      onClose()
     },
     onError: () => feedback({
       title: i18n('pages.app.schedule.requestPinErrorTitle'),
@@ -70,10 +61,10 @@ export function SchedulePinRequestDialog({
     }),
   })
 
-  return <Modal open={open} onOpenChange={onOpenChange} size="sm" accessibleTitle={i18n('pages.app.schedule.requestPinTitle')}>
+  return <>
     <h2 className="text-lg font-semibold">{i18n('pages.app.schedule.requestPinTitle')}</h2>
     <p className={cn('mt-1 text-sm', THEME.textMuted)}>
-      {i18n('pages.app.schedule.requestPinDescription', { title: target?.title ?? '' })}
+      {i18n('pages.app.schedule.requestPinDescription', { title: target.title })}
     </p>
     <label className="mt-4 block">
       <span className="sr-only">{i18n('pages.app.schedule.searchRecipients')}</span>
@@ -112,11 +103,11 @@ export function SchedulePinRequestDialog({
       </button>)}
     </div>
     <div className="mt-4 flex justify-end gap-2">
-      <Button variant="text" color="from-theme" onClick={() => onOpenChange(false)}>{i18n('pages.app.schedule.cancel')}</Button>
+      <Button variant="text" color="from-theme" onClick={onClose}>{i18n('pages.app.schedule.cancel')}</Button>
       <Button variant="filled" color="purple" disabled={!recipientId || request.isPending} onClick={() => request.mutate()}>
         {request.isPending ? <Icon icon="lucide:loader-circle" className="size-4 animate-spin" /> : <Icon icon="solar:pin-bold" className="size-4" />}
         {i18n('pages.app.schedule.requestPinAction')}
       </Button>
     </div>
-  </Modal>
+  </>
 }

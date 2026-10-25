@@ -2,8 +2,6 @@ import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 import { FormProvider, useForm } from 'react-hook-form'
 import { Button, Select, TextField } from 'cubs-components'
-import { Modal } from '@/components/Modal'
-import { Typography } from '@/components/Typography'
 import { i18n } from '@/lib/i18n'
 import { validators } from '@/lib/validators'
 import { accessService, can, canDelegate, type AccessRole, type AccessScope, type ScopeAccess } from '@/services/AccessService'
@@ -11,8 +9,8 @@ import { AccessFeedback } from './AccessFeedback'
 import { expirationOptions, roleOptions } from './accessInviteOptions'
 
 interface LinkValues { roleId: string; expiresIn: '24h' | '7d' | 'never'; limitMode: string; customLimit: string }
-export function AccessLinkInviteDialog({ scope, id, access, roles, onClose, onInvited }: {
-  scope: AccessScope; id: string; access: ScopeAccess; roles: AccessRole[]; onClose: () => void; onInvited: () => Promise<void>
+export function AccessLinkInviteDialog({ scope, id, access, roles, onInvited }: {
+  scope: AccessScope; id: string; access: ScopeAccess; roles: AccessRole[]; onInvited: () => Promise<void>
 }) {
   const available = roles.filter((role) => canDelegate(access, role.roles))
   const form = useForm<LinkValues>({ defaultValues: { roleId: available.find((role) => role.isDefault)?.id ?? available[0]?.id ?? '', expiresIn: '24h', limitMode: 'one', customLimit: '2' } })
@@ -23,8 +21,7 @@ export function AccessLinkInviteDialog({ scope, id, access, roles, onClose, onIn
       return accessService.createInvite(scope, id, { recipientEmail: null, roleId: values.roleId, expiresIn: values.expiresIn, acceptanceLimit: values.limitMode === 'unlimited' ? null : values.limitMode === 'custom' ? Number(values.customLimit) : 1 })
     }, onSuccess: onInvited,
   })
-  return <Modal open size="sm" onOpenChange={(open) => { if (!open && !create.isPending) onClose() }} accessibleTitle={i18n('access.invite-by-link')}>
-    <Typography variant="h2" className="mb-5">{i18n('access.invite-by-link')}</Typography>
+  return <>
     {create.data?.inviteUrl ? <div className="grid gap-3">
       <TextField value={create.data.inviteUrl} readOnly aria-label={i18n('access.generic-link')} />
       <Button variant="filled" color="purple" onClick={async () => { try { await navigator.clipboard.writeText(create.data!.inviteUrl!); setCopy('copied') } catch { setCopy('error') } }}>{i18n('access.copy-link')}</Button>
@@ -38,5 +35,5 @@ export function AccessLinkInviteDialog({ scope, id, access, roles, onClose, onIn
       <Button type="submit" variant="filled" color="purple" disabled={create.isPending || !available.length}>{i18n('access.create-link')}</Button>
       {create.isError && <AccessFeedback error />}
     </form></FormProvider>}
-  </Modal>
+  </>
 }

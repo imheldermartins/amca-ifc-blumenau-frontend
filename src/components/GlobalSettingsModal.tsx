@@ -1,16 +1,13 @@
+import { useState } from 'react'
 import { Button, cn } from 'cubs-components'
 
-import { Modal } from '@components/Modal'
 import { Typography } from '@components/Typography'
 import { i18n } from '@/lib/i18n'
 
 export type GlobalSettingsFragment = '#profile' | '#settings'
 
-export interface GlobalSettingsModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fragment: GlobalSettingsFragment
-  onFragmentChange: (fragment: GlobalSettingsFragment) => void
+export interface GlobalSettingsContentProps {
+  initialFragment: GlobalSettingsFragment
 }
 
 const SECTIONS: Array<{
@@ -25,22 +22,12 @@ const SECTIONS: Array<{
  * Modal única das configurações globais. O fragmento é controlado pelo caller
  * para que qualquer gatilho do app possa abri-la diretamente na seção certa.
  */
-export function GlobalSettingsModal({
-  open,
-  onOpenChange,
-  fragment,
-  onFragmentChange,
-}: GlobalSettingsModalProps) {
+export function GlobalSettingsContent({ initialFragment }: GlobalSettingsContentProps) {
+  const [fragment, setFragment] = useState(initialFragment)
   const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
 
   return (
-    <Modal
-      open={open}
-      onOpenChange={onOpenChange}
-      size="xl"
-      accessibleTitle={i18n('pages.app.global-settings.title')}
-      className="p-0"
-    >
+    <>
       <div className="grid min-h-80 grid-cols-[10rem_minmax(0,1fr)]">
         <nav
           role="tablist"
@@ -63,7 +50,7 @@ export function GlobalSettingsModal({
                   'w-full justify-start px-2 py-1.5 font-medium',
                   selected && 'bg-active text-foreground',
                 )}
-                onClick={() => onFragmentChange(section.fragment)}
+                onClick={() => setFragment(section.fragment)}
               >
                 {i18n(section.labelKey)}
               </Button>
@@ -80,6 +67,6 @@ export function GlobalSettingsModal({
           <Typography variant="h2">{i18n(activeSection.labelKey)}</Typography>
         </section>
       </div>
-    </Modal>
+    </>
   )
 }

@@ -19,7 +19,7 @@ describe('Relation settings and cells',()=>{
     api.listRelationDatabases.mockResolvedValue({items:[{id:'another',title:'Outra base'}],nextCursor:null})
     const save=vi.fn().mockResolvedValue(undefined)
     render(<ColumnRelationRollupDialog target={{mode:'update',type:'relation',columnId:column.id}} workspaceId="workspace"
-      columns={[column]} onSave={save} onOpenChange={vi.fn()}/>)
+      columns={[column]} onSave={save} onClose={vi.fn()}/>)
     await waitFor(()=>expect(api.listRelationDatabases).toHaveBeenCalled())
     expect(screen.getByRole('combobox',{name:'Limite de páginas'}).textContent).toContain('Uma página')
     fireEvent.click(screen.getByRole('button',{name:'Salvar'}))
@@ -29,7 +29,7 @@ describe('Relation settings and cells',()=>{
   it('creates an inverse only after the user enables it and names the destination property',async()=>{
     const save=vi.fn().mockResolvedValue(undefined)
     render(<ColumnRelationRollupDialog target={{mode:'create',type:'relation'}} workspaceId="workspace"
-      columns={[]} onSave={save} onOpenChange={vi.fn()}/>)
+      columns={[]} onSave={save} onClose={vi.fn()}/>)
     await waitFor(()=>expect((screen.getByRole('button',{name:'Salvar'}) as HTMLButtonElement).disabled).toBe(false))
     expect(screen.queryByRole('textbox',{name:'Propriedade no destino'})).toBeNull()
     fireEvent.click(screen.getByRole('switch',{name:'Mostrar no destino'}))
@@ -41,7 +41,7 @@ describe('Relation settings and cells',()=>{
   it('keeps the editor open with the server error if existing values prevent a limit change',async()=>{
     const close=vi.fn(), save=vi.fn().mockRejectedValue(new Error('Existem células com várias páginas.'))
     render(<ColumnRelationRollupDialog target={{mode:'update',type:'relation',columnId:column.id}} workspaceId="workspace"
-      columns={[column]} onSave={save} onOpenChange={close}/>)
+      columns={[column]} onSave={save} onClose={close}/>)
     await waitFor(()=>expect((screen.getByRole('button',{name:'Salvar'}) as HTMLButtonElement).disabled).toBe(false))
     fireEvent.click(screen.getByRole('button',{name:'Salvar'}))
     expect((await screen.findByRole('alert')).textContent).toContain('Existem células com várias páginas.')

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Select, Switch, TextField } from 'cubs-components'
 
-import { Modal } from '@/components/Modal'
 import { i18n } from '@/lib/i18n'
 import { databaseService } from '@/services/DatabaseService'
 import type { ColumnConfigPatch, HeaderCol, RollupOperation } from 'cubs-database'
@@ -10,11 +9,11 @@ export type ColumnRelationRollupTarget =
   | { mode: 'create'; type: 'relation' | 'extract_as' }
   | { mode: 'update'; columnId: string; type: 'relation' | 'extract_as' }
 
-export function ColumnRelationRollupDialog({ target, workspaceId, columns, onOpenChange, onSave }: {
-  target: ColumnRelationRollupTarget | null
+export function ColumnRelationRollupDialog({ target, workspaceId, columns, onClose, onSave }: {
+  target: ColumnRelationRollupTarget
   workspaceId?: string
   columns: HeaderCol[]
-  onOpenChange: (open: boolean) => void
+  onClose: () => void
   onSave: (target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => Promise<void>
 }) {
   const [databases, setDatabases] = useState<Array<{ id: string; title: string | null }>>([])
@@ -131,18 +130,13 @@ export function ColumnRelationRollupDialog({ target, workspaceId, columns, onOpe
         ? { relation: { version: 1, targetDatabaseId: databaseId, cardinality, bidirectional,
           ...(bidirectional && {inverseCardinality, ...(!existing?.relation?.inverseColumnId && {inverseName: inverseName.trim()})}) } }
         : { rollup: { version: 1, relationColumnId, operation, ...(operation !== 'count' && { targetColumnId }) } })
-      onOpenChange(false)
+      onClose()
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Não foi possível salvar a configuração.')
     } finally { setSaving(false) }
   }
 
-  const title = target?.type === 'relation'
-    ? i18n('pages.app.cubs-database.relation-config.titulo-relacao')
-    : i18n('pages.app.cubs-database.relation-config.titulo-resumo')
-
-  return <Modal open={Boolean(target)} onOpenChange={open => {if (!saving) onOpenChange(open)}} size="sm" accessibleTitle={title}>
-    <h2 className="text-lg font-semibold">{title}</h2>
+  return <>
     <p className="mt-1 text-sm opacity-60">{target?.type === 'relation'
       ? i18n('pages.app.cubs-database.relation-config.descricao-relacao')
       : i18n('pages.app.cubs-database.relation-config.descricao-resumo')}</p>
@@ -182,8 +176,8 @@ export function ColumnRelationRollupDialog({ target, workspaceId, columns, onOpe
       </>}
     </div>
     <div className="mt-5 flex justify-end gap-2">
-      <Button variant="text" color="from-theme" disabled={saving} onClick={() => onOpenChange(false)}>{i18n('pages.app.cubs-database.relation-config.cancelar')}</Button>
+      <Button variant="text" color="from-theme" disabled={saving} onClick={onClose}>{i18n('pages.app.cubs-database.relation-config.cancelar')}</Button>
       <Button variant="filled" color="purple" disabled={!canSave || saving} onClick={() => {void save()}}>{saving ? 'Salvando…' : i18n('pages.app.cubs-database.relation-config.salvar')}</Button>
     </div>
-  </Modal>
+  </>
 }

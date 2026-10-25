@@ -2,7 +2,6 @@ import { Icon } from '@iconify/react'
 import { useNavigate } from '@tanstack/react-router'
 import { Button, cn } from 'cubs-components'
 
-import { Modal } from '@/components/Modal'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useNotifications } from '@/hooks/useNotifications'
@@ -95,7 +94,7 @@ function NotificationCard({
   </article>
 }
 
-export function NotificationCenter({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function NotificationCenter({ onClose }: { onClose: () => void }) {
   const { workspaceId } = useWorkspace()
   const { locale, slug } = useLanguage()
   const navigate = useNavigate()
@@ -108,10 +107,10 @@ export function NotificationCenter({ open, onOpenChange }: { open: boolean; onOp
       search: {},
       state: createPageNavigationState(pageId, title),
     })
-    onOpenChange(false)
+    onClose()
   }
 
-  return <Modal open={open} onOpenChange={onOpenChange} size="sm" accessibleTitle={i18n('pages.app.notifications.title')}>
+  return <>
     <div className="mb-4 flex items-center justify-between gap-3">
       <div>
         <h2 className="text-lg font-semibold">{i18n('pages.app.notifications.title')}</h2>
@@ -135,5 +134,5 @@ export function NotificationCenter({ open, onOpenChange }: { open: boolean; onOp
         onOpenPage={openPage}
       />)}
     </div>
-  </Modal>
+  </>
 }

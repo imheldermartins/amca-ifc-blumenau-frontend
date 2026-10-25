@@ -1,18 +1,16 @@
+import { useState } from 'react'
 import { Button, cn, SOFT_SELECTION_CLASSES } from 'cubs-components'
 
 import { AccessMembersPanel } from '@/pages/access/AccessMembersPanel'
-import { Modal } from '@components/Modal'
 import { Typography } from '@components/Typography'
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { i18n } from '@/lib/i18n'
 
 export type PageSettingsFragment = '#general' | '#collaborators'
 
-export interface PageSettingsModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  fragment: PageSettingsFragment
-  onFragmentChange: (fragment: PageSettingsFragment) => void
+export interface PageSettingsContentProps {
+  initialFragment: PageSettingsFragment
+  onFragmentChange?: (fragment: PageSettingsFragment) => void
   pageId?: string
   pageTitle: string | null
   onMembersChanged?: () => void
@@ -24,25 +22,18 @@ const SECTIONS: Array<{ fragment: PageSettingsFragment; labelKey: string }> = [
 ]
 
 /** Configurações locais da página, deep-linkadas por fragmento. */
-export function PageSettingsModal({
-  open,
-  onOpenChange,
-  fragment,
+export function PageSettingsContent({
+  initialFragment,
   onFragmentChange,
   pageId,
   pageTitle,
   onMembersChanged,
-}: PageSettingsModalProps) {
+}: PageSettingsContentProps) {
+  const [fragment, setFragment] = useState(initialFragment)
   const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
 
   return (
-    <Modal
-      open={open}
-      onOpenChange={onOpenChange}
-      size="xl"
-      accessibleTitle={i18n('pages.app.page-settings.title')}
-      className="p-0"
-    >
+    <>
       <div id="page-settings-dialog" className="grid min-h-80 grid-cols-1 sm:grid-cols-[10rem_minmax(0,1fr)]">
         <nav
           role="tablist"
@@ -65,7 +56,10 @@ export function PageSettingsModal({
                   'w-full justify-start px-2 py-1.5 font-medium',
                   selected && SOFT_SELECTION_CLASSES,
                 )}
-                onClick={() => onFragmentChange(section.fragment)}
+                onClick={() => {
+                  setFragment(section.fragment)
+                  onFragmentChange?.(section.fragment)
+                }}
               >
                 {i18n(section.labelKey)}
               </Button>
@@ -107,6 +101,6 @@ export function PageSettingsModal({
           )}
         </section>
       </div>
-    </Modal>
+    </>
   )
 }

@@ -20,19 +20,13 @@ const SIZES: Record<ModalSize, string> = {
 }
 
 export interface ModalProps {
-  /** Aberta? Controlada de fora — use `useDialog()` para não escrever isso na mão. */
+  /** Estado controlado pelo `ModalProvider`; consumidores usam `useModal()`. */
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Largura máxima. Padrão: `md`. */
   size?: ModalSize
-  /**
-   * Título APENAS para leitor de tela (`sr-only`). A modal não desenha título:
-   * o header só tem o botão de fechar, e o conteúdo visual inteiro é problema
-   * do `children`. Mesmo assim o Radix exige um `Dialog.Title` para anunciar o
-   * diálogo — sem ele, o leitor de tela abre uma caixa anônima (e o Radix
-   * reclama no console). Sempre via `i18n()`.
-   */
-  accessibleTitle: string
+  /** Controla fechamento por Escape, clique fora e botão X. Padrão: `true`. */
+  dismissible?: boolean
   /** Classes do corpo (a área rolável), não do container. */
   className?: string
   children: ReactNode
@@ -49,18 +43,14 @@ export interface ModalProps {
  * O conteúdo é livre (`children: ReactNode`): esta casca não impõe título,
  * rodapé nem botões. Quem abre monta a interface que quiser dentro.
  *
- * @example
- * const dialog = useDialog()
- * <Button onClick={dialog.openDialog}>Abrir</Button>
- * <Modal {...dialog.dialogProps} size="lg" accessibleTitle={i18n('...')}>
- *   <MinhaInterface />
- * </Modal>
+ * Esta primitiva é interna à infraestrutura global. Para abrir uma modal em
+ * qualquer área da aplicação, use `openModal({ content, ... })`.
  */
 export function Modal({
   open,
   onOpenChange,
   size = 'md',
-  accessibleTitle,
+  dismissible = true,
   className,
   children,
 }: ModalProps) {
@@ -80,6 +70,9 @@ export function Modal({
 
         <Dialog.Content
           aria-describedby={undefined}
+          onEscapeKeyDown={(event) => { if (!dismissible) event.preventDefault() }}
+          onPointerDownOutside={(event) => { if (!dismissible) event.preventDefault() }}
+          onInteractOutside={(event) => { if (!dismissible) event.preventDefault() }}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2',
             'w-[calc(100%-2rem)]',
@@ -90,15 +83,16 @@ export function Modal({
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
           )}
         >
-          <Dialog.Title className="sr-only">{accessibleTitle}</Dialog.Title>
-
-          <header className="flex shrink-0 items-center justify-end px-2 py-1">
+          <header className="flex shrink-0 items-center justify-end px-4 py-2">
+            {/* Exigência interna do Radix. Não faz parte da API nem é exibida. */}
+            <Dialog.Title className="sr-only">{i18n('common.modal')}</Dialog.Title>
             <Dialog.Close asChild>
               <Button
                 variant="text"
                 color="red"
                 className="px-1.5 py-1"
                 aria-label={i18n('common.fechar')}
+                disabled={!dismissible}
               >
                 <Icon icon="lucide:x" fontSize={18} />
               </Button>

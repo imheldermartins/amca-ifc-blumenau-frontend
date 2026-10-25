@@ -1,6 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SchedulePreviewPage } from './SchedulePage'
+import { ModalProvider } from '@/contexts/ModalContext'
+
+const renderPreview = () => render(<ModalProvider><SchedulePreviewPage /></ModalProvider>)
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -11,7 +14,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('schedule mockup', () => {
   it('uses one collapse action, card pins, and confirmation before unpinning', async () => {
-    render(<SchedulePreviewPage />)
+    renderPreview()
     expect(screen.getAllByRole('button', { name: 'Recolher lateral' })).toHaveLength(1)
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByText('Próximos itens')).toBeNull()
@@ -19,7 +22,7 @@ describe('schedule mockup', () => {
     expect(pin.closest('[data-pinned-page-card="page-7"]')).not.toBeNull()
     expect(pin.closest('article')?.className).toContain('p-3')
     fireEvent.click(pin)
-    expect(screen.getByRole('dialog', { name: 'Desafixar do calendário?' }).textContent).toContain('continuará disponível')
+    expect(screen.getByRole('dialog').textContent).toContain('continuará disponível')
     expect(document.querySelector('[data-calendar-item="page-7"]')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
     expect(screen.getByRole('button', { name: 'Desafixar Design do calendário' })).not.toBeNull()
@@ -30,7 +33,7 @@ describe('schedule mockup', () => {
   })
 
   it('retains the focal date across modes and keeps an unpinned page available to pin again', async () => {
-    render(<SchedulePreviewPage />)
+    renderPreview()
     fireEvent.click(screen.getByRole('tab', { name: 'Dia' }))
     await waitFor(() => expect(document.querySelector('[data-calendar-mode="day"]')).not.toBeNull())
     const calendar = within(screen.getByRole('tabpanel')).getByRole('region', { name: 'Calendário' })
@@ -49,7 +52,7 @@ describe('schedule mockup', () => {
   })
 
   it('keeps week and day charts compact without rendering item properties', async () => {
-    render(<SchedulePreviewPage />)
+    renderPreview()
     const calendar = within(screen.getByRole('tabpanel')).getByRole('region', { name: 'Calendário' })
     expect(calendar.querySelector('[data-calendar-item="page-7"]')?.textContent).toContain('Projeto')
 
@@ -65,7 +68,7 @@ describe('schedule mockup', () => {
   })
 
   it('defaults to the first select property and uses its ULID to change the color source', async () => {
-    render(<SchedulePreviewPage />)
+    renderPreview()
     const getEvent = () => document.querySelector('[data-calendar-item="page-8"]')
     expect(getEvent()?.className).toContain('bg-p-blue-600/15')
     fireEvent.click(within(screen.getByRole('complementary')).getByRole('button', { name: /^Revisão de componentes/ }))
@@ -76,7 +79,7 @@ describe('schedule mockup', () => {
   })
 
   it('selects a distant year through the scrollable keyboard list', async () => {
-    render(<SchedulePreviewPage />)
+    renderPreview()
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar ano' }))
     const list = screen.getByRole('listbox', { name: 'Ano' })
     fireEvent.keyDown(list, { key: 'End' })
