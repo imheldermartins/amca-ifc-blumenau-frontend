@@ -76,7 +76,7 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
   const period = useMemo<PageViewQueryScope>(() => ({ type: 'calendar', from: days[0], to: days.at(-1)! }), [days])
   const projectionReady = Boolean(pagination?.projection)
   const setScope = pagination?.setScope
-  useEffect(() => { if (projectionReady) setScope?.(period) }, [period, setScope, projectionReady])
+  useEffect(() => { if (projectionReady && dateColumn) setScope?.(period) }, [dateColumn, period, setScope, projectionReady])
   const previewRows = pagination ? pagination.streams[pageViewScopeKey(period)]?.rows ?? pagination.streams.root?.rows ?? EMPTY_ROWS : rows
   const items = useMemo(() => databaseCalendarItems(previewRows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds), [previewRows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds])
   const [selected, setSelected] = useState<CalendarItem<DatabaseCalendarItemTypes> | null>(null)
@@ -97,7 +97,7 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
   const selectColumns = columns.filter((column) => column.type === 'select')
   const renderers = useMemo<CalendarRenderers<DatabaseCalendarItemTypes>>(() => ({
     page: ({ page, properties }) => <div className="flex min-w-0 flex-col items-start justify-start">
-      <span data-calendar-title className="block w-full truncate text-sm font-medium leading-4">{page.title}</span>
+      <span data-calendar-title className="block w-full truncate text-sm font-medium leading-4"><DatabaseMentionText value={page.title} /></span>
       {properties?.length ? <CalendarProperties properties={properties} compact showLabels={showPropertyLabels} className="mt-1 w-full" /> : null}
     </div>,
   }), [showPropertyLabels])
@@ -129,7 +129,7 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
     <div className="relative min-h-0 flex-1 border-b border-divider">
       <Calendar items={items} date={date} locale={locale} monthItemHeight={64} onDateChange={setDate} renderers={renderers}
         dayCounts={pagination?.projection?.days}
-        renderDayOverflow={pagination ? (day) => <CalendarDayPages day={day} period={period} columns={columns} dateColumnId={dateColumn?.id}
+        renderDayOverflow={pagination && dateColumn ? (day) => <CalendarDayPages day={day} period={period} columns={columns} dateColumnId={dateColumn.id}
           colorColumnId={colorColumnId} propertyIds={calendarPropertyIds} showLabels={showPropertyLabels} pagination={pagination}
           onSelect={(item) => { setSelected(item); setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId); setConfirmingUnpin(false) }} /> : undefined}
         labels={{ calendar: labels?.calendar ?? 'Calendário' }} onItemClick={(item) => {
@@ -173,8 +173,9 @@ function CalendarDayPages({ day, period, columns, dateColumnId, colorColumnId, p
   return <div className="w-64 p-2" data-calendar-scroll>
     <VirtualInfiniteList items={items} itemKey={(item) => item.id} pagination={pagination} scope={scope} stream={stream} estimateSize={84} gap={4} className="max-h-72"
       renderItem={(item) => <button type="button" onClick={() => onSelect(item)} className="w-full rounded border border-divider bg-contrast p-2 text-left">
-        <span className="block truncate text-sm font-medium">{item.title}</span>
+        <span className="block truncate text-sm font-medium"><DatabaseMentionText value={item.title} /></span>
         {item.type === 'page' && item.data.properties?.length ? <CalendarProperties properties={item.data.properties} compact showLabels={showLabels} className="mt-1" /> : null}
       </button>} />
   </div>
 }
+import { DatabaseMentionText } from '../mentions'

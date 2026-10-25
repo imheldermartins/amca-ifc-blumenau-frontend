@@ -11,6 +11,7 @@ import { TextCellEditor } from './cells/TextCellEditor'
 import type { DatabasePagination } from '../pagination'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
 import { RelationChips } from './cells/RelationCellEditor'
+import { RowMentionProvider, useDatabaseMentions } from '../mentions'
 
 const ROOT_SCOPE = { type: 'root' } as const
 
@@ -31,16 +32,11 @@ function displayValue(row: RowData, column: HeaderCol): string | null {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : null
 }
 
-export function GridTile({
-  row,
-  columns,
-  propertyIds,
-  onOpen,
-  onCellChange,
-  onCellEditConflict,
-  cellErrors,
-  lockedColumnKeys,
-}: {
+export function GridTile(props: GridTileProps) {
+  return <RowMentionProvider row={props.row} columns={props.columns}><GridTileContent {...props} /></RowMentionProvider>
+}
+
+interface GridTileProps {
   row: RowData
   columns: HeaderCol[]
   propertyIds?: string[]
@@ -49,12 +45,24 @@ export function GridTile({
   onCellEditConflict?: (conflict: CellEditConflict) => void
   cellErrors?: ReadonlySet<string>
   lockedColumnKeys?: ReadonlySet<string>
-}) {
+}
+
+function GridTileContent({
+  row,
+  columns,
+  propertyIds,
+  onOpen,
+  onCellChange,
+  onCellEditConflict,
+  cellErrors,
+  lockedColumnKeys,
+}: GridTileProps) {
+  const mentions = useDatabaseMentions()
   const titleColumn = columns.find((column) => column.key === 'title' || column.id === 'page_title')
   const previousTitle = row.cells[titleColumn?.id ?? 'page_title']?.value
   const title = typeof previousTitle === 'string' ? previousTitle : ''
   const hasTitle = !!title
-  const displayedTitle = hasTitle ? title : 'Sem Título'
+  const displayedTitle = hasTitle ? mentions?.resolve(title) ?? title : 'Sem Título'
   const titleLocked = lockedColumnKeys?.has('title') || (titleColumn && lockedColumnKeys?.has(titleColumn.id))
   const titleError = titleColumn && cellErrors?.has(cellErrorKey(row.id, titleColumn.id))
   const propertyColumns = propertyIds === undefined
@@ -69,8 +77,7 @@ export function GridTile({
   return (
     <article data-list-row={row.id} className="group flex min-h-40 w-full min-w-0 max-w-full flex-col overflow-hidden rounded-xl border border-divider bg-background p-4 shadow-sm transition-shadow hover:shadow-md">
       <div className="mb-4 flex min-w-0 items-start gap-2 overflow-hidden">
-        <Icon icon="lucide:file-text" fontSize={18} className="mt-0.5 shrink-0" />
-        <h3 className={cn('min-w-0 flex-1 break-words font-semibold', titleError && 'text-p-red')}>
+        <h3 className={cn('min-w-0 flex-1 wrap-break-word font-semibold', titleError && 'text-p-red')}>
           {titleColumn && onCellChange && !titleLocked ? (
             <TextCellEditor
               rowId={row.id}
@@ -108,7 +115,7 @@ export function GridTile({
             <dd className="min-w-0 max-w-[60%] overflow-hidden truncate text-right">
               {column.type === 'formula' ? <FormulaResult value={row.cells[column.id]?.value} /> : column.type === 'relation'
                 ? <RelationChips column={column} value={row.cells[column.id]?.value} />
-                : value}
+                : column.type === 'text' && value ? mentions?.resolve(value) ?? value : value}
             </dd>
           </div>
         ))}

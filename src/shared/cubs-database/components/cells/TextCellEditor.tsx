@@ -1,5 +1,6 @@
 import { memo } from 'react'
-import { TextField, cn } from 'cubs-components'
+import { MentionTextField, cn } from 'cubs-components'
+import { useDatabaseMentions } from '../../mentions'
 
 import type { CellEditorProps } from '../../types'
 import { useExternalDraft } from './useExternalDraft'
@@ -28,6 +29,7 @@ export const TextCellEditor = memo(function TextCellEditor({
   onEditingEnd,
 }: CellEditorProps & { className?: string; inputClassName?: string; autoFocus?: boolean; onEditingEnd?: () => void }) {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value)
+  const mentions = useDatabaseMentions(column)
   const field = useExternalDraft(text, {
     interruptOnExternalChange: true,
     onConflict: onExternalConflict,
@@ -43,13 +45,15 @@ export const TextCellEditor = memo(function TextCellEditor({
   }
 
   return (
-    <TextField
+    <MentionTextField
+      mentions={mentions}
       autoFocus={autoFocus}
       aria-label={column.title}
       aria-invalid={hasError || undefined}
       surface="plain"
       size="sm"
-      type={column.mask === 'email' ? 'email' : 'text'}
+      type={column.mask === 'email' && !mentions ? 'email' : 'text'}
+      inputMode={column.mask === 'email' ? 'email' : undefined}
       className={cn('w-full', className)}
       inputClassName={inputClassName}
       placeholder={column.key === 'title' ? 'Sem Título' : undefined}
@@ -58,7 +62,7 @@ export const TextCellEditor = memo(function TextCellEditor({
       mask={column.mask}
       value={field.draft}
       onFocus={field.focus}
-      onChange={(event) => field.change(event.target.value)}
+      onValueChange={field.change}
       onBlur={() => { commit(); onEditingEnd?.() }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') event.currentTarget.blur()

@@ -7,6 +7,7 @@ import type { DatabaseCalendarProperty } from './calendarItems'
 import type { ColumnDataType } from './types'
 import { OptionChip } from './components/cells/OptionChip'
 import { RelationChips } from './components/cells/RelationCellEditor'
+import { DatabaseMentionText } from './mentions'
 
 export interface CalendarPropertyRenderContext {
   compact: boolean
@@ -22,7 +23,7 @@ export type CalendarPropertyRenderer = (
  * tipo; esta é a única camada que decide como cada propriedade aparece.
  */
 export const mappedProps: Record<ColumnDataType, CalendarPropertyRenderer> = {
-  text: ({ value }) => <span className="block min-w-0 max-w-full truncate">{value}</span>,
+  text: ({ value }) => <span className="block min-w-0 max-w-full truncate"><DatabaseMentionText value={value} /></span>,
   numeric: ({ value }) => <span className="block min-w-0 max-w-full truncate tabular-nums">{value}</span>,
   date: ({ value }) => <span className="block min-w-0 max-w-full truncate tabular-nums">{value}</span>,
   checkbox: ({ rawValue }) => (

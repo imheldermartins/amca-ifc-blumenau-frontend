@@ -17,6 +17,7 @@ import { CELL_EDITORS } from './cells'
 import { OptionChip } from './cells/OptionChip'
 import { RelationChips } from './cells/RelationCellEditor'
 import { FlowActionButton } from './FlowActionButton'
+import { DatabaseMentionText } from '../mentions'
 
 function CellValue({
   type,
@@ -64,7 +65,7 @@ function CellValue({
   }
   return (
     <span className={cn('min-w-0 max-w-full flex-1 truncate', type === 'numeric' && 'tabular-nums')}>
-      {formatCellValue(value)}
+      {type === 'text' ? <DatabaseMentionText value={formatCellValue(value)} /> : formatCellValue(value)}
     </span>
   )
 }

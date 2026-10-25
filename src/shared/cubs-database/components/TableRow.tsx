@@ -20,6 +20,7 @@ import type { ColumnHeaderMenuLabels } from './ColumnHeaderMenu'
 import { RowActionsMenu, type RowActionsMenuLabels } from './RowActionsMenu'
 import type { BatchRowActionsMenuLabels } from './BatchRowActionsMenu'
 import { TableCell } from './TableCell'
+import { RowMentionProvider } from '../mentions'
 
 /** Largura da célula de controles — o header usa o MESMO valor para alinhar. */
 export const CONTROL_CELL_WIDTH = 'w-28 min-w-28 max-w-28 overflow-hidden whitespace-nowrap'
@@ -130,6 +131,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
   const shiftClickRef = useRef(false)
 
   return (
+    <RowMentionProvider row={row} columns={columns}>
     <div
       role="row"
       ref={setNodeRef}
@@ -221,6 +223,7 @@ export const TableRow = memo(function TableRow({ row, rowIndex, columns, columnW
         />
       ))}
     </div>
+    </RowMentionProvider>
   )
 })
 

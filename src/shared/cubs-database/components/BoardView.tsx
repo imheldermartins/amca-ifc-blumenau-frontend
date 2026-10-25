@@ -82,11 +82,16 @@ interface CardProps extends Pick<BoardViewProps, 'onOpenRow' | 'onCellChange' | 
 }
 
 /** The exact same visual component is rendered in the list and the overlay. */
-export const BoardCard = memo(function BoardCard({ row, columns, color, showLabels, editing, autoFocus, overlay, handle, onEdit, onFinish,
+export const BoardCard = memo(function BoardCard(props: CardProps) {
+  return <RowMentionProvider row={props.row} columns={props.columns}><BoardCardContent {...props} /></RowMentionProvider>
+})
+
+function BoardCardContent({ row, columns, color, showLabels, editing, autoFocus, overlay, handle, onEdit, onFinish,
   onOpenRow, onCellChange, onCellEditConflict, lockedColumnKeys, cellErrors, onFlowOpen }: CardProps) {
   const titleColumn = columns.find((column) => column.key === 'title')
   const previousTitle = titleColumn ? row.cells[titleColumn.id]?.value : undefined
-  const title = String(previousTitle || 'Sem título')
+  const mentions = useDatabaseMentions()
+  const title = mentions?.resolve(String(previousTitle || 'Sem título')) ?? String(previousTitle || 'Sem título')
   const locked = (column: HeaderCol) => Boolean(lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id))
   const properties = databaseCardProperties(row, columns.filter((column) => column !== titleColumn), Boolean(editing))
   const commit = (column: HeaderCol, value: unknown) => {
@@ -128,7 +133,7 @@ export const BoardCard = memo(function BoardCard({ row, columns, color, showLabe
       })}
     </dl> : null}
   </article>
-})
+}
 
 interface ColumnProps {
   optionKey: string
@@ -579,3 +584,4 @@ export function BoardView({ columns, rows, allRows = rows, config, onConfigChang
       onExecute={flowLocked ? undefined : onFlowExecute} onSave={flowLocked ? undefined : onFlowConfigChange} onButtonChange={flowLocked ? undefined : onColumnConfigChange} />
   </div></MotionConfig>
 }
+import { RowMentionProvider, useDatabaseMentions } from '../mentions'

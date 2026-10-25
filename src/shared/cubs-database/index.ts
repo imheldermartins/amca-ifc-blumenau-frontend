@@ -243,3 +243,5 @@ export type {
   FilterValueInput,
   ParsedViewFilters,
 } from './viewFilters'
+export { DatabaseMentionProvider, PageMentionProvider, RowMentionProvider, useDatabaseMentions } from './mentions'
+export type { PageMentionData } from './mentions'
