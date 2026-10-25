@@ -24,12 +24,10 @@ vi.mock('@/contexts/WorkspaceContext', () => ({ useWorkspace: () => ({
 vi.mock('@/hooks/useClientStorage', () => ({ useLocalStorageState: () => [false, vi.fn()] }))
 vi.mock('@/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light', toggleTheme: vi.fn() }) }))
 vi.mock('@/hooks/useNotifications', () => ({ useNotifications: () => ({ unreadCount: 0 }) }))
-vi.mock('@/hooks/useDialog', () => ({ useDialog: () => ({
-  dialogProps: { open: false, onOpenChange: vi.fn() }, openDialog: vi.fn(), closeDialog: vi.fn(),
-}) }))
+vi.mock('@/hooks/useModal', () => ({ useModal: () => ({ openModal: vi.fn() }) }))
 vi.mock('@/lib/i18n', () => ({ DEFAULT_LANGUAGE: { slug: 'pt-br' }, i18n: (key: string) => key }))
-vi.mock('@components/GlobalSettingsModal', () => ({ GlobalSettingsModal: () => null }))
-vi.mock('@components/SignOutConfirmationModal', () => ({ SignOutConfirmationModal: () => null }))
+vi.mock('@components/GlobalSettingsModal', () => ({ GlobalSettingsContent: () => null }))
+vi.mock('@components/SignOutConfirmationModal', () => ({ SignOutConfirmationContent: () => null }))
 vi.mock('@components/SearchBar', () => ({
   SearchBar: ({ className }: { className?: string }) => <div role='search' className={className} />,
 }))
