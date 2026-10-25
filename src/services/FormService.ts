@@ -1,4 +1,4 @@
-import type { CatalogIcon, ColumnMask, CurrencyCode, NumberFormat } from 'cubs-database'
+import type { CatalogIcon, ColumnMask, CurrencyCode, HeaderCol, NumberFormat, RelationTarget } from 'cubs-database'
 
 import { apiService } from '@/services/ApiService'
 
@@ -6,7 +6,8 @@ export interface PublicFormField {
   readOnly?: boolean
   key: string
   label: string
-  type: 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
+  type: 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'relation'
+  relation?: HeaderCol['relation']
   mask?: ColumnMask
   format?: NumberFormat
   currency?: CurrencyCode
@@ -88,6 +89,16 @@ export class FormService {
 
   definition(publicationId: string, capability: string): Promise<PublicFormDefinition> {
     return apiService.getPublic(`/forms/publications/${publicationId}`, {
+      headers: capabilityHeaders(capability),
+    })
+  }
+
+  relationOptions(publicationId: string, capability: string, fieldKey: string, input: { search?: string; cursor?: string; limit?: number } = {}): Promise<{ items: RelationTarget[]; nextCursor: string | null }> {
+    const query = new URLSearchParams()
+    if (input.search) query.set('search', input.search)
+    if (input.cursor) query.set('cursor', input.cursor)
+    if (input.limit) query.set('limit', String(input.limit))
+    return apiService.getPublic(`/forms/publications/${publicationId}/fields/${encodeURIComponent(fieldKey)}/relation-options?${query}`, {
       headers: capabilityHeaders(capability),
     })
   }

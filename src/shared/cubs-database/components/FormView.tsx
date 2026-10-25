@@ -186,7 +186,7 @@ export function FormView({
       if (lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id)) return []
       const raw = values[column.id] ?? (column.type === 'checkbox' ? false : '')
       const value = serializeValue(column, raw)
-      return value === undefined || value === '' ? [] : [{ key: answerKey(column), value }]
+      return value === undefined || value === '' || value === null ? [] : [{ key: answerKey(column), value }]
     })
     setStatus('submitting')
     try {

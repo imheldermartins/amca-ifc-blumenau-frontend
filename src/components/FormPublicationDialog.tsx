@@ -1,40 +1,28 @@
 import { Icon } from '@iconify/react'
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button, cn } from 'cubs-components'
 
-import { Modal } from '@/components/Modal'
 import { formService, type FormPublicationSecrets } from '@/services/FormService'
 
 export function FormPublicationDialog({
-  open,
-  onOpenChange,
   pageId,
   viewId,
   lang,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
   pageId: string
-  viewId: string | null
+  viewId: string
   lang: string
 }) {
   const status = useQuery({
     queryKey: ['form-publication', pageId, viewId ?? 'none'],
     queryFn: () => formService.status(pageId, viewId!),
-    enabled: Boolean(open && viewId),
+    enabled: true,
     retry: false,
   })
   const [secrets, setSecrets] = useState<FormPublicationSecrets | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  useEffect(() => {
-    if (!open) {
-      setSecrets(null)
-      setError('')
-    }
-  }, [open, viewId])
-
   const publish = async () => {
     if (!viewId || busy) return
     setBusy(true)
@@ -71,8 +59,7 @@ export function FormPublicationDialog({
     ? `${window.location.origin}/${lang}/forms/${secrets.publicationId}/review#key=${secrets.reviewKey}`
     : null
 
-  return <Modal open={open} onOpenChange={onOpenChange} size="md" accessibleTitle="Publicar formulário">
-    <h2 className="text-lg font-semibold">Publicar formulário</h2>
+  return <>
     <p className="mt-1 text-sm opacity-60">Gere chaves separadas para responder e revisar. Novas chaves invalidam imediatamente os links anteriores.</p>
     {status.isPending ? <div className="flex min-h-32 items-center justify-center"><Icon icon="lucide:loader-circle" className="size-5 animate-spin text-p-purple" /></div> : <div className="mt-5 grid gap-4">
       {active?.published && !secrets && <div className="rounded-xl border border-divider bg-active p-4 text-sm">
@@ -91,7 +78,7 @@ export function FormPublicationDialog({
         {active?.published ? 'Rotacionar chaves' : 'Publicar e gerar links'}
       </Button>
     </div>
-  </Modal>
+  </>
 }
 
 function SecretLink({ label, url }: { label: string; url: string }) {

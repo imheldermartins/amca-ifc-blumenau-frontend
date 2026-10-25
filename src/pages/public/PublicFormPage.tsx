@@ -77,6 +77,13 @@ export function PublicFormPage({ publicationId }: { publicationId: string }) {
               id: field.key,
               label: field.label,
               type: field.type,
+              ...(field.type === 'relation' && { relationColumn: {
+                id: `${publicationId}:${field.key}`,
+                title: field.label,
+                type: 'relation' as const,
+                relation: field.relation,
+                loadRelationOptions: (input) => formService.relationOptions(publicationId, capability, field.key, input),
+              } }),
               ...(field.mask && { mask: field.mask }),
               ...(field.options && {
                 options: field.options.map((option) => ({

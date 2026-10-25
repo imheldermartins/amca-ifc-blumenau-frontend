@@ -3,7 +3,8 @@ import type { ColumnMask, FormViewConfig, HeaderCol } from './types'
 export interface FormInputField {
   id: string
   label: string
-  type: 'text' | 'numeric' | 'select' | 'date' | 'checkbox'
+  type: 'text' | 'numeric' | 'select' | 'date' | 'checkbox' | 'relation'
+  relationColumn?: HeaderCol
   mask?: ColumnMask
   options?: Array<{ value: string; label: string }>
 }
@@ -32,7 +33,7 @@ export function createDefaultFormViewConfig(
 }
 
 export function formFieldColumns(columns: readonly HeaderCol[]): HeaderCol[] {
-  return columns.filter((column) => column.type !== 'flow' && column.type !== 'relation' && column.type !== 'extract_as' && column.type !== 'formula')
+  return columns.filter((column) => column.type !== 'flow' && column.type !== 'extract_as' && column.type !== 'formula')
 }
 
 export function formInputFieldFromColumn(column: HeaderCol): FormInputField {
@@ -40,12 +41,14 @@ export function formInputFieldFromColumn(column: HeaderCol): FormInputField {
     || column.type === 'select'
     || column.type === 'date'
     || column.type === 'checkbox'
+    || column.type === 'relation'
     ? column.type
     : 'text'
   return {
     id: column.id,
     label: column.title,
     type,
+    ...(type === 'relation' && { relationColumn: column }),
     ...(type === 'text' && column.mask && { mask: column.mask }),
     ...(type === 'select' && {
       options: (column.options ?? []).map((option) => ({

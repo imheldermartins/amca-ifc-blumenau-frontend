@@ -1,9 +1,24 @@
 {
+  "favorites": {
+    "title": "Favoritos", "add-named": "Adicionar {{title}} aos favoritos", "remove-named": "Remover {{title}} dos favoritos",
+    "remove": "Remover dos favoritos", "empty": "Use a estrela no cabeçalho de uma página para adicioná-la aqui.",
+    "more": "Carregar mais favoritos", "retry": "Tentar novamente", "load-error": "Não foi possível carregar os favoritos.",
+    "write-error": "Não foi possível atualizar o favorito."
+  },
+  "mentions": {
+    "label": "Variáveis e menções",
+    "empty": "Nenhuma variável disponível para esta busca.",
+    "me": "Eu",
+    "unavailable": "Variável indisponível",
+    "sections": { "users": "Usuários", "pages": "Página atual", "workspace": "Workspace", "organization": "Organização" },
+    "fields": { "name": "Nome", "email": "E-mail", "title": "Título" }
+  },
   "common": {
     "app-name": "Cub's",
     "carregando": "Carregando...",
     "sair": "Sair",
     "fechar": "Fechar",
+    "modal": "Janela",
     "mudar-tema-claro": "Mudar para o tema claro",
     "mudar-tema-escuro": "Mudar para o tema escuro",
     "recolher-menu": "Recolher menu lateral",
@@ -71,6 +86,8 @@
         "check-list": "Checklist",
         "image": "Imagem",
         "form-submit": "Enviar formulário",
+        "math-block": "Equação em bloco",
+        "code-block": "Bloco de código",
         "custom-node": "Nó customizado"
       },
       "editor": {
@@ -86,12 +103,14 @@
         "uncheck-item": "Desmarcar {{item}}"
       },
       "block-library": {
-        "add": "Adicionar bloco de texto",
-        "add-default-help": "Clique para texto; mantenha o ponteiro por 2 segundos para escolher outro bloco",
+        "add": "Adicionar bloco",
+        "add-default-help": "Escolher um tipo de bloco",
         "dock": "Tipos de bloco",
-        "more": "Ver mais blocos",
+        "more": "Mais",
         "title": "Todos os blocos",
-        "description": "Escolha um tipo. Este catálogo também define as predefinições de payload usadas pelo editor.",
+        "description": "Escolha o que deseja adicionar ao seu documento.",
+        "choose-form": "Escolha o formulário",
+        "sections": { "text": "Texto e listas", "technical": "Matemática e código", "media": "Mídia e interação" },
         "image-compression": "Compressão de imagens",
         "image-compression-help": "Upload e Ctrl+V usam automaticamente a mesma pipeline: primeiro reduzimos as dimensões e depois reencodamos a imagem em WebP.",
         "compression-stage-dimensions": "1. Redução proporcional",
@@ -105,7 +124,9 @@
           "bullet-list": "Lista não ordenada com marcadores.",
           "numbered-list": "Lista ordenada com numeração.",
           "check-list": "Lista de tarefas com itens marcáveis.",
-          "form-submit": "Botão conectado a uma visualização de formulário desta página."
+          "form-submit": "Botão conectado a uma visualização de formulário desta página.",
+          "math-block": "Expressão matemática ocupando um bloco inteiro, com edição de LaTeX em popup.",
+          "code-block": "Código em bloco, com seleção de linguagem e destaque de sintaxe."
         },
         "compression": {
           "light": {
@@ -149,6 +170,14 @@
         "headings": "Títulos",
         "heading": "Título H{{level}}"
       },
+      "math": {
+        "edit": "Editar expressão matemática",
+        "remove": "Remover expressão matemática",
+        "remove-label": "Remover",
+        "open-delimiter": "Delimitador de abertura",
+        "close-delimiter": "Delimitador de fechamento"
+      },
+      "code": { "language": "Linguagem do código" },
       "colors": {
         "purple": "Roxo",
         "blue": "Azul",
@@ -342,9 +371,16 @@
         "user-added": "Adicionado",
         "user-add-error": "Não foi possível adicionar o usuário à organização e à workspace."
       },
+      "variables": {
+        "description": "Defina textos reutilizáveis. Digite @ nos títulos e no editor para inserir uma referência que acompanha as alterações.",
+        "key": "Chave", "value": "Valor", "new-key": "Nova chave", "new-value": "Valor da variável",
+        "value-for": "Valor de {{key}}", "remove": "Remover {{key}}", "add": "Adicionar variável",
+        "saved": "Variável salva.", "error": "Não foi possível salvar a variável."
+      },
       "settings": {
         "title": "Configurar espaço de trabalho",
-        "back": "Voltar para espaços de trabalho",
+        "variables": "Variáveis",
+        "back": "Voltar",
         "navigation": "Configurações",
         "workspace": "Espaço de trabalho",
         "breadcrumb": "Caminho das configurações",
@@ -352,7 +388,6 @@
         "personal": "Seu espaço pessoal",
         "personal-space": "Espaço pessoal",
         "organization-space": "Espaço da organização",
-        "back-to-workspace": "Voltar para o espaço de trabalho",
         "open": "Abrir",
         "discard": "Descartar",
         "name-required": "Informe o nome do espaço de trabalho.",
@@ -376,7 +411,7 @@
         "role-error": "Não foi possível alterar a role.",
         "loading": "Carregando espaço de trabalho...",
         "load-error": "Não foi possível carregar este espaço de trabalho.",
-        "exit": "Selecionar outro espaço de trabalho"
+        "exit": "Mudar de espaço de trabalho"
       },
       "icons": {
         "choose": "Escolher ícone",
@@ -548,7 +583,9 @@
           "document": {
             "label": "Editor de blocos",
             "title": "Editor de blocos em breve",
-            "description": "Esta visualização será conectada ao editor de blocos da página."
+            "description": "Esta visualização será conectada ao editor de blocos da página.",
+            "save-success": "Conteúdo salvo",
+            "save-error": "Não foi possível salvar o conteúdo"
           }
         }
       },
@@ -777,6 +814,12 @@
           "duplicar": "Duplicar view",
           "excluir": "Excluir view"
         },
+        "delete-view": {
+          "title": "Excluir visualização",
+          "question": "Deseja realmente excluir a visualização “{{viewName}}”?",
+          "confirm": "Excluir visualização",
+          "cancel": "Cancelar"
+        },
         "url-filters": {
           "title": "Filtros e agrupamentos da URL",
           "question": "Deseja substituir os filtros e agrupamentos salvos pelos desta URL?",
@@ -949,9 +992,17 @@
     "cancel": "Cancelar"
   },
   "organization": {
+    "settings": {
+      "navigation": "Configurações da organização", "breadcrumb": "Caminho das configurações da organização",
+      "workspaces": "Espaços de trabalho", "variables": "Variáveis", "members": "Colaboradores", "permissions": "Permissões",
+      "saved": "Nome da organização salvo.", "save-error": "Não foi possível salvar o nome da organização.",
+      "name-required": "Informe um nome com até 120 caracteres.", "load-error": "Não foi possível carregar esta organização.",
+      "workspace-settings": "Configurar {{name}}", "preferred": "Definir {{name}} como espaço preferido", "link-title": "Vincular espaço de trabalho", "enter-workspace": "Entrar em {{name}}"
+    },
     "title": "Organizações",
     "single": "Organização",
     "create": "Criar organização",
+    "new": "Nova organização",
     "creating": "Criando organização…",
     "open": "Abrir organização",
     "empty": "Você ainda não participa de uma organização.",
@@ -961,7 +1012,7 @@
     "create-help": "Sua conta validada será definida como owner. Depois da criação, você poderá adicionar e vincular workspaces.",
     "create-error": "Não foi possível criar a organização. Confira o nome e tente novamente.",
     "workspaces": "Workspaces",
-    "new-workspace": "Nova workspace",
+    "new-workspace": "Novo espaço de trabalho",
     "view-organizations": "Visualizar organizações",
     "empty-workspaces": "Esta organização ainda não possui workspaces.",
     "enter": "Entrar",

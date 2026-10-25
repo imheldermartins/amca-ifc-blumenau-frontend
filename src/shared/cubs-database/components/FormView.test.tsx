@@ -67,9 +67,9 @@ describe('FormView', () => {
   it('constrói um campo por coluna não-Flow e alterna para o preview', () => {
     render(<FormView columns={columns} config={config} />)
 
-    expect(screen.getByText('6 campos')).not.toBeNull()
+    expect(screen.getByText('7 campos')).not.toBeNull()
     expect(screen.queryByText('Disparar')).toBeNull()
-    expect(screen.queryByText('Relação')).toBeNull()
+    expect((screen.getByRole('button', { name: 'Relação' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByText('Resumo')).toBeNull()
     expect((screen.getByLabelText('Nome') as HTMLInputElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Visualizar formulário' }))
@@ -105,6 +105,42 @@ describe('FormView', () => {
       ],
     })
     expect(screen.getByRole('status').textContent).toContain('Resposta enviada com sucesso.')
+  })
+
+  it.each(['one', 'many'] as const)('preenche relações %s e envia os IDs com a chave pública', async (cardinality) => {
+    const loadRelationOptions = vi.fn(async () => ({ items: [{ id: 'a', title: 'Pedido A' }, { id: 'b', title: 'Pedido B' }], nextCursor: null }))
+    const onSubmit = vi.fn(async () => undefined)
+    const relationColumns = columns.map((column) => column.id === RELATION_ID ? {
+      ...column, relation: { ...column.relation!, cardinality }, loadRelationOptions,
+      relationTargets: { other: { id: 'other', title: 'Outra base' } },
+    } : column)
+    render(<FormView columns={relationColumns} config={config} onSubmit={onSubmit} initialMode="preview" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Relação' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pedido A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pedido B' }))
+    expect(screen.queryByRole('button', { name: 'Outra base' })).toBeNull()
+    expect(loadRelationOptions).toHaveBeenCalledWith({ search: undefined, limit: 50 })
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar inscrição' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fields: [
+      { key: 'ativo', value: false }, { key: 'relacao', value: cardinality === 'one' ? ['b'] : ['a', 'b'] },
+    ] })))
+    expect(screen.queryByText('Resumo')).toBeNull()
+  })
+
+  it('permite remover relações e respeita campos ocultos e bloqueados', async () => {
+    const loadRelationOptions = vi.fn(async () => ({ items: [{ id: 'a', title: 'Pedido A' }], nextCursor: null }))
+    const onSubmit = vi.fn(async () => undefined)
+    const relationColumns = columns.map((column) => column.id === RELATION_ID ? { ...column, loadRelationOptions } : column)
+    const view = render(<FormView columns={relationColumns} config={config} onSubmit={onSubmit} initialMode="preview" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Relação' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Pedido A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Pedido A' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar inscrição' }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ fields: [{ key: 'ativo', value: false }] })))
+    view.rerender(<FormView columns={relationColumns} config={config} lockedColumnKeys={new Set([RELATION_ID])} />)
+    expect((screen.getByRole('button', { name: 'Relação' }) as HTMLButtonElement).disabled).toBe(true)
+    view.rerender(<FormView columns={relationColumns} config={{ ...config, hiddenFieldIds: [RELATION_ID] }} />)
+    expect(screen.queryByRole('button', { name: 'Relação' })).toBeNull()
   })
 
   it('fica em estado reparável quando o Flow vinculado não existe', () => {
