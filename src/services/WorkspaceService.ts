@@ -66,6 +66,10 @@ export class WorkspaceService {
     return apiService.get<ApiWorkspaceMember[]>(`/workspaces/${workspaceId}/members`)
   }
 
+  setVariable(workspaceId: string, key: string, value: string | null): Promise<ApiWorkspace> {
+    return apiService.patch<ApiWorkspace>(`/workspaces/${workspaceId}/variables`, { key, value })
+  }
+
   updateMemberRole(
     workspaceId: string,
     userId: string,
@@ -79,6 +83,13 @@ export class WorkspaceService {
 
   listOrganizations(): Promise<ApiOrganization[]> {
     return apiService.get<ApiOrganization[]>('/organizations')
+  }
+
+  getOrganization(id: string): Promise<ApiOrganization> { return apiService.get(`/organizations/${id}`) }
+  updateOrganization(id: string, name: string): Promise<ApiOrganization> { return apiService.put(`/organizations/${id}`, { name }) }
+  organizationWorkspaces(id: string): Promise<ApiOrganizationWorkspace[]> { return apiService.get(`/organizations/${id}/workspaces`) }
+  setOrganizationVariable(id: string, key: string, value: string | null): Promise<ApiOrganization> {
+    return apiService.patch(`/organizations/${id}/variables`, { key, value })
   }
 
   createOrganization(input: { name: string }): Promise<ApiOrganization> {

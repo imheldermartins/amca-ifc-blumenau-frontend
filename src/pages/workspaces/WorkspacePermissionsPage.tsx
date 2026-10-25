@@ -3,7 +3,7 @@ import { AccessRouteProvider } from '@/contexts/AccessRouteContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { defineWorkspaceAbility } from '@/lib/workspaceAbility'
 import { RolesPage } from '@/pages/access/AccessPages'
-import { useWorkspaceSettings } from './useWorkspaceSettings'
+import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings'
 
 export function WorkspacePermissionsPage() {
   const workspace = useWorkspaceSettings()

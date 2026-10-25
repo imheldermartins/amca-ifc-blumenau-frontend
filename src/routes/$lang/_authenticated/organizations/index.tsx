@@ -1,3 +1,2 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { OrganizationsPage } from '@/pages/organizations/OrganizationPages'
-export const Route = createFileRoute('/$lang/_authenticated/organizations/')({component: OrganizationsPage})
+import { createFileRoute, redirect } from '@tanstack/react-router'
+export const Route = createFileRoute('/$lang/_authenticated/organizations/')({ beforeLoad: ({ params }) => { throw redirect({ to: '/$lang/workspaces', params: { lang: params.lang }, search: { choose: true, tab: 'workspaces' }, replace: true }) } })

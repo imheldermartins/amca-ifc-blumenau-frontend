@@ -27,18 +27,24 @@ import { Route as LangPublicGuestSignInRouteImport } from './routes/$lang/_publi
 import { Route as LangAuthenticatedWorkspacesNewRouteImport } from './routes/$lang/_authenticated/workspaces/new'
 import { Route as LangAuthenticatedWorkspaceWorkspaceIdRouteImport } from './routes/$lang/_authenticated/workspace/$workspaceId'
 import { Route as LangAuthenticatedOrganizationsNewRouteImport } from './routes/$lang/_authenticated/organizations/new'
-import { Route as LangAuthenticatedOrganizationsOrganizationIdRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId'
 import { Route as LangAuthenticatedAppScheduleRouteImport } from './routes/$lang/_authenticated/_app/schedule'
 import { Route as LangAuthenticatedAppMyChatRouteImport } from './routes/$lang/_authenticated/_app/my-chat'
 import { Route as LangAuthenticatedAppColaborandoRouteImport } from './routes/$lang/_authenticated/_app/colaborando'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdRouteRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/route'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdRouteRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/route'
 import { Route as LangPublicFormsPublicationIdIndexRouteImport } from './routes/$lang/_public/forms/$publicationId/index'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdIndexRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/index'
 import { Route as LangPublicFormsPublicationIdReviewRouteImport } from './routes/$lang/_public/forms/$publicationId/review'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdWorkspacesRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/workspaces'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdVariablesRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/variables'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdPermissionsRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/permissions'
+import { Route as LangAuthenticatedOrganizationsOrganizationIdMembersRouteImport } from './routes/$lang/_authenticated/organizations/$organizationId/members'
 import { Route as LangAuthenticatedAppPagePageIdRouteImport } from './routes/$lang/_authenticated/_app/page/$pageId'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/route'
 import { Route as LangAuthenticatedAccessScopeScopeIdRouteRouteImport } from './routes/$lang/_authenticated/access/$scope/$scopeId/route'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/index'
 import { Route as LangAuthenticatedAccessScopeScopeIdIndexRouteImport } from './routes/$lang/_authenticated/access/$scope/$scopeId/index'
+import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/variables'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/members'
 import { Route as LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRouteImport } from './routes/$lang/_authenticated/workspaces/$workspaceId/settings/general'
@@ -142,12 +148,6 @@ const LangAuthenticatedOrganizationsNewRoute =
     path: '/organizations/new',
     getParentRoute: () => LangAuthenticatedRouteRoute,
   } as any)
-const LangAuthenticatedOrganizationsOrganizationIdRoute =
-  LangAuthenticatedOrganizationsOrganizationIdRouteImport.update({
-    id: '/organizations/$organizationId',
-    path: '/organizations/$organizationId',
-    getParentRoute: () => LangAuthenticatedRouteRoute,
-  } as any)
 const LangAuthenticatedAppScheduleRoute =
   LangAuthenticatedAppScheduleRouteImport.update({
     id: '/schedule',
@@ -172,17 +172,58 @@ const LangAuthenticatedWorkspacesWorkspaceIdRouteRoute =
     path: '/$workspaceId',
     getParentRoute: () => LangAuthenticatedWorkspacesRouteRoute,
   } as any)
+const LangAuthenticatedOrganizationsOrganizationIdRouteRoute =
+  LangAuthenticatedOrganizationsOrganizationIdRouteRouteImport.update({
+    id: '/organizations/$organizationId',
+    path: '/organizations/$organizationId',
+    getParentRoute: () => LangAuthenticatedRouteRoute,
+  } as any)
 const LangPublicFormsPublicationIdIndexRoute =
   LangPublicFormsPublicationIdIndexRouteImport.update({
     id: '/forms/$publicationId/',
     path: '/forms/$publicationId/',
     getParentRoute: () => LangPublicRouteRoute,
   } as any)
+const LangAuthenticatedOrganizationsOrganizationIdIndexRoute =
+  LangAuthenticatedOrganizationsOrganizationIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () =>
+      LangAuthenticatedOrganizationsOrganizationIdRouteRoute,
+  } as any)
 const LangPublicFormsPublicationIdReviewRoute =
   LangPublicFormsPublicationIdReviewRouteImport.update({
     id: '/forms/$publicationId/review',
     path: '/forms/$publicationId/review',
     getParentRoute: () => LangPublicRouteRoute,
+  } as any)
+const LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute =
+  LangAuthenticatedOrganizationsOrganizationIdWorkspacesRouteImport.update({
+    id: '/workspaces',
+    path: '/workspaces',
+    getParentRoute: () =>
+      LangAuthenticatedOrganizationsOrganizationIdRouteRoute,
+  } as any)
+const LangAuthenticatedOrganizationsOrganizationIdVariablesRoute =
+  LangAuthenticatedOrganizationsOrganizationIdVariablesRouteImport.update({
+    id: '/variables',
+    path: '/variables',
+    getParentRoute: () =>
+      LangAuthenticatedOrganizationsOrganizationIdRouteRoute,
+  } as any)
+const LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute =
+  LangAuthenticatedOrganizationsOrganizationIdPermissionsRouteImport.update({
+    id: '/permissions',
+    path: '/permissions',
+    getParentRoute: () =>
+      LangAuthenticatedOrganizationsOrganizationIdRouteRoute,
+  } as any)
+const LangAuthenticatedOrganizationsOrganizationIdMembersRoute =
+  LangAuthenticatedOrganizationsOrganizationIdMembersRouteImport.update({
+    id: '/members',
+    path: '/members',
+    getParentRoute: () =>
+      LangAuthenticatedOrganizationsOrganizationIdRouteRoute,
   } as any)
 const LangAuthenticatedAppPagePageIdRoute =
   LangAuthenticatedAppPagePageIdRouteImport.update({
@@ -214,6 +255,13 @@ const LangAuthenticatedAccessScopeScopeIdIndexRoute =
     id: '/',
     path: '/',
     getParentRoute: () => LangAuthenticatedAccessScopeScopeIdRouteRoute,
+  } as any)
+const LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute =
+  LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRouteImport.update({
+    id: '/variables',
+    path: '/variables',
+    getParentRoute: () =>
+      LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRoute,
   } as any)
 const LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute =
   LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRouteImport.update({
@@ -267,11 +315,11 @@ export interface FileRoutesByFullPath {
   '/$lang/': typeof LangIndexRoute
   '/$lang/workspaces': typeof LangAuthenticatedWorkspacesRouteRouteWithChildren
   '/$lang/access-denied': typeof LangAuthenticatedAccessDeniedRoute
+  '/$lang/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdRouteRouteWithChildren
   '/$lang/workspaces/$workspaceId': typeof LangAuthenticatedWorkspacesWorkspaceIdRouteRouteWithChildren
   '/$lang/colaborando': typeof LangAuthenticatedAppColaborandoRoute
   '/$lang/my-chat': typeof LangAuthenticatedAppMyChatRoute
   '/$lang/schedule': typeof LangAuthenticatedAppScheduleRoute
-  '/$lang/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdRoute
   '/$lang/organizations/new': typeof LangAuthenticatedOrganizationsNewRoute
   '/$lang/workspace/$workspaceId': typeof LangAuthenticatedWorkspaceWorkspaceIdRoute
   '/$lang/workspaces/new': typeof LangAuthenticatedWorkspacesNewRoute
@@ -284,12 +332,18 @@ export interface FileRoutesByFullPath {
   '/$lang/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdRouteRouteWithChildren
   '/$lang/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/organizations/$organizationId/members': typeof LangAuthenticatedOrganizationsOrganizationIdMembersRoute
+  '/$lang/organizations/$organizationId/permissions': typeof LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute
+  '/$lang/organizations/$organizationId/variables': typeof LangAuthenticatedOrganizationsOrganizationIdVariablesRoute
+  '/$lang/organizations/$organizationId/workspaces': typeof LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute
   '/$lang/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/organizations/$organizationId/': typeof LangAuthenticatedOrganizationsOrganizationIdIndexRoute
   '/$lang/forms/$publicationId/': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
+  '/$lang/workspaces/$workspaceId/settings/variables': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute
   '/$lang/access/$scope/$scopeId/': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings/': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -304,7 +358,6 @@ export interface FileRoutesByTo {
   '/$lang/colaborando': typeof LangAuthenticatedAppColaborandoRoute
   '/$lang/my-chat': typeof LangAuthenticatedAppMyChatRoute
   '/$lang/schedule': typeof LangAuthenticatedAppScheduleRoute
-  '/$lang/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdRoute
   '/$lang/organizations/new': typeof LangAuthenticatedOrganizationsNewRoute
   '/$lang/workspace/$workspaceId': typeof LangAuthenticatedWorkspaceWorkspaceIdRoute
   '/$lang/workspaces/new': typeof LangAuthenticatedWorkspacesNewRoute
@@ -315,12 +368,18 @@ export interface FileRoutesByTo {
   '/$lang/organizations': typeof LangAuthenticatedOrganizationsIndexRoute
   '/$lang/workspaces': typeof LangAuthenticatedWorkspacesIndexRoute
   '/$lang/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/organizations/$organizationId/members': typeof LangAuthenticatedOrganizationsOrganizationIdMembersRoute
+  '/$lang/organizations/$organizationId/permissions': typeof LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute
+  '/$lang/organizations/$organizationId/variables': typeof LangAuthenticatedOrganizationsOrganizationIdVariablesRoute
+  '/$lang/organizations/$organizationId/workspaces': typeof LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute
   '/$lang/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdIndexRoute
   '/$lang/forms/$publicationId': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
+  '/$lang/workspaces/$workspaceId/settings/variables': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute
   '/$lang/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -338,11 +397,11 @@ export interface FileRoutesById {
   '/$lang/_authenticated/workspaces': typeof LangAuthenticatedWorkspacesRouteRouteWithChildren
   '/$lang/_public/_guest': typeof LangPublicGuestRouteRouteWithChildren
   '/$lang/_authenticated/access-denied': typeof LangAuthenticatedAccessDeniedRoute
+  '/$lang/_authenticated/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdRouteRouteWithChildren
   '/$lang/_authenticated/workspaces/$workspaceId': typeof LangAuthenticatedWorkspacesWorkspaceIdRouteRouteWithChildren
   '/$lang/_authenticated/_app/colaborando': typeof LangAuthenticatedAppColaborandoRoute
   '/$lang/_authenticated/_app/my-chat': typeof LangAuthenticatedAppMyChatRoute
   '/$lang/_authenticated/_app/schedule': typeof LangAuthenticatedAppScheduleRoute
-  '/$lang/_authenticated/organizations/$organizationId': typeof LangAuthenticatedOrganizationsOrganizationIdRoute
   '/$lang/_authenticated/organizations/new': typeof LangAuthenticatedOrganizationsNewRoute
   '/$lang/_authenticated/workspace/$workspaceId': typeof LangAuthenticatedWorkspaceWorkspaceIdRoute
   '/$lang/_authenticated/workspaces/new': typeof LangAuthenticatedWorkspacesNewRoute
@@ -355,12 +414,18 @@ export interface FileRoutesById {
   '/$lang/_authenticated/access/$scope/$scopeId': typeof LangAuthenticatedAccessScopeScopeIdRouteRouteWithChildren
   '/$lang/_authenticated/workspaces/$workspaceId/settings': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteWithChildren
   '/$lang/_authenticated/_app/page/$pageId': typeof LangAuthenticatedAppPagePageIdRoute
+  '/$lang/_authenticated/organizations/$organizationId/members': typeof LangAuthenticatedOrganizationsOrganizationIdMembersRoute
+  '/$lang/_authenticated/organizations/$organizationId/permissions': typeof LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute
+  '/$lang/_authenticated/organizations/$organizationId/variables': typeof LangAuthenticatedOrganizationsOrganizationIdVariablesRoute
+  '/$lang/_authenticated/organizations/$organizationId/workspaces': typeof LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute
   '/$lang/_public/forms/$publicationId/review': typeof LangPublicFormsPublicationIdReviewRoute
+  '/$lang/_authenticated/organizations/$organizationId/': typeof LangAuthenticatedOrganizationsOrganizationIdIndexRoute
   '/$lang/_public/forms/$publicationId/': typeof LangPublicFormsPublicationIdIndexRoute
   '/$lang/_authenticated/access/$scope/$scopeId/roles': typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/general': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/members': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
+  '/$lang/_authenticated/workspaces/$workspaceId/settings/variables': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute
   '/$lang/_authenticated/access/$scope/$scopeId/': typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
   '/$lang/_authenticated/workspaces/$workspaceId/settings/': typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
   '/$lang/_authenticated/access/$scope/$scopeId/member/$memberId': typeof LangAuthenticatedAccessScopeScopeIdMemberMemberIdRoute
@@ -375,11 +440,11 @@ export interface FileRouteTypes {
     | '/$lang/'
     | '/$lang/workspaces'
     | '/$lang/access-denied'
+    | '/$lang/organizations/$organizationId'
     | '/$lang/workspaces/$workspaceId'
     | '/$lang/colaborando'
     | '/$lang/my-chat'
     | '/$lang/schedule'
-    | '/$lang/organizations/$organizationId'
     | '/$lang/organizations/new'
     | '/$lang/workspace/$workspaceId'
     | '/$lang/workspaces/new'
@@ -392,12 +457,18 @@ export interface FileRouteTypes {
     | '/$lang/access/$scope/$scopeId'
     | '/$lang/workspaces/$workspaceId/settings'
     | '/$lang/page/$pageId'
+    | '/$lang/organizations/$organizationId/members'
+    | '/$lang/organizations/$organizationId/permissions'
+    | '/$lang/organizations/$organizationId/variables'
+    | '/$lang/organizations/$organizationId/workspaces'
     | '/$lang/forms/$publicationId/review'
+    | '/$lang/organizations/$organizationId/'
     | '/$lang/forms/$publicationId/'
     | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
     | '/$lang/workspaces/$workspaceId/settings/permissions'
+    | '/$lang/workspaces/$workspaceId/settings/variables'
     | '/$lang/access/$scope/$scopeId/'
     | '/$lang/workspaces/$workspaceId/settings/'
     | '/$lang/access/$scope/$scopeId/member/$memberId'
@@ -412,7 +483,6 @@ export interface FileRouteTypes {
     | '/$lang/colaborando'
     | '/$lang/my-chat'
     | '/$lang/schedule'
-    | '/$lang/organizations/$organizationId'
     | '/$lang/organizations/new'
     | '/$lang/workspace/$workspaceId'
     | '/$lang/workspaces/new'
@@ -423,12 +493,18 @@ export interface FileRouteTypes {
     | '/$lang/organizations'
     | '/$lang/workspaces'
     | '/$lang/page/$pageId'
+    | '/$lang/organizations/$organizationId/members'
+    | '/$lang/organizations/$organizationId/permissions'
+    | '/$lang/organizations/$organizationId/variables'
+    | '/$lang/organizations/$organizationId/workspaces'
     | '/$lang/forms/$publicationId/review'
+    | '/$lang/organizations/$organizationId'
     | '/$lang/forms/$publicationId'
     | '/$lang/access/$scope/$scopeId/roles'
     | '/$lang/workspaces/$workspaceId/settings/general'
     | '/$lang/workspaces/$workspaceId/settings/members'
     | '/$lang/workspaces/$workspaceId/settings/permissions'
+    | '/$lang/workspaces/$workspaceId/settings/variables'
     | '/$lang/access/$scope/$scopeId'
     | '/$lang/workspaces/$workspaceId/settings'
     | '/$lang/access/$scope/$scopeId/member/$memberId'
@@ -445,11 +521,11 @@ export interface FileRouteTypes {
     | '/$lang/_authenticated/workspaces'
     | '/$lang/_public/_guest'
     | '/$lang/_authenticated/access-denied'
+    | '/$lang/_authenticated/organizations/$organizationId'
     | '/$lang/_authenticated/workspaces/$workspaceId'
     | '/$lang/_authenticated/_app/colaborando'
     | '/$lang/_authenticated/_app/my-chat'
     | '/$lang/_authenticated/_app/schedule'
-    | '/$lang/_authenticated/organizations/$organizationId'
     | '/$lang/_authenticated/organizations/new'
     | '/$lang/_authenticated/workspace/$workspaceId'
     | '/$lang/_authenticated/workspaces/new'
@@ -462,12 +538,18 @@ export interface FileRouteTypes {
     | '/$lang/_authenticated/access/$scope/$scopeId'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings'
     | '/$lang/_authenticated/_app/page/$pageId'
+    | '/$lang/_authenticated/organizations/$organizationId/members'
+    | '/$lang/_authenticated/organizations/$organizationId/permissions'
+    | '/$lang/_authenticated/organizations/$organizationId/variables'
+    | '/$lang/_authenticated/organizations/$organizationId/workspaces'
     | '/$lang/_public/forms/$publicationId/review'
+    | '/$lang/_authenticated/organizations/$organizationId/'
     | '/$lang/_public/forms/$publicationId/'
     | '/$lang/_authenticated/access/$scope/$scopeId/roles'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/general'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/members'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
+    | '/$lang/_authenticated/workspaces/$workspaceId/settings/variables'
     | '/$lang/_authenticated/access/$scope/$scopeId/'
     | '/$lang/_authenticated/workspaces/$workspaceId/settings/'
     | '/$lang/_authenticated/access/$scope/$scopeId/member/$memberId'
@@ -608,13 +690,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangAuthenticatedOrganizationsNewRouteImport
       parentRoute: typeof LangAuthenticatedRouteRoute
     }
-    '/$lang/_authenticated/organizations/$organizationId': {
-      id: '/$lang/_authenticated/organizations/$organizationId'
-      path: '/organizations/$organizationId'
-      fullPath: '/$lang/organizations/$organizationId'
-      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteImport
-      parentRoute: typeof LangAuthenticatedRouteRoute
-    }
     '/$lang/_authenticated/_app/schedule': {
       id: '/$lang/_authenticated/_app/schedule'
       path: '/schedule'
@@ -643,6 +718,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdRouteRouteImport
       parentRoute: typeof LangAuthenticatedWorkspacesRouteRoute
     }
+    '/$lang/_authenticated/organizations/$organizationId': {
+      id: '/$lang/_authenticated/organizations/$organizationId'
+      path: '/organizations/$organizationId'
+      fullPath: '/$lang/organizations/$organizationId'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRouteImport
+      parentRoute: typeof LangAuthenticatedRouteRoute
+    }
     '/$lang/_public/forms/$publicationId/': {
       id: '/$lang/_public/forms/$publicationId/'
       path: '/forms/$publicationId'
@@ -650,12 +732,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LangPublicFormsPublicationIdIndexRouteImport
       parentRoute: typeof LangPublicRouteRoute
     }
+    '/$lang/_authenticated/organizations/$organizationId/': {
+      id: '/$lang/_authenticated/organizations/$organizationId/'
+      path: '/'
+      fullPath: '/$lang/organizations/$organizationId/'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdIndexRouteImport
+      parentRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRoute
+    }
     '/$lang/_public/forms/$publicationId/review': {
       id: '/$lang/_public/forms/$publicationId/review'
       path: '/forms/$publicationId/review'
       fullPath: '/$lang/forms/$publicationId/review'
       preLoaderRoute: typeof LangPublicFormsPublicationIdReviewRouteImport
       parentRoute: typeof LangPublicRouteRoute
+    }
+    '/$lang/_authenticated/organizations/$organizationId/workspaces': {
+      id: '/$lang/_authenticated/organizations/$organizationId/workspaces'
+      path: '/workspaces'
+      fullPath: '/$lang/organizations/$organizationId/workspaces'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdWorkspacesRouteImport
+      parentRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRoute
+    }
+    '/$lang/_authenticated/organizations/$organizationId/variables': {
+      id: '/$lang/_authenticated/organizations/$organizationId/variables'
+      path: '/variables'
+      fullPath: '/$lang/organizations/$organizationId/variables'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdVariablesRouteImport
+      parentRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRoute
+    }
+    '/$lang/_authenticated/organizations/$organizationId/permissions': {
+      id: '/$lang/_authenticated/organizations/$organizationId/permissions'
+      path: '/permissions'
+      fullPath: '/$lang/organizations/$organizationId/permissions'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdPermissionsRouteImport
+      parentRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRoute
+    }
+    '/$lang/_authenticated/organizations/$organizationId/members': {
+      id: '/$lang/_authenticated/organizations/$organizationId/members'
+      path: '/members'
+      fullPath: '/$lang/organizations/$organizationId/members'
+      preLoaderRoute: typeof LangAuthenticatedOrganizationsOrganizationIdMembersRouteImport
+      parentRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRoute
     }
     '/$lang/_authenticated/_app/page/$pageId': {
       id: '/$lang/_authenticated/_app/page/$pageId'
@@ -691,6 +808,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/$lang/access/$scope/$scopeId/'
       preLoaderRoute: typeof LangAuthenticatedAccessScopeScopeIdIndexRouteImport
       parentRoute: typeof LangAuthenticatedAccessScopeScopeIdRouteRoute
+    }
+    '/$lang/_authenticated/workspaces/$workspaceId/settings/variables': {
+      id: '/$lang/_authenticated/workspaces/$workspaceId/settings/variables'
+      path: '/variables'
+      fullPath: '/$lang/workspaces/$workspaceId/settings/variables'
+      preLoaderRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRouteImport
+      parentRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRoute
     }
     '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions': {
       id: '/$lang/_authenticated/workspaces/$workspaceId/settings/permissions'
@@ -768,6 +892,7 @@ interface LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteChildren {
   LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsGeneralRoute
   LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute
   LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute
+  LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute
   LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute: typeof LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute
 }
 
@@ -779,6 +904,8 @@ const LangAuthenticatedWorkspacesWorkspaceIdSettingsRouteRouteChildren: LangAuth
       LangAuthenticatedWorkspacesWorkspaceIdSettingsMembersRoute,
     LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute:
       LangAuthenticatedWorkspacesWorkspaceIdSettingsPermissionsRoute,
+    LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute:
+      LangAuthenticatedWorkspacesWorkspaceIdSettingsVariablesRoute,
     LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute:
       LangAuthenticatedWorkspacesWorkspaceIdSettingsIndexRoute,
   }
@@ -823,6 +950,33 @@ const LangAuthenticatedWorkspacesRouteRouteWithChildren =
     LangAuthenticatedWorkspacesRouteRouteChildren,
   )
 
+interface LangAuthenticatedOrganizationsOrganizationIdRouteRouteChildren {
+  LangAuthenticatedOrganizationsOrganizationIdMembersRoute: typeof LangAuthenticatedOrganizationsOrganizationIdMembersRoute
+  LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute: typeof LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute
+  LangAuthenticatedOrganizationsOrganizationIdVariablesRoute: typeof LangAuthenticatedOrganizationsOrganizationIdVariablesRoute
+  LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute: typeof LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute
+  LangAuthenticatedOrganizationsOrganizationIdIndexRoute: typeof LangAuthenticatedOrganizationsOrganizationIdIndexRoute
+}
+
+const LangAuthenticatedOrganizationsOrganizationIdRouteRouteChildren: LangAuthenticatedOrganizationsOrganizationIdRouteRouteChildren =
+  {
+    LangAuthenticatedOrganizationsOrganizationIdMembersRoute:
+      LangAuthenticatedOrganizationsOrganizationIdMembersRoute,
+    LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute:
+      LangAuthenticatedOrganizationsOrganizationIdPermissionsRoute,
+    LangAuthenticatedOrganizationsOrganizationIdVariablesRoute:
+      LangAuthenticatedOrganizationsOrganizationIdVariablesRoute,
+    LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute:
+      LangAuthenticatedOrganizationsOrganizationIdWorkspacesRoute,
+    LangAuthenticatedOrganizationsOrganizationIdIndexRoute:
+      LangAuthenticatedOrganizationsOrganizationIdIndexRoute,
+  }
+
+const LangAuthenticatedOrganizationsOrganizationIdRouteRouteWithChildren =
+  LangAuthenticatedOrganizationsOrganizationIdRouteRoute._addFileChildren(
+    LangAuthenticatedOrganizationsOrganizationIdRouteRouteChildren,
+  )
+
 interface LangAuthenticatedAccessScopeScopeIdRouteRouteChildren {
   LangAuthenticatedAccessScopeScopeIdRolesRoute: typeof LangAuthenticatedAccessScopeScopeIdRolesRoute
   LangAuthenticatedAccessScopeScopeIdIndexRoute: typeof LangAuthenticatedAccessScopeScopeIdIndexRoute
@@ -854,7 +1008,7 @@ interface LangAuthenticatedRouteRouteChildren {
   LangAuthenticatedAppRouteRoute: typeof LangAuthenticatedAppRouteRouteWithChildren
   LangAuthenticatedWorkspacesRouteRoute: typeof LangAuthenticatedWorkspacesRouteRouteWithChildren
   LangAuthenticatedAccessDeniedRoute: typeof LangAuthenticatedAccessDeniedRoute
-  LangAuthenticatedOrganizationsOrganizationIdRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRoute
+  LangAuthenticatedOrganizationsOrganizationIdRouteRoute: typeof LangAuthenticatedOrganizationsOrganizationIdRouteRouteWithChildren
   LangAuthenticatedOrganizationsNewRoute: typeof LangAuthenticatedOrganizationsNewRoute
   LangAuthenticatedWorkspaceWorkspaceIdRoute: typeof LangAuthenticatedWorkspaceWorkspaceIdRoute
   LangAuthenticatedOrganizationsIndexRoute: typeof LangAuthenticatedOrganizationsIndexRoute
@@ -867,8 +1021,8 @@ const LangAuthenticatedRouteRouteChildren: LangAuthenticatedRouteRouteChildren =
     LangAuthenticatedWorkspacesRouteRoute:
       LangAuthenticatedWorkspacesRouteRouteWithChildren,
     LangAuthenticatedAccessDeniedRoute: LangAuthenticatedAccessDeniedRoute,
-    LangAuthenticatedOrganizationsOrganizationIdRoute:
-      LangAuthenticatedOrganizationsOrganizationIdRoute,
+    LangAuthenticatedOrganizationsOrganizationIdRouteRoute:
+      LangAuthenticatedOrganizationsOrganizationIdRouteRouteWithChildren,
     LangAuthenticatedOrganizationsNewRoute:
       LangAuthenticatedOrganizationsNewRoute,
     LangAuthenticatedWorkspaceWorkspaceIdRoute:

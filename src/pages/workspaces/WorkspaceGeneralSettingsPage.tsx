@@ -5,7 +5,7 @@ import { Typography } from '@/components/Typography'
 import { useAuth } from '@/contexts/AuthContext'
 import { i18n } from '@/lib/i18n'
 import { workspacePreference } from '@/lib/workspacePreference'
-import { useWorkspaceSettings } from './useWorkspaceSettings'
+import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings'
 
 export function WorkspaceGeneralSettingsPage() {
   const workspace = useWorkspaceSettings()

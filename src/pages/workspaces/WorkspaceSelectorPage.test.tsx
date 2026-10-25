@@ -37,6 +37,7 @@ vi.mock('@iconify/react', () => ({
 }))
 
 import { WorkspaceSelectorPage } from './WorkspaceSelectorPage'
+import { ModalProvider } from '@/contexts/ModalContext'
 
 function mountSelector() {
   const queryClient = new QueryClient({
@@ -44,7 +45,7 @@ function mountSelector() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <WorkspaceSelectorPage />
+      <ModalProvider><WorkspaceSelectorPage /></ModalProvider>
     </QueryClientProvider>,
   )
 }
@@ -95,7 +96,7 @@ describe('WorkspaceSelectorPage', () => {
   it('separa a área pessoal e mostra nome e email do owner', async () => {
     mountSelector()
     const personal = await screen.findByRole('heading', { name: 'Meus espaços de trabalho' })
-    const organizations = await screen.findByRole('heading', { name: 'Espaços de trabalho da organização IFC' })
+    const organizations = await screen.findByRole('heading', { name: 'Organizações' })
     expect(personal.compareDocumentPosition(organizations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(document.querySelector('aside [data-workspace-card="personal"]')).not.toBeNull()
     expect(screen.getByRole('heading', { name: /Olá, Helder\s*!/ })).not.toBeNull()
@@ -113,14 +114,14 @@ describe('WorkspaceSelectorPage', () => {
     }))
     render(
       <QueryClientProvider client={queryClient}>
-        <WorkspaceSelectorPage />
+        <ModalProvider><WorkspaceSelectorPage /></ModalProvider>
       </QueryClientProvider>,
     )
 
-    await screen.findByRole('heading', { name: 'Workspace administrada' })
-    const settings = within(document.querySelector('[data-workspace-card="workspace-admin"]') as HTMLElement).getByRole('button', { name: 'Configurações' })
-    expect(within(document.querySelector('[data-workspace-card="workspace-member"]') as HTMLElement).queryByRole('button', { name: 'Configurações' })).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Entrar' })).toHaveLength(3)
+    await screen.findByRole('button', { name: 'Workspace administrada' })
+    const settings = within(document.querySelector('[data-workspace-entry="workspace-admin"]') as HTMLElement).getByRole('button', { name: 'Configurar Workspace administrada' })
+    expect(within(document.querySelector('[data-workspace-entry="workspace-member"]') as HTMLElement).queryByRole('button', { name: 'Configurar Workspace membro' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Entrar' })).toHaveLength(1)
 
     fireEvent.click(settings)
 
@@ -148,21 +149,21 @@ describe('WorkspaceSelectorPage', () => {
     }))
     render(
       <QueryClientProvider client={queryClient}>
-        <WorkspaceSelectorPage />
+        <ModalProvider><WorkspaceSelectorPage /></ModalProvider>
       </QueryClientProvider>,
     )
 
-    const organizations = await screen.findByRole('button', { name: 'Ir para organizações' })
+    const organizations = await screen.findByRole('button', { name: 'IFC' })
     fireEvent.click(organizations)
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: '/$lang/organizations',
-      params: { lang: 'pt-br' },
+      to: '/$lang/organizations/$organizationId',
+      params: { lang: 'pt-br', organizationId: 'organization-1' },
     })
 
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledTimes(1))
   })
 
-  it('seleciona a organização sem mover a área pessoal e permite recolher suas workspaces', async () => {
+  it('abre o caminho fixo da organização e recolhe apenas um nível de workspaces', async () => {
     const base = await mocks.listMine()
     mocks.listOrganizations.mockResolvedValue([
       { id: 'organization-1', name: 'IFC', data: {}, permissions: { read: ['view'], write: ['create'] }, workspaceCount: 2 },
@@ -171,20 +172,21 @@ describe('WorkspaceSelectorPage', () => {
     mocks.listMine.mockResolvedValue([...base, { ...base[1], id: 'workspace-other', name: 'Equipe externa', organizationId: 'organization-2', organizationName: 'Outra organização' }])
     mountSelector()
     fireEvent.click(await screen.findByRole('button', { name: 'Outra organização' }))
-    expect(screen.getByRole('heading', { name: 'Espaços de trabalho da organização Outra organização' })).not.toBeNull()
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/$lang/organizations/$organizationId', params: { lang: 'pt-br', organizationId: 'organization-2' } })
     expect(document.querySelector('[data-workspace-card="workspace-admin"]')).toBeNull()
     expect(document.querySelector('aside [data-workspace-card="personal"]')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Expandir ou recolher Outra organização' }))
     expect(screen.queryByRole('button', { name: 'Equipe externa' })).toBeNull()
-    fireEvent.click(within(document.querySelector('[data-workspace-card="workspace-other"]') as HTMLElement).getByRole('button', { name: 'Entrar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Expandir ou recolher Outra organização' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Equipe externa' }))
     expect(mocks.navigate).toHaveBeenCalledWith(expect.objectContaining({ params: { lang: 'pt-br', workspaceId: 'workspace-other' } }))
   })
 
   it('mantém uma única preferência entre a área pessoal e as workspaces da organização', async () => {
     mountSelector()
-    await screen.findByRole('heading', { name: 'Workspace administrada' })
+    await screen.findByRole('button', { name: 'Workspace administrada' })
     const personal = within(document.querySelector('[data-workspace-card="personal"]') as HTMLElement).getByRole('switch')
-    const organization = within(document.querySelector('[data-workspace-card="workspace-admin"]') as HTMLElement).getByRole('switch')
+    const organization = within(document.querySelector('[data-workspace-entry="workspace-admin"]') as HTMLElement).getByRole('switch')
     fireEvent.click(organization)
     expect(organization.getAttribute('aria-checked')).toBe('true')
     fireEvent.click(personal)
@@ -204,7 +206,7 @@ describe('WorkspaceSelectorPage', () => {
     await waitFor(() => expect(within(dialog).getByRole('combobox').textContent).toContain('IFC'))
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Nome da área de trabalho' }), { target: { value: '  Nova equipe  ' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Criar espaço de trabalho' }))
-    await screen.findByRole('heading', { name: 'Nova equipe' })
+    await screen.findByRole('button', { name: 'Nova equipe' })
     expect(mocks.create).toHaveBeenCalledWith({ name: 'Nova equipe', organizationId: 'organization-1' })
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('aside [data-workspace-card="personal"]')).not.toBeNull()
@@ -251,7 +253,8 @@ describe('WorkspaceSelectorPage', () => {
     fireEvent.click(saving)
     expect(mocks.create).toHaveBeenCalledTimes(1)
     finishCreation({ ...base[1], id: 'workspace-pending', name: 'Equipe pendente' })
-    await screen.findByRole('heading', { name: 'Equipe pendente' })
+    await screen.findByRole('button', { name: 'Equipe pendente' })
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+vi.mock('@/components/PageFavoritesSection', () => ({ PageFavoritesSection: () => null }))

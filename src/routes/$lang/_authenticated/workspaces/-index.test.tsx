@@ -20,6 +20,7 @@ import type { AuthUser } from '@/services/AuthService'
 import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
 import { AppError } from '@/lib/errors'
 import { workspacePreference } from '@/lib/workspacePreference'
+import { ModalProvider } from '@/contexts/ModalContext'
 import { WorkspaceSelectorPage } from '@/pages/workspaces/WorkspaceSelectorPage'
 import { Route as AuthenticatedRoute } from '../route'
 import { Route as PageRoute } from '../_app/page/$pageId'
@@ -54,13 +55,14 @@ function mountRouting(initialEntry = '/pt-br/workspaces') {
   const page = createRoute({ getParentRoute: () => lang, path: 'page/$pageId', beforeLoad: pageGuard, component: () => <p>Página inicial carregada</p> })
   const settings = createRoute({ getParentRoute: () => lang, path: 'workspaces/$workspaceId/settings/general', component: () => <p>Configurações da workspace</p> })
   const organizations = createRoute({ getParentRoute: () => lang, path: 'organizations', component: () => <p>Lista de organizações</p> })
+  const organization = createRoute({ getParentRoute: () => lang, path: 'organizations/$organizationId', component: () => <p>Detalhes da organização</p> })
   const router = createRouter({
-    routeTree: root.addChildren([lang.addChildren([selector, entry, page, settings, organizations])]),
+    routeTree: root.addChildren([lang.addChildren([selector, entry, page, settings, organizations, organization])]),
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
     context: { auth: { ensureSession: dependencies.ensureSession } },
   })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>)
+  render(<QueryClientProvider client={queryClient}><ModalProvider><RouterProvider router={router} /></ModalProvider></QueryClientProvider>)
   return router
 }
 
@@ -109,6 +111,7 @@ describe('entrada do seletor de workspaces', () => {
   })
 
   it('permite escolher outra workspace e sair para configurações ou organizações', async () => {
+    dependencies.listOrganizations.mockResolvedValue([{ id: 'organization-a', name: 'Organização A', permissions: { read: ['view'], write: [] } }])
     workspacePreference.set('user-1', 'workspace-a')
     const router = mountRouting('/pt-br/workspaces?choose=true')
     await screen.findByRole('heading', { name: 'Minha área' })
@@ -119,9 +122,9 @@ describe('entrada do seletor de workspaces', () => {
 
     await act(async () => { await router.navigate({ to: '/$lang/workspaces', params: { lang: 'pt-br' }, search: { choose: true, tab: 'workspaces' } }) })
     await screen.findByRole('heading', { name: 'Minha área' })
-    fireEvent.click(screen.getByRole('button', { name: 'Ir para organizações' }))
-    await screen.findByText('Lista de organizações')
-    expect(router.state.location.pathname).toBe('/pt-br/organizations')
+    fireEvent.click(screen.getByRole('button', { name: 'Organização A' }))
+    await screen.findByText('Detalhes da organização')
+    expect(router.state.location.pathname).toBe('/pt-br/organizations/organization-a')
     expect(dependencies.getEntryPage).not.toHaveBeenCalled()
   })
 
@@ -210,3 +213,4 @@ describe('entrada do seletor de workspaces', () => {
     expect(router.state.location.search).toMatchObject({ choose: true })
   })
 })
+vi.mock('@/components/PageFavoritesSection', () => ({ PageFavoritesSection: () => null }))

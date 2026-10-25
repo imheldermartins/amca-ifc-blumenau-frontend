@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
 import { Trans } from 'react-i18next'
-import { Button, Tooltip } from 'cubs-components'
+import { Button } from 'cubs-components'
 
 import { Typography } from '@/components/Typography'
+import { PageFavoritesSection } from '@/components/PageFavoritesSection'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { currentWorkspaceSession } from '@/lib/currentWorkspaceSession'
@@ -13,6 +14,7 @@ import { i18n } from '@/lib/i18n'
 import { replaceQuery } from '@/lib/queryParams'
 import { workspacesQueryKey } from '@/lib/workspaceQueryKeys'
 import { workspacePreference } from '@/lib/workspacePreference'
+import { useModal } from '@/hooks/useModal'
 import { can } from '@/services/AccessService'
 import { workspaceService, type ApiWorkspace } from '@/services/WorkspaceService'
 import { WorkspacesCards } from '@/routes/$lang/_authenticated/workspaces/-components/WorkspacesCards'
@@ -25,8 +27,7 @@ export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [, refreshPreference] = useState(0)
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(null)
-  const [creation, setCreation] = useState<{ organizationId?: string } | null>(null)
+  const { openModal } = useModal()
 
   const workspaces = useQuery({
     queryKey: workspacesQueryKey(user?.id ?? 'anonymous'),
@@ -45,20 +46,18 @@ export function WorkspaceSelectorPage() {
   const groups = useMemo(() => {
     const grouped = new Map<string, WorkspaceOrganizationGroup>()
     for (const organization of organizations.data ?? []) {
-      grouped.set(organization.id, { id: organization.id, name: organization.name, canCreate: can(organization, 'write', 'create'), workspaces: [] })
+      grouped.set(organization.id, { id: organization.id, name: organization.name, canCreate: can(organization, 'write', 'create'), canView: true, workspaces: [] })
     }
     for (const workspace of workspaces.data ?? []) {
       if (workspace.isPersonal || !workspace.organizationId) continue
       // Um convite de workspace pode existir sem membership na organização.
       if (!grouped.has(workspace.organizationId)) grouped.set(workspace.organizationId, {
-        id: workspace.organizationId, name: workspace.organizationName ?? i18n('pages.workspaces.access.organization'), canCreate: false, workspaces: [],
+        id: workspace.organizationId, name: workspace.organizationName ?? i18n('pages.workspaces.access.organization'), canCreate: false, canView: false, workspaces: [],
       })
       grouped.get(workspace.organizationId)!.workspaces.push(workspace)
     }
     return [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name, lang))
   }, [lang, organizations.data, workspaces.data])
-  const selectedGroup = groups.find((group) => group.id === selectedOrganizationId) ?? groups[0]
-  const canCreate = groups.some((group) => group.canCreate)
   const preferredId = user ? workspacePreference.get(user.id) : undefined
   const firstName = user?.name?.trim().split(/\s+/)[0] || user?.email?.split('@')[0] || ''
 
@@ -80,7 +79,19 @@ export function WorkspaceSelectorPage() {
   }
 
   function createWorkspace(organizationId?: string) {
-    setCreation({ organizationId })
+    openModal({
+      size: 'sm',
+      content: ({ closeModal, updateModal }) => <WorkspaceCreationDialog
+        lang={lang}
+        initialOrganizationId={organizationId}
+        onCreated={closeModal}
+        onCreateOrganization={() => {
+          closeModal()
+          void navigate({ to: '/$lang/organizations/new', params: { lang } })
+        }}
+        onPendingChange={(pending) => updateModal({ dismissible: !pending })}
+      />,
+    })
   }
 
   function renderWorkspace(workspace: ApiWorkspace, compact = false) {
@@ -113,56 +124,27 @@ export function WorkspaceSelectorPage() {
           : personalWorkspace ? <ul>{renderWorkspace(personalWorkspace, true)}</ul>
           : <p role="alert" className="text-sm text-foreground/60">{i18n('pages.workspaces.selector.personal-missing')}</p>}
       </section>
-      <section className="min-w-0" aria-label={i18n('organization.title')}>
-        <header className="mb-3 flex items-center gap-1">
-          <Typography variant="h2" className="text-xl font-medium">{i18n('organization.title')}</Typography>
-          <Tooltip content={i18n('pages.workspaces.selector.organizations-link')}><Button
-            type="button" variant="text" color="from-theme" className="size-7 p-1"
-            aria-label={i18n('pages.workspaces.selector.organizations-link')}
-            onClick={() => { void navigate({ to: '/$lang/organizations', params: { lang } }) }}
-          ><Icon icon="lucide:arrow-up-right" className="size-4" /></Button></Tooltip>
-        </header>
-        {organizations.isPending && groups.length === 0 ? <p className="text-sm text-foreground/60">{i18n('common.carregando')}</p> : <WorkspaceOrganizationsAside
-          groups={groups}
-          selectedId={selectedGroup?.id}
-          onSelect={setSelectedOrganizationId}
-          onCreate={createWorkspace}
-          onEnter={openWorkspace}
-        />}
-        {organizations.isError && <p role="alert" className="mt-3 text-sm text-p-red">{i18n('pages.workspaces.selector.organizations-error')}</p>}
-        {organizations.isSuccess && !groups.length && <p className="text-sm text-foreground/60">{i18n('pages.workspaces.organization.list-empty')}</p>}
-      </section>
+      <PageFavoritesSection />
     </aside>
 
-    <section className="min-w-0 px-6 py-8 xl:px-11" aria-label={i18n('pages.workspaces.selector.list-label')}>
-      <header className="mb-10 flex items-start justify-between gap-4">
-        <Typography variant="h2" className="pt-2 text-2xl font-medium">
-          {selectedGroup ? <>{i18n('pages.workspaces.selector.organization-workspaces-prefix')} <span className="text-p-purple">{selectedGroup.name}</span></> : i18n('pages.workspaces.selector.organization-section')}
-        </Typography>
-        {canCreate && <Tooltip content={i18n('pages.workspaces.selector.new')}><Button
-          type="button" className="size-12 shrink-0 rounded-full p-3"
-          aria-label={i18n('pages.workspaces.selector.new')}
-          onClick={() => createWorkspace(selectedGroup?.canCreate ? selectedGroup.id : undefined)}
-        ><Icon icon="lucide:plus" className="size-5" /></Button></Tooltip>}
+    <section className="min-w-0 px-6 py-8 xl:px-11" aria-label={i18n('organization.title')}>
+      <header className="mb-7 flex items-center justify-between gap-4">
+        <Typography variant="h2" className="text-3xl font-medium">{i18n('organization.title')}</Typography>
+        <Button type="button" className="shrink-0 rounded-lg px-4 py-2"
+          onClick={() => void navigate({ to: '/$lang/organizations/new', params: { lang } })}>
+          <Icon icon="lucide:plus" className="size-4" />{i18n('organization.new')}
+        </Button>
       </header>
-      {workspaces.isPending ? <p className="text-sm text-foreground/60">{i18n('common.carregando')}</p>
-        : workspaces.isError ? <p role="alert" className="text-sm text-p-red">{i18n('pages.workspaces.selector.error')}</p>
-        : selectedGroup?.workspaces.length ? <ul className="grid items-start gap-x-6 gap-y-9 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {selectedGroup.workspaces.map((workspace) => renderWorkspace(workspace))}
-        </ul>
-        : <p className="text-sm text-foreground/60">{i18n(selectedGroup ? 'pages.workspaces.selector.organization-empty' : 'pages.workspaces.organization.list-empty')}</p>}
+      {organizations.isPending && !groups.length ? <p className="text-sm text-foreground/60">{i18n('common.carregando')}</p> : <WorkspaceOrganizationsAside groups={groups}
+        onSelect={(organizationId) => void navigate({ to: '/$lang/organizations/$organizationId', params: { lang, organizationId } })}
+        onCreate={createWorkspace} onEnter={openWorkspace} onSettings={openWorkspaceSettings} preferredId={preferredId}
+        onPrefer={(workspace, checked) => { if (!user) return; if (checked) workspacePreference.set(user.id, workspace.id); else workspacePreference.clear(user.id); refreshPreference((revision) => revision + 1) }} />}
+      {organizations.isError && <p role="alert" className="mt-3 text-sm text-p-red">{i18n('pages.workspaces.selector.organizations-error')}</p>}
+      {organizations.isSuccess && !groups.length && <p className="text-sm text-foreground/60">{i18n('pages.workspaces.organization.list-empty')}</p>}
       {otherPersonalWorkspaces.length > 0 && <section className="mt-10">
         <Typography variant="h2" className="mb-5 text-xl font-medium">{i18n('pages.workspaces.selector.shared-personal')}</Typography>
         <ul className="grid items-start gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{otherPersonalWorkspaces.map((workspace) => renderWorkspace(workspace))}</ul>
       </section>}
     </section>
-
-    {creation && <WorkspaceCreationDialog
-        lang={lang}
-        initialOrganizationId={creation.organizationId}
-        onClose={() => setCreation(null)}
-        onCreated={(workspace) => { setSelectedOrganizationId(workspace.organizationId); setCreation(null) }}
-        onCreateOrganization={() => { void navigate({ to: '/$lang/organizations/new', params: { lang } }) }}
-      />}
   </main>
 }

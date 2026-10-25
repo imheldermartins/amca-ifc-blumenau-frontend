@@ -1,6 +1,8 @@
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext'
+import { ModalProvider } from '@/contexts/ModalContext'
+import { MentionContext } from '@/contexts/MentionContext'
 import { readAuthReturnTo } from '@/lib/authReturnTo'
 
 /**
@@ -26,7 +28,9 @@ export const Route = createFileRoute('/$lang/_authenticated')({
 function AuthenticatedLayout() {
   return (
     <WorkspaceProvider>
-      <Outlet />
+      <MentionContext><ModalProvider>
+        <Outlet />
+      </ModalProvider></MentionContext>
     </WorkspaceProvider>
   )
 }

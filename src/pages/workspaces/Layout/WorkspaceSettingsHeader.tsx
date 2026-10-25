@@ -14,7 +14,7 @@ import { validators } from '@/lib/validators'
 import { workspaceQueryKey, workspacesQueryKey } from '@/lib/workspaceQueryKeys'
 import { can } from '@/services/AccessService'
 import { workspaceService, type ApiOrganizationWorkspace, type ApiWorkspace, type WorkspaceIcon } from '@/services/WorkspaceService'
-import { useWorkspaceSettings } from './useWorkspaceSettings'
+import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings'
 
 interface IdentityValues { name: string; icon: WorkspaceIcon }
 type IdentityChange = { field: 'name'; value: string } | { field: 'icon'; value: WorkspaceIcon }

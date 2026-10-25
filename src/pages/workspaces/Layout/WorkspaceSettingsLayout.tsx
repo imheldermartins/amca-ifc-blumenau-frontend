@@ -7,11 +7,11 @@ import { i18n } from '@/lib/i18n'
 import { defineWorkspaceAbility, type WorkspaceSubject } from '@/lib/workspaceAbility'
 import { workspaceQueryKey } from '@/lib/workspaceQueryKeys'
 import { workspaceService } from '@/services/WorkspaceService'
-import { WorkspaceSettingsProvider } from './WorkspaceSettingsContext'
+import { WorkspaceSettingsProvider } from '@/contexts/WorkspaceSettingsContext'
 import { WorkspaceSettingsHeader } from './WorkspaceSettingsHeader'
 import { WorkspaceSettingsSidebar } from './WorkspaceSettingsSidebar'
 
-const sectionLabels: Record<string, string> = { general: 'general', members: 'members', permissions: 'permissions' }
+const sectionLabels: Record<string, string> = { general: 'general', members: 'members', permissions: 'permissions', variables: 'variables' }
 const subjects: WorkspaceSubject[] = ['WorkspaceSettings', 'WorkspaceMembers', 'WorkspacePermissions']
 
 export function WorkspaceSettingsLayout({ workspaceId }: { workspaceId: string }) {
@@ -27,15 +27,22 @@ export function WorkspaceSettingsLayout({ workspaceId }: { workspaceId: string }
   const ability = defineWorkspaceAbility(workspace.data)
   if (!subjects.some((subject) => ability.can('manage', subject))) return <Navigate to="/$lang/access-denied" params={{ lang }} replace />
 
-  return <WorkspaceSettingsProvider workspace={workspace.data}>
-    <div className="grid min-h-dvh grid-cols-1 bg-background text-foreground md:grid-cols-[18rem_minmax(0,1fr)]">
-      <WorkspaceSettingsSidebar />
-      <main className="min-w-0 p-5 sm:p-8 lg:p-10"><div className="mx-auto w-full max-w-5xl">
-        <WorkspaceSettingsHeader key={workspaceId} section={i18n('pages.workspaces.settings.' + section)} />
-        <Outlet />
-      </div></main>
-    </div>
-  </WorkspaceSettingsProvider>
+  return (
+    <WorkspaceSettingsProvider workspace={workspace.data}>
+      <div className="grid min-h-dvh grid-cols-1 bg-background text-foreground md:grid-cols-[18rem_minmax(0,1fr)]">
+        <WorkspaceSettingsSidebar />
+        <main className="min-w-0 p-5 sm:p-8 lg:p-10">
+          <div className="mx-auto w-full max-w-5xl">
+            <WorkspaceSettingsHeader
+              key={workspaceId}
+              section={i18n('pages.workspaces.settings.' + section)}
+            />
+            <Outlet />
+          </div>
+        </main>
+      </div>
+    </WorkspaceSettingsProvider>
+  )
 }
 
 function FullScreenMessage({ message, error = false }: { message: string; error?: boolean }) {

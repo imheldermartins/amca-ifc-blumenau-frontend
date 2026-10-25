@@ -16,8 +16,8 @@ import type { ApiWorkspace } from '@/services/WorkspaceService'
 import { i18n } from '@/lib/i18n'
 import { workspacePreference } from '@/lib/workspacePreference'
 import { workspaceQueryKey, workspacesQueryKey } from '@/lib/workspaceQueryKeys'
-import { WorkspaceSettingsProvider } from './WorkspaceSettingsContext'
-import { WorkspaceSettingsHeader } from './WorkspaceSettingsHeader'
+import { WorkspaceSettingsProvider } from '../../contexts/WorkspaceSettingsContext'
+import { WorkspaceSettingsHeader } from './Layout/WorkspaceSettingsHeader'
 import { WorkspaceGeneralSettingsPage } from './WorkspaceGeneralSettingsPage'
 
 const workspace = {

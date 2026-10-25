@@ -1,5 +1,5 @@
 import { AccessMembersPage } from '@/pages/access/AccessPages'
-import { useWorkspaceSettings } from './useWorkspaceSettings'
+import { useWorkspaceSettings } from '@/hooks/useWorkspaceSettings'
 import { Typography } from '@/components/Typography'
 import { i18n } from '@/lib/i18n'
 export function WorkspaceMembersPage() {
