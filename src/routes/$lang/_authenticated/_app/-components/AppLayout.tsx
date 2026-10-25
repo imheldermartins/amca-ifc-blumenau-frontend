@@ -2,12 +2,12 @@ import { Outlet} from '@tanstack/react-router'
 import { useState } from 'react'
 
 import {
-  GlobalSettingsModal,
+  GlobalSettingsContent,
   type GlobalSettingsFragment,
 } from '@components/GlobalSettingsModal'
-import { SignOutConfirmationModal } from '@components/SignOutConfirmationModal'
+import { SignOutConfirmationContent } from '@components/SignOutConfirmationModal'
 import { useAuth } from '@/contexts/AuthContext'
-import { useDialog } from '@/hooks/useDialog'
+import { useModal } from '@/hooks/useModal'
 import { useLocalStorageState } from '@/hooks/useClientStorage'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
@@ -15,25 +15,31 @@ import Topbar from './Topbar'
 export function AppLayout() {
   const [collapsed, setCollapsed] = useLocalStorageState('sidebarCollapsed', false);
   const [accountMenuOpen, setAccountMenuOpen] = useState<boolean>(false)
-  const [settingsFragment, setSettingsFragment] = useState<GlobalSettingsFragment>('#profile')
   const auth = useAuth()
-  const globalSettingsDialog = useDialog()
-  const signOutDialog = useDialog()
+  const { openModal } = useModal()
 
   function openGlobalSettings(fragment: GlobalSettingsFragment) {
     setAccountMenuOpen(false)
-    setSettingsFragment(fragment)
-    globalSettingsDialog.openDialog()
+    openModal({
+      size: 'xl',
+      className: 'p-0',
+      content: <GlobalSettingsContent initialFragment={fragment} />,
+    })
   }
 
   function openSignOutConfirmation() {
     setAccountMenuOpen(false)
-    signOutDialog.openDialog()
-  }
-
-  async function handleSignOut() {
-    signOutDialog.closeDialog()
-    await auth.signOut()
+    openModal({
+      size: 'sm',
+      className: 'px-5 pb-5 pt-1',
+      content: ({ closeModal }) => <SignOutConfirmationContent
+        onClose={closeModal}
+        onConfirm={async () => {
+          closeModal()
+          await auth.signOut()
+        }}
+      />,
+    })
   }
 
   return (
@@ -53,17 +59,6 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
-
-      <GlobalSettingsModal
-        {...globalSettingsDialog.dialogProps}
-        fragment={settingsFragment}
-        onFragmentChange={setSettingsFragment}
-      />
-
-      <SignOutConfirmationModal
-        {...signOutDialog.dialogProps}
-        onConfirm={handleSignOut}
-      />
     </div>
   )
 }

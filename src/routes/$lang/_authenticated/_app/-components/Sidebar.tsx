@@ -6,6 +6,7 @@ import { useLanguage } from "@/contexts/LanguageContext"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
 import { useTheme } from "@/hooks/useTheme"
 import { useNotifications } from '@/hooks/useNotifications'
+import { useModal } from '@/hooks/useModal'
 import { i18n } from "@/lib/i18n"
 import { Button, cn, Popover, SOFT_SELECTION_CLASSES, Switch } from "@/shared/cubs-components"
 import { Icon } from "@iconify/react"
@@ -34,7 +35,7 @@ export default ({
     const location = useLocation()
 
     const workspaceState = useWorkspace()
-    const [notificationsOpen, setNotificationsOpen] = React.useState(false)
+    const { openModal } = useModal()
 
     const currentWorkspaceId = workspaceState.workspaceId
     const currentPageRootId = workspaceState.workspace?.pageRootId
@@ -204,7 +205,10 @@ export default ({
                                 {
                                     onClick: () => {
                                         setAccountMenuOpen(false)
-                                        setNotificationsOpen(true)
+                                        openModal({
+                                            size: 'sm',
+                                            content: ({ closeModal }) => <NotificationCenter onClose={closeModal} />,
+                                        })
                                     },
                                     icon: 'lucide:bell',
                                     label: i18n('pages.app.account-menu.notifications'),
@@ -249,6 +253,5 @@ export default ({
                 </Popover>
             </div>
         </aside>
-        {notificationsOpen && <NotificationCenter open onOpenChange={setNotificationsOpen} />}
     </>
 }

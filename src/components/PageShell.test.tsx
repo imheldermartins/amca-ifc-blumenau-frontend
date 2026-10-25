@@ -1,11 +1,15 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render as testingRender, screen, waitFor, within } from '@testing-library/react'
+import { StrictMode, type ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import type { ApiPage } from '@/lib/databaseParser'
 import type { AuthUser } from '@/services/AuthService'
 import type { ApiPageCollaborator } from '@/services/SharedPagesService'
+import { ModalProvider } from '@/contexts/ModalContext'
 import { PageShell } from './PageShell'
+
+const render = (ui: ReactElement) => testingRender(ui, { wrapper: ModalProvider })
 
 const dependencies = vi.hoisted(() => ({
   getPage: vi.fn(),
@@ -418,9 +422,7 @@ describe('PageShell — colaboradores e deep-link', () => {
 
     fireEvent.click(trigger)
     expect(window.location.hash).toBe('#collaborators')
-    const dialog = await screen.findByRole('dialog', {
-      name: 'pages.app.page-settings.title',
-    })
+    const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByTestId('members-panel').dataset).toMatchObject({scope:'page',id:PAGE_ID})
     dependencies.listCollaborators.mockResolvedValue([])
     fireEvent.click(within(dialog).getByRole('button', {name:'Atualizar colaboradores'}))
@@ -433,9 +435,9 @@ describe('PageShell — colaboradores e deep-link', () => {
       '',
       `${window.location.pathname}#collaborators`,
     )
-    render(<PageShell pageId={PAGE_ID} />)
+    render(<StrictMode><PageShell pageId={PAGE_ID} /></StrictMode>)
 
-    await screen.findByRole('dialog', { name: 'pages.app.page-settings.title' })
+    await screen.findByRole('dialog')
     fireEvent.click(screen.getByRole('button', { name: 'common.fechar' }))
     expect(window.location.hash).toBe('')
   })
@@ -450,7 +452,7 @@ describe('PageShell — colaboradores e deep-link', () => {
       )
       window.dispatchEvent(new HashChangeEvent('hashchange'))
     })
-    await screen.findByRole('dialog', { name: 'pages.app.page-settings.title' })
+    await screen.findByRole('dialog')
 
     act(() => {
       window.history.replaceState(
@@ -461,7 +463,7 @@ describe('PageShell — colaboradores e deep-link', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'))
     })
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'pages.app.page-settings.title' })).toBeNull(),
+      expect(screen.queryByRole('dialog')).toBeNull(),
     )
     expect(window.location.hash).toBe('#profile')
   })
@@ -494,3 +496,4 @@ describe('PageShell — colaboradores e deep-link', () => {
     expect(screen.getByRole('img', { name: 'Pessoa Nova' })).toBeTruthy()
   })
 })
+vi.mock('@/components/PageFavoriteButton', () => ({ PageFavoriteButton: () => null }))

@@ -3,7 +3,10 @@ import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { CubsDatabase } from 'cubs-database'
+import { CubsDatabase, DatabaseMentionProvider } from 'cubs-database'
+import { MentionScopeProvider } from '@/contexts/MentionContext'
+import { useMention } from '@/hooks/useMention'
+import { mentionIds, mentionToken } from '@/shared/mentions'
 import type {
   CalendarPinInput,
   ColumnConfigPatch,
@@ -18,7 +21,8 @@ import { databaseCalendarItems } from 'cubs-database'
 import { PageShell } from '@components/PageShell'
 import { SchedulePinRequestDialog, type SchedulePinRequestTarget } from '@/components/SchedulePinRequestDialog'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
-import { ReplaceViewFiltersModal } from '@components/ReplaceViewFiltersModal'
+import { ReplaceViewFiltersContent } from '@components/ReplaceViewFiltersModal'
+import { DeleteViewConfirmationContent } from '@components/DeleteViewConfirmationModal'
 import { FormPublicationDialog } from '@components/FormPublicationDialog'
 import { ColumnRelationRollupDialog, type ColumnRelationRollupTarget } from '@/components/ColumnRelationRollupDialog'
 import { PageBlockEditor } from './PageBlockEditor'
@@ -31,6 +35,7 @@ import { useDatabasePagination, type DatabaseProjectionBridge } from '@/hooks/us
 import { useSchedule } from '@/hooks/useSchedule'
 import { i18n } from '@/lib/i18n'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
+import { useModal, type ModalHandle } from '@/hooks/useModal'
 
 export interface PageProps {
   /** Identidade canônica da página, resolvida pelo TanStack Router. */
@@ -65,6 +70,15 @@ const EMPTY_ROWS: RowData[] = []
  * memoização da lib só vale se o host cooperar — é aqui que ela começa.
  */
 export function Page({ pageId, initialTitle }: PageProps) {
+  return <MentionScopeProvider scope={{ pageId }}><PageContent pageId={pageId} initialTitle={initialTitle} /></MentionScopeProvider>
+}
+
+function PageContent({ pageId, initialTitle }: PageProps) {
+  const mention = useMention()
+  const trackMentionText = useCallback((text: string) => mention.register(mentionIds(text)), [mention.register])
+  const mentionInput = useMemo(() => ({ options: mention.options, resolve: mention.resolve, token: mentionToken, track: trackMentionText, label: i18n('mentions.label'), empty: i18n('mentions.empty'), unavailable: i18n('mentions.unavailable') }), [mention.options, mention.resolve, trackMentionText])
+  const { openModal } = useModal()
+  const filterConflictModalRef = useRef<ModalHandle | null>(null)
   const projectionBridge = useRef<DatabaseProjectionBridge | null>(null)
   const [contentView, setContentView] = useState<PageContentView>('files')
   // O documento resolve blocos de formulário contra o mesmo catálogo de views;
@@ -96,10 +110,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
   const deleteView = handlers.onDeleteView
   const [preferredViewId, setPreferredViewId] = useState('')
   const [pendingCreatedView, setPendingCreatedView] = useState<{ pageId: string; viewId: string } | null>(null)
-  const [pinRequestTarget, setPinRequestTarget] = useState<SchedulePinRequestTarget | null>(null)
-  const [publicationViewId, setPublicationViewId] = useState<string | null>(null)
   const [formulaTarget,setFormulaTarget]=useState<{pageId:string;config:FormulaTarget}|null>(null)
-  const [columnConfigTarget, setColumnConfigTarget] = useState<ColumnRelationRollupTarget | null>(null)
   const settings = database?.settings ?? EMPTY_SETTINGS
   const columns = database?.headerCols ?? EMPTY_COLUMNS
   const lockedColumnKeys = useMemo(() => columnLocks.isPending || columnLocks.isError
@@ -148,8 +159,16 @@ export function Page({ pageId, initialTitle }: PageProps) {
   const handleCalendarRequestPin = useCallback((input: CalendarPinInput) => {
     const row = database?.rows.find((candidate) => candidate.id === input.pageId)
     if (!row) return
-    setPinRequestTarget({ ...input, title: readRowPageTitle(row) ?? i18n('pages.app.pagina.sem-titulo') })
-  }, [database?.rows])
+    const target: SchedulePinRequestTarget = { ...input, title: readRowPageTitle(row) ?? i18n('pages.app.pagina.sem-titulo') }
+    openModal({
+      size: 'sm',
+      content: ({ closeModal }) => <SchedulePinRequestDialog
+        onClose={closeModal}
+        workspaceId={workspaceId}
+        target={target}
+      />,
+    })
+  }, [database?.rows, openModal, workspaceId])
 
   useEffect(() => {
     if (!pendingCreatedView || !pageId || pendingCreatedView.pageId !== pageId) return
@@ -379,27 +398,40 @@ export function Page({ pageId, initialTitle }: PageProps) {
     [addView, pageId, viewQuery.activeViewId],
   )
 
+  const handleConfiguredColumnType = useCallback(async (target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => {
+    await handlers.onConfiguredColumnSave(target.type, config, target.mode === 'update' ? target.columnId : undefined)
+  }, [handlers])
+
+  const openColumnConfiguration = useCallback((target: ColumnRelationRollupTarget) => {
+    openModal({
+      size: 'sm',
+      content: ({ closeModal }) => <ColumnRelationRollupDialog
+        target={target}
+        workspaceId={workspaceId ?? undefined}
+        columns={columns}
+        onClose={closeModal}
+        onSave={handleConfiguredColumnType}
+      />,
+    })
+  }, [columns, handleConfiguredColumnType, openModal, workspaceId])
+
   const handleColumnTypeChange = useCallback((columnId: string, type: ColumnDataType) => {
     if(type === 'formula'){const column=columns.find(column=>column.id===columnId);if(column)setFormulaTarget({pageId,config:{column}});return}
     if (type === 'relation' || type === 'extract_as') {
-      setColumnConfigTarget({ mode: 'update', columnId, type })
+      openColumnConfiguration({ mode: 'update', columnId, type })
       return
     }
     handlers.onColumnTypeChange(columnId, type)
-  }, [handlers,columns,pageId])
+  }, [handlers,columns,pageId,openColumnConfiguration])
 
   const handleAddColumn = useCallback((type: ColumnDataType) => {
     if(type === 'formula'){setFormulaTarget({pageId,config:{}});return}
     if (type === 'relation' || type === 'extract_as') {
-      setColumnConfigTarget({ mode: 'create', type })
+      openColumnConfiguration({ mode: 'create', type })
       return
     }
     handlers.onAddColumn(type)
-  }, [handlers,pageId])
-
-  const handleConfiguredColumnType = useCallback(async (target: ColumnRelationRollupTarget, config: ColumnConfigPatch) => {
-    await handlers.onConfiguredColumnSave(target.type, config, target.mode === 'update' ? target.columnId : undefined)
-  }, [handlers])
+  }, [handlers,pageId,openColumnConfiguration])
 
   const handleDuplicateView = useCallback(async (viewId: string) => {
     if (!pageId) return
@@ -411,12 +443,12 @@ export function Page({ pageId, initialTitle }: PageProps) {
     }
   }, [duplicateView, pageId])
 
-  const handleDeleteView = useCallback(async (viewId: string) => {
-    if (!pageId) return
+  const handleDeleteView = useCallback(async (viewId: string): Promise<boolean> => {
+    if (!pageId) return false
     const nextId = Object.keys(settings).find((id) => id !== viewId)
     try {
       await deleteView(viewId)
-      if (viewQuery.activeViewId !== viewId) return
+      if (viewQuery.activeViewId !== viewId) return true
       if (nextId) {
         setPreferredViewId(nextId)
         changeView(nextId)
@@ -424,8 +456,10 @@ export function Page({ pageId, initialTitle }: PageProps) {
         const createdId = await addView('table', '')
         setPendingCreatedView({ pageId, viewId: createdId })
       }
+      return true
     } catch {
       // O hook mostra o erro e relê o snapshot.
+      return false
     }
   }, [addView, changeView, deleteView, pageId, settings, viewQuery.activeViewId])
 
@@ -463,22 +497,65 @@ export function Page({ pageId, initialTitle }: PageProps) {
         id: 'publish-form',
         label: 'Publicar formulário',
         icon: 'lucide:send',
-        onSelect: () => setPublicationViewId(viewId),
+        onSelect: () => openModal({
+          size: 'md',
+          content: <FormPublicationDialog pageId={pageId} viewId={viewId} lang={currentLang} />,
+        }),
       }] : []),
       {
         id: 'delete',
         label: i18n('pages.app.cubs-database.menu.excluir'),
         icon: 'lucide:trash-2',
         danger: true,
-        onSelect: () => { void handleDeleteView(viewId) },
+        onSelect: () => openModal({
+          size: 'sm',
+          className: 'px-5 pb-5 pt-1',
+          content: ({ closeModal }) => <DeleteViewConfirmationContent
+            viewName={settings[viewId]?.name || i18n('pages.app.cubs-database.view-padrao')}
+            onClose={closeModal}
+            onConfirm={() => handleDeleteView(viewId)}
+          />,
+        }),
       },
     ],
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-    [currentLang, handleDeleteView, handleDuplicateView, settings],
+    [currentLang, handleDeleteView, handleDuplicateView, openModal, pageId, settings],
   )
 
+  const {
+    conflict: viewFilterConflict,
+    acceptPersistence: acceptViewFilterPersistence,
+    rejectPersistence: rejectViewFilterPersistence,
+  } = viewQuery
+
+  useEffect(() => {
+    if (!viewFilterConflict || filterConflictModalRef.current) return
+    let decided = false
+    filterConflictModalRef.current = openModal({
+      size: 'sm',
+      className: 'px-5 pb-5 pt-1',
+      onClose: () => {
+        filterConflictModalRef.current = null
+        if (!decided) rejectViewFilterPersistence()
+      },
+      content: ({ closeModal }) => <ReplaceViewFiltersContent
+        onReplace={() => {
+          decided = true
+          acceptViewFilterPersistence()
+          closeModal()
+        }}
+        onKeepSaved={() => {
+          decided = true
+          rejectViewFilterPersistence()
+          closeModal()
+        }}
+      />,
+    })
+  }, [acceptViewFilterPersistence, openModal, rejectViewFilterPersistence, viewFilterConflict])
+
+  const mentionTemplates = JSON.stringify((database?.rows ?? EMPTY_ROWS).flatMap((row) => Object.values(row.cells).flatMap((cell) => typeof cell?.value === 'string' ? mentionIds(cell.value) : [])))
+  useEffect(() => mention.register(JSON.parse(mentionTemplates) as string[]), [mention.register, mentionTemplates])
   return (
-    <>
+    <DatabaseMentionProvider value={mentionInput}>
       <PageShell
         pageId={pageId}
         initialTitle={initialTitle}
@@ -545,38 +622,14 @@ export function Page({ pageId, initialTitle }: PageProps) {
             pageId={pageId}
             settings={settings}
             columns={columns}
+            onLoadRelationOptions={paged.loadRelationOptions}
             lockedColumnKeys={lockedColumnKeys}
             onSubmit={mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers.onFormSubmit : undefined}
           />,
         }}
         {...realtimeOptions}
       />
-      <ReplaceViewFiltersModal
-        open={viewQuery.conflict}
-        onReplace={viewQuery.acceptPersistence}
-        onKeepSaved={viewQuery.rejectPersistence}
-      />
-      <SchedulePinRequestDialog
-        open={Boolean(pinRequestTarget)}
-        onOpenChange={(open) => { if (!open) setPinRequestTarget(null) }}
-        workspaceId={workspaceId}
-        target={pinRequestTarget}
-      />
-      <FormPublicationDialog
-        open={Boolean(publicationViewId)}
-        onOpenChange={(open) => { if (!open) setPublicationViewId(null) }}
-        pageId={pageId}
-        viewId={publicationViewId}
-        lang={currentLang}
-      />
       <FormulaDrawer key={pageId} pageId={pageId} target={formulaTarget?.pageId===pageId?formulaTarget.config:null} onClose={()=>setFormulaTarget(null)} onSaved={handlers.onFormulaSaved}/>
-      <ColumnRelationRollupDialog
-        target={columnConfigTarget}
-        workspaceId={workspaceId ?? undefined}
-        columns={columns}
-        onOpenChange={(open) => { if (!open) setColumnConfigTarget(null) }}
-        onSave={handleConfiguredColumnType}
-      />
-    </>
+    </DatabaseMentionProvider>
   )
 }

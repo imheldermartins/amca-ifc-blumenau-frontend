@@ -11,12 +11,15 @@ import {
   type PageContentSlots,
 } from '@components/PageShellContent'
 import { PageShellHeader } from '@components/PageShellHeader'
+import { PageFavoriteButton } from '@components/PageFavoriteButton'
 import {
-  PageSettingsModal,
+  PageSettingsContent,
   type PageSettingsFragment,
 } from '@components/PageSettingsModal'
 import { useAuth } from '@/contexts/AuthContext'
-import { useDialog } from '@/hooks/useDialog'
+import { useModal, type ModalHandle } from '@/hooks/useModal'
+import { useOptionalMention } from '@/hooks/useMention'
+import { mentionIds, mentionToken } from '@/shared/mentions'
 import { usePageRealtime, type UsePageRealtimeOptions } from '@/hooks/usePageRealtime'
 import { i18n } from '@/lib/i18n'
 import { formatRelativeTime, parseApiTimestamp } from '@/lib/formatRelativeTime'
@@ -32,7 +35,6 @@ import {
 } from '@/services/SharedPagesService'
 import type { UserIdentity } from '@/types/user'
 
-const DEFAULT_PAGE_SETTINGS_FRAGMENT: PageSettingsFragment = '#general'
 type PageActivityKind = 'created' | 'updated'
 
 function initialPageActivity(page: ApiPage): { at: string; kind: PageActivityKind } {
@@ -91,13 +93,13 @@ export function PageShell({
   titleReadOnly = false,
   ...realtimeOptions
 }: PageShellProps) {
+  const mentions = useOptionalMention()
+  const mentionInput = useMemo(() => mentions ? ({ options: mentions.options.filter((option) => option.id !== `pages:${pageId}:title`), resolve: mentions.resolve, token: mentionToken, label: i18n('mentions.label'), empty: i18n('mentions.empty') }) : undefined, [mentions?.options, mentions?.resolve, pageId])
   const auth = useAuth()
   const permission = usePageAccess(pageId)
-  const {
-    isOpen: pageSettingsOpen,
-    openDialog: openPageSettingsDialog,
-    closeDialog: closePageSettingsDialog,
-  } = useDialog()
+  const { openModal } = useModal()
+  const pageSettingsModalRef = useRef<ModalHandle | null>(null)
+  const [pageSettingsOpen, setPageSettingsOpen] = useState(false)
   const [title, setTitle] = useState<string | null>(() => normalizePageTitle(initialTitle))
   const [draftTitle, setDraftTitle] = useState(() => normalizePageTitle(initialTitle) ?? '')
   const [titleSaving, setTitleSaving] = useState(false)
@@ -117,9 +119,6 @@ export function PageShell({
   const [collaborators, setCollaborators] = useState<ApiPageCollaborator[]>([])
   const [collaboratorsLoading, setCollaboratorsLoading] = useState(false)
   const [collaboratorsRevision, setCollaboratorsRevision] = useState(0)
-  const [pageSettingsFragment, setPageSettingsFragment] = useState<PageSettingsFragment>(
-    () => readPageSettingsFragment(window.location.hash) ?? DEFAULT_PAGE_SETTINGS_FRAGMENT,
-  )
   const titleClockRef = useRef<{ pageId: string | undefined; updatedAt: string | null }>({
     pageId,
     updatedAt: null,
@@ -223,6 +222,7 @@ export function PageShell({
   // Escopar o chrome pelo id impede um único frame com o título da página velha.
   const titleBelongsToPage = titlePageId === pageId
   const displayedTitle = titleBelongsToPage ? title : normalizePageTitle(initialTitle)
+  useEffect(() => { if (displayedTitle) mentions?.register(mentionIds(displayedTitle)) }, [displayedTitle, mentions?.register])
   const displayedUpdatedAt = titleBelongsToPage ? updatedAt : null
   const displayedActivityKind = titleBelongsToPage ? activityKind : null
   const displayedFailed = titleBelongsToPage ? failed : false
@@ -270,26 +270,31 @@ export function PageShell({
 
   const openPageSettings = useCallback(
     (fragment: PageSettingsFragment) => {
-      setPageSettingsFragment(fragment)
-      openPageSettingsDialog()
+      pageSettingsModalRef.current?.closeModal()
       if (window.location.hash !== fragment) window.location.hash = fragment
+      setPageSettingsOpen(true)
+      pageSettingsModalRef.current = openModal({
+        size: 'xl',
+        className: 'p-0',
+        onClose: () => {
+          pageSettingsModalRef.current = null
+          setPageSettingsOpen(false)
+          if (readPageSettingsFragment(window.location.hash)) {
+            window.history.replaceState(window.history.state, '', urlWithoutHash())
+          }
+        },
+        content: <PageSettingsContent
+          initialFragment={fragment}
+          onFragmentChange={(next) => {
+            if (window.location.hash !== next) window.location.hash = next
+          }}
+          pageId={pageId}
+          pageTitle={displayedTitle}
+          onMembersChanged={() => setCollaboratorsRevision((revision) => revision + 1)}
+        />,
+      })
     },
-    [openPageSettingsDialog],
-  )
-
-  const handlePageSettingsOpenChange = useCallback(
-    (open: boolean) => {
-      if (open) {
-        openPageSettingsDialog()
-        return
-      }
-      closePageSettingsDialog()
-      // Não apaga fragmentos pertencentes a outra interface.
-      if (readPageSettingsFragment(window.location.hash)) {
-        window.history.replaceState(window.history.state, '', urlWithoutHash())
-      }
-    },
-    [closePageSettingsDialog, openPageSettingsDialog],
+    [displayedTitle, openModal, pageId],
   )
 
   // Deep-link real: carregar, navegar por back/forward ou escrever o hash
@@ -298,16 +303,15 @@ export function PageShell({
     const syncFromHash = () => {
       const fragment = readPageSettingsFragment(window.location.hash)
       if (fragment) {
-        setPageSettingsFragment(fragment)
-        openPageSettingsDialog()
+        if (!pageSettingsModalRef.current) openPageSettings(fragment)
       } else {
-        closePageSettingsDialog()
+        pageSettingsModalRef.current?.closeModal()
       }
     }
     syncFromHash()
     window.addEventListener('hashchange', syncFromHash)
     return () => window.removeEventListener('hashchange', syncFromHash)
-  }, [closePageSettingsDialog, openPageSettingsDialog])
+  }, [openPageSettings])
 
   // O flag `active` descarta a resposta de um unmount no meio do caminho —
   // sem ele, o setState cai num componente que já saiu da árvore.
@@ -397,6 +401,8 @@ export function PageShell({
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
       <PageShellHeader
+        actions={<PageFavoriteButton pageId={pageId} title={mentions?.resolve(displayedTitle ?? '') ?? displayedTitle} enabled={!pageLoading && !displayedFailed} />}
+        mentions={mentionInput}
         title={displayedTitle}
         draftTitle={draftTitle}
         loading={pageLoading}
@@ -426,16 +432,6 @@ export function PageShell({
       />
 
       <PageShellContent view={contentView} loading={showContentSkeleton} slots={content} />
-
-      <PageSettingsModal
-        open={pageSettingsOpen}
-        onOpenChange={handlePageSettingsOpenChange}
-        fragment={pageSettingsFragment}
-        onFragmentChange={openPageSettings}
-        pageId={pageId}
-        pageTitle={displayedTitle}
-        onMembersChanged={() => setCollaboratorsRevision((revision) => revision + 1)}
-      />
     </div>
   )
 }
