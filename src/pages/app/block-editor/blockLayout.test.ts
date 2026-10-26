@@ -40,6 +40,29 @@ function document(...rows: ReturnType<typeof row>[]) {
 }
 
 describe('moveBlockToDrop', () => {
+  it.each([
+    ['row-a', 'before', ['moving', 'row-a', 'row-b']],
+    ['row-b', 'before', ['row-a', 'moving', 'row-b']],
+    ['row-b', 'after', ['row-a', 'row-b', 'moving']],
+  ] as const)('creates a full row %s/%s while preserving the other columns', (rowId, edge, expected) => {
+    const result = moveBlockToDrop(document(
+      row('row-a', column('a1', 50, block('a')), column('a2', 50, block('b'))),
+      row('row-b', column('b1', 50, block('c')), column('b2', 50, block('d'))),
+      row('source', column('source-col', 100, block('moving'))),
+    ), 'moving', { type: 'row', rowId, edge })!
+
+    expect(result.map((item) => item.childCount === 1 ? item.firstChild!.firstChild!.attrs.id : item.attrs.id)).toEqual(expected)
+    for (const item of result) {
+      if (item.attrs.id === 'row-a' || item.attrs.id === 'row-b') {
+        expect(item.childCount).toBe(2)
+        expect(item.content.content.map((col) => col.attrs.span)).toEqual([50, 50])
+      } else {
+        expect(item.firstChild!.attrs.span).toBe(100)
+      }
+    }
+    expect(() => schema.nodes.doc.create(null, result).check()).not.toThrow()
+  })
+
   it('moves between nested rows without flattening the sibling columns or losing row ownership', () => {
     const nested = schema.nodes.blockRow.create({ id: 'nested' }, [column('inner-a', 50, block('a')), column('inner-b', 50, block('b'))]);
     const host = schema.nodes.blockColumn.create({ id: 'host', span: 50 }, [nested, block('c')]);

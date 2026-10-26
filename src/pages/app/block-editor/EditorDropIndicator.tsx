@@ -1,14 +1,14 @@
 import { useEditorInteractions } from './EditorInteractionContext'
 
-/** The measured dropzone stays in place; its indicator never changes the document layout. */
-export function EditorDropPlaceholder({ id, className, setNodeRef }: {
+/** Absolute hit area; CSS draws only the insertion line or lateral highlight. */
+export function EditorDropIndicator({ id, className, setNodeRef }: {
   id: string
   className: string
   setNodeRef: (node: HTMLElement | null) => void
 }) {
   const { activeDropId } = useEditorInteractions()
   const targeted = activeDropId === id
-  return <span
+  return <div
     ref={setNodeRef}
     contentEditable={false}
     className={`${className}${targeted ? ' is-over' : ''}`}

@@ -70,7 +70,7 @@ describe('block editor interactions', () => {
     })
   })
 
-  it('reserves the block dimensions during drag and restores the document on cancel', async () => {
+  it('keeps the original block in its layout without a card placeholder and cancels without changes', async () => {
     const onChange = vi.fn()
     const { container } = render(<Editor onChange={onChange} />)
     const handle = await screen.findByRole('button', { name: 'Arrastar bloco' })
@@ -82,9 +82,11 @@ describe('block editor interactions', () => {
     Object.defineProperties(pointerDown, { isPrimary: { value: true }, pointerId: { value: 1 } })
     fireEvent(handle, pointerDown)
     await waitFor(() => expect(container.querySelector('.cubs-editor-drag-preview')).not.toBeNull())
-    expect(block.querySelector('[data-drag-placeholder]')).not.toBeNull()
-    expect(block.style.width).toBe('320px')
-    expect(block.style.height).toBe('60px')
+    expect(block.classList.contains('is-dragging')).toBe(true)
+    expect(block.querySelector('[data-drag-placeholder]')).toBeNull()
+    expect(block.querySelector('.cubs-editor-block-content')).not.toBeNull()
+    expect(block.style.width).toBe('')
+    expect(block.style.height).toBe('')
     expect(block.style.transform).toBe('')
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(container.querySelector('.cubs-editor-drag-preview')).toBeNull())
@@ -114,12 +116,12 @@ describe('block editor interactions', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const row = this.closest('[data-row-id]')
       const top = row?.getAttribute('data-row-id') === 'row-b' ? 120 : 0
-      if (this.matches('.cubs-editor-row-drop-zone.is-before')) return new DOMRect(0, top - 5, 320, 10)
-      if (this.matches('.cubs-editor-row-drop-zone.is-after')) return new DOMRect(0, top + 55, 320, 10)
-      if (this.matches('.cubs-editor-item-drop-zone.is-before')) return new DOMRect(0, top, 320, 25)
-      if (this.matches('.cubs-editor-item-drop-zone.is-after')) return new DOMRect(0, top + 35, 320, 25)
-      if (this.matches('.cubs-editor-column-drop-zone.is-left')) return new DOMRect(0, top, 76, 60)
-      if (this.matches('.cubs-editor-column-drop-zone.is-right')) return new DOMRect(244, top, 76, 60)
+      if (this.matches('.cubs-editor-row-drop-indicator.is-before')) return new DOMRect(0, top - 5, 320, 10)
+      if (this.matches('.cubs-editor-row-drop-indicator.is-after')) return new DOMRect(0, top + 55, 320, 10)
+      if (this.matches('.cubs-editor-item-drop-indicator.is-before')) return new DOMRect(0, top, 320, 25)
+      if (this.matches('.cubs-editor-item-drop-indicator.is-after')) return new DOMRect(0, top + 35, 320, 25)
+      if (this.matches('.cubs-editor-column-drop-indicator.is-left')) return new DOMRect(0, top, 76, 60)
+      if (this.matches('.cubs-editor-column-drop-indicator.is-right')) return new DOMRect(244, top, 76, 60)
       if (this.matches('[data-editor-block]')) return new DOMRect(0, top, 320, 60)
       return originalRect.call(this)
     })

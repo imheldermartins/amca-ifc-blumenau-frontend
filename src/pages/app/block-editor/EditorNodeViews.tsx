@@ -1,5 +1,4 @@
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
-import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
 import type { Editor } from '@tiptap/core'
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
@@ -8,7 +7,7 @@ import {
   NodeViewWrapper,
   type NodeViewProps,
 } from '@tiptap/react'
-import { ContextMenu, DragPlaceholder, dragPlaceholderStyle, cn, type ContextMenuItem } from 'cubs-components'
+import { ContextMenu, cn, type ContextMenuItem } from 'cubs-components'
 import {
   useRef,
   useLayoutEffect,
@@ -24,7 +23,7 @@ import { i18n } from '@/lib/i18n'
 import { type EditorDropTarget } from './blockLayout'
 import { ColumnLayoutRules, MAX_COLUMNS } from './columnLayoutRules'
 import { type EditorDragData } from './EditorDnd'
-import { EditorDropPlaceholder } from './EditorDropPlaceholder'
+import { EditorDropIndicator } from './EditorDropIndicator'
 import { useEditorInteractions } from './EditorInteractionContext'
 import { RecursiveBlockView } from './RecursiveBlockView'
 
@@ -130,9 +129,9 @@ export function BlockRowView({ node }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className="cubs-editor-row" data-editor-row="" data-row-id={rowId}>
-      <EditorDropPlaceholder id={beforeId} setNodeRef={before.setNodeRef} className="cubs-editor-row-drop-zone is-before" />
+      <EditorDropIndicator id={beforeId} setNodeRef={before.setNodeRef} className="cubs-editor-row-drop-indicator is-before" />
       <NodeViewContent className="cubs-editor-row-content" />
-      <EditorDropPlaceholder id={afterId} setNodeRef={after.setNodeRef} className="cubs-editor-row-drop-zone is-after" />
+      <EditorDropIndicator id={afterId} setNodeRef={after.setNodeRef} className="cubs-editor-row-drop-indicator is-after" />
     </NodeViewWrapper>
   )
 }
@@ -304,9 +303,9 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
       data-column-id={columnId}
       data-column-width={width}
     >
-      <EditorDropPlaceholder id={leftId} setNodeRef={leftDrop.setNodeRef} className="cubs-editor-column-drop-zone is-left" />
+      <EditorDropIndicator id={leftId} setNodeRef={leftDrop.setNodeRef} className="cubs-editor-column-drop-indicator is-left" />
       <NodeViewContent className="cubs-editor-column-content" />
-      <EditorDropPlaceholder id={rightId} setNodeRef={rightDrop.setNodeRef} className="cubs-editor-column-drop-zone is-right" />
+      <EditorDropIndicator id={rightId} setNodeRef={rightDrop.setNodeRef} className="cubs-editor-column-drop-indicator is-right" />
 
       {hasNextColumn && editor.isEditable && (
         <button
@@ -343,7 +342,7 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
   const columnIndex = rowDepth === null || !resolved ? -1 : resolved.index(rowDepth)
   const rowId = stringAttribute(rowNode?.attrs.id) ?? ''
   const columnId = stringAttribute(columnNode?.attrs.id) ?? ''
-  const { active, activeNodeRect } = useDndContext()
+  const { active } = useDndContext()
   const {
     clearColumnWidthPreview,
   } = useEditorInteractions()
@@ -376,13 +375,6 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
       text: node.textContent.slice(0, 120),
     } satisfies EditorDragData,
   })
-  const dragStyle: CSSProperties = {
-    ...(drag.isDragging ? dragPlaceholderStyle(activeNodeRect) : undefined),
-    transform: drag.isDragging ? undefined : CSS.Translate.toString(drag.transform),
-    transition: drag.isDragging
-      ? undefined
-      : 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
-  }
   const layoutItems: ContextMenuItem[] = ColumnLayoutRules.presets(
     rowNode?.childCount ?? 0,
   ).map((preset) => {
@@ -424,7 +416,6 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
   return (
     <NodeViewWrapper
       ref={drag.setNodeRef}
-      style={dragStyle}
       className={cn(
         'group/editor-block relative min-w-0',
         drag.isDragging && 'is-dragging',
@@ -434,8 +425,7 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
       data-block-kind={kind}
       data-block-indent={node.attrs.indent ?? 0}
     >
-      {drag.isDragging && <DragPlaceholder />}
-      <EditorDropPlaceholder id={beforeId} setNodeRef={beforeDrop.setNodeRef} className="cubs-editor-item-drop-zone is-before" />
+      <EditorDropIndicator id={beforeId} setNodeRef={beforeDrop.setNodeRef} className="cubs-editor-item-drop-indicator is-before" />
       {editor.isEditable && <button
         ref={drag.setActivatorNodeRef}
         type="button"
@@ -457,7 +447,7 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
       {kind === 'tableRecursive' || kind === 'calendarRecursive' ? <RecursiveBlockView readOnly={!editor.isEditable} kind={kind} value={node.attrs.recursive}
         onChange={(recursive) => { const pos = getPos(); if (typeof pos === 'number') editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, recursive })) }}
         onDelete={() => { const pos = getPos(); if (typeof pos === 'number') editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run() }} /> : <NodeViewContent className="cubs-editor-block-content min-h-9" />}
-      <EditorDropPlaceholder id={afterId} setNodeRef={afterDrop.setNodeRef} className="cubs-editor-item-drop-zone is-after" />
+      <EditorDropIndicator id={afterId} setNodeRef={afterDrop.setNodeRef} className="cubs-editor-item-drop-indicator is-after" />
       <div contentEditable={false} className="pointer-events-none absolute inset-0 z-50">
         <ContextMenu
           open={Boolean(layoutMenu)}

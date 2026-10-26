@@ -413,11 +413,7 @@
 }
 
 [data-editor-block].is-dragging {
-  z-index: 30;
-}
-
-[data-editor-block].is-dragging > :not([data-drag-placeholder]) {
-  visibility: hidden;
+  opacity: 0.35;
 }
 
 .cubs-editor-drag-preview {
@@ -471,9 +467,9 @@
   font-weight: 600;
 }
 
-.cubs-editor-row-drop-zone,
-.cubs-editor-column-drop-zone,
-.cubs-editor-item-drop-zone {
+.cubs-editor-row-drop-indicator,
+.cubs-editor-column-drop-indicator,
+.cubs-editor-item-drop-indicator {
   position: absolute;
   z-index: 4;
   display: block;
@@ -481,48 +477,67 @@
   pointer-events: none;
 }
 
-.cubs-editor-row-drop-zone {
+.cubs-editor-row-drop-indicator {
   right: 0;
   left: 0;
   height: 1rem;
 }
 
-.cubs-editor-row-drop-zone.is-before {
+.cubs-editor-row-drop-indicator.is-before {
   top: -0.5rem;
 }
 
-.cubs-editor-row-drop-zone.is-after {
+.cubs-editor-row-drop-indicator.is-after {
   bottom: -0.5rem;
 }
 
-.cubs-editor-row-drop-zone.is-over,
-.cubs-editor-item-drop-zone.is-over {
-  background: color-mix(in oklab, var(--p-purple) 14%, transparent);
-  outline: 1px dashed var(--p-purple);
-  border-radius: 4px;
+.cubs-editor-row-drop-indicator.is-over,
+.cubs-editor-item-drop-indicator.is-over {
+  /* The hit area is generous, but the feedback adds no layout space. */
+  --editor-drop-line-color: var(--p-purple);
 }
 
-.cubs-editor-column-drop-zone {
+.cubs-editor-row-drop-indicator::after,
+.cubs-editor-item-drop-indicator::after {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--editor-drop-line-color, transparent);
+  content: '';
+}
+
+.cubs-editor-row-drop-indicator::after {
+  top: calc(50% - 1px);
+}
+
+.cubs-editor-item-drop-indicator.is-before::after {
+  top: 0;
+}
+
+.cubs-editor-item-drop-indicator.is-after::after {
+  bottom: 0;
+}
+
+.cubs-editor-column-drop-indicator {
   top: 0;
   bottom: 0;
   width: 24%;
 }
 
-.cubs-editor-column-drop-zone.is-left {
+.cubs-editor-column-drop-indicator.is-left {
   left: 0;
 }
 
-.cubs-editor-column-drop-zone.is-right {
+.cubs-editor-column-drop-indicator.is-right {
   right: 0;
 }
 
-.cubs-editor-column-drop-zone.is-over {
-  background: color-mix(in oklab, var(--p-purple) 10%, transparent);
-  outline: 1px dashed var(--p-purple);
-  border-radius: 4px;
+.cubs-editor-column-drop-indicator.is-over {
+  background: color-mix(in oklab, var(--p-purple) 14%, transparent);
 }
 
-.cubs-editor-item-drop-zone {
+.cubs-editor-item-drop-indicator {
   right: 0;
   left: 0;
   height: 45%;
@@ -530,11 +545,11 @@
   max-height: 1.5rem;
 }
 
-.cubs-editor-item-drop-zone.is-before {
+.cubs-editor-item-drop-indicator.is-before {
   top: 0;
 }
 
-.cubs-editor-item-drop-zone.is-after {
+.cubs-editor-item-drop-indicator.is-after {
   bottom: 0;
 }
 
@@ -591,7 +606,7 @@
   }
 
   .cubs-editor-column-link,
-  .cubs-editor-column-drop-zone {
+  .cubs-editor-column-drop-indicator {
     display: none;
   }
 }

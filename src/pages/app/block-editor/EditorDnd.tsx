@@ -51,7 +51,14 @@ function isDropTarget(value: unknown): value is EditorDropTarget {
 }
 
 export const editorCollisionDetection: CollisionDetection = (args) => {
-  const nearest = handleCollisions(args)[0]
+  const collisions = handleCollisions(args)
+  // At a row boundary, create a full row even when a smaller block/column
+  // hit area overlaps it. Away from that boundary, keep the existing targets.
+  const rowBoundary = collisions.find((collision) =>
+    collision.data?.value === 0 &&
+    collision.data.droppableContainer.data.current?.type === 'row',
+  )
+  const nearest = rowBoundary ?? collisions[0]
   return nearest && (nearest.data?.value ?? Infinity) <= 48 ? [nearest] : []
 }
 
