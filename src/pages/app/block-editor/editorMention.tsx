@@ -4,32 +4,48 @@ import { PluginKey } from '@tiptap/pm/state'
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from '@tiptap/react'
 import { createRoot, type Root } from 'react-dom/client'
 import { useEffect } from 'react'
+import { displayMentionText } from 'cubs-components'
 import { useOptionalMention } from '@/hooks/useMention'
 import { i18n } from '@/lib/i18n'
 import { mentionToken, type MentionOption } from '@/shared/mentions'
+import { CHILD_TITLE, PDF_TITLE, pdfColumn } from '@/shared/recursive-template'
+import { useEditorEnvironment } from './editorEnvironmentContext'
+import { recursiveMentionOptions } from './recursiveEditor'
 
 export const EDITOR_MENTION_PLUGIN_KEY = new PluginKey('cubsMention')
 
 function MentionView({ node }: NodeViewProps) {
   const context = useOptionalMention()
   const id = String(node.attrs.id ?? '')
-  useEffect(() => { context?.register([id]) }, [context?.register, id])
-  const label = context?.options.find((option) => option.id === id)?.label
-  return <NodeViewWrapper as="span" contentEditable={false} title={label}
+  const environment = useEditorEnvironment()
+  const recursive = id.startsWith('recursive:') || id.startsWith('pdf:page:')
+  const recursiveColumn = environment.recursiveColumns?.find((col) => id === `recursive:child:columns.${col.id}`)
+  const pdfProperty = environment.recursiveColumns?.find((col) => id === pdfColumn(col.id))
+  const relationLabel = environment.recursiveRelations?.flatMap((relation) => recursiveMentionOptions(relation.columns, relation.id, relation.name)).find((option) => option.id === id)?.label
+  const recursiveLabel = id === CHILD_TITLE || id === PDF_TITLE ? i18n('recursive.page-title') : relationLabel ?? pdfProperty?.name ?? (recursiveColumn ? recursiveColumn.name || i18n('recursive.unnamed-property') : undefined)
+  const register = context?.register
+  useEffect(() => { if (!recursive) register?.([id]) }, [register, id, recursive])
+  const label = recursive ? recursiveLabel : context?.options.find((option) => option.id === id)?.label
+  return <NodeViewWrapper as="span" contentEditable={false} title={label ? displayMentionText(label, context?.resolve, i18n('mentions.unavailable')) : undefined}
     className="rounded-full bg-p-purple/10 px-2.5 py-0.5 text-p-purple" data-mention-id={id}>
-    {context?.values[id] ?? i18n('mentions.unavailable')}
+    {displayMentionText(recursive ? recursiveLabel ?? i18n('mentions.unavailable') : context?.values[id] ?? i18n('mentions.unavailable'), context?.resolve, i18n('mentions.unavailable'))}
   </NodeViewWrapper>
 }
 
 /** Official Mention + Suggestion handle the schema, cursor range, insertion and deletion. */
 export function createEditorMention(getOptions: () => MentionOption[] = () => []) {
+  const readable = (id: string) => {
+    const option = getOptions().find((option) => option.id === id)
+    return displayMentionText(option ? option.value || option.label : i18n('mentions.unavailable'), (token) => getOptions().find((entry) => mentionToken(entry.id) === token)?.value ?? i18n('mentions.unavailable'), i18n('mentions.unavailable'))
+  }
   return Mention.extend({ priority: 1100, addNodeView() { return ReactNodeViewRenderer(MentionView) } }).configure({
     HTMLAttributes: { class: 'cubs-mention' },
-    renderText: ({ node }) => mentionToken(String(node.attrs.id ?? '')),
+    renderText: ({ node }) => readable(String(node.attrs.id ?? '')),
+    renderHTML: ({ node, options }) => ['span', options.HTMLAttributes, readable(String(node.attrs.id ?? ''))],
     suggestion: {
       pluginKey: EDITOR_MENTION_PLUGIN_KEY,
       char: '@',
-      items: ({ query }) => getOptions().filter((option) => `${option.label} ${option.search ?? ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())).slice(0, 50),
+      items: ({ query }) => getOptions().filter((option) => `${option.label} ${option.search ?? ''}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())),
       allow: ({ state, range }) => {
         const pos = state.doc.resolve(range.from)
         return pos.parent.type.name !== 'codeBlock' && !pos.marks().some((mark) => mark.type.name === 'code')
@@ -44,9 +60,9 @@ export function createEditorMention(getOptions: () => MentionOption[] = () => []
           {!items.length && <p className="p-3 text-xs opacity-60">{i18n('mentions.empty')}</p>}
           {items.map((item, index) => <div key={item.id}>
             {(index === 0 || items[index - 1]!.section !== item.section) && <p className="px-2 py-2 text-[10px] font-semibold uppercase tracking-wide opacity-50">{item.section}</p>}
-            <button role="option" aria-selected={index === selected} type="button" onPointerDown={(event) => event.preventDefault()} onMouseDown={(event) => event.preventDefault()}
+            <button ref={(element) => { if (index === selected) element?.scrollIntoView?.({ block: 'nearest' }) }} role="option" aria-selected={index === selected} type="button" onPointerDown={(event) => event.preventDefault()} onMouseDown={(event) => event.preventDefault()}
               onClick={() => choose(item)} className={`flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2 text-left text-xs ${index === selected ? 'bg-p-purple/10 text-p-purple' : ''}`}>
-              <span className="min-w-0 truncate">{item.label}</span><span className="max-w-28 truncate opacity-50">{item.value}</span>
+              <span className="min-w-0 truncate">{displayMentionText(item.label)}</span><span className="max-w-28 truncate opacity-50">{displayMentionText(item.value)}</span>
             </button>
           </div>)}
         </div>)

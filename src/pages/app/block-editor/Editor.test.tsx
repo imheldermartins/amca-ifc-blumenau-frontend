@@ -15,7 +15,7 @@ describe('block editor interactions', () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 360, 100))
     vi.spyOn(window, 'scrollBy').mockImplementation(() => {})
     const { container } = render(<Editor />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar bloco' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Novo item' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Mais' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Texto rico' }))
     await waitFor(() => {
@@ -96,7 +96,7 @@ describe('block editor interactions', () => {
     await new Promise((resolve) => setTimeout(resolve, 60))
   })
 
-  it('reserves the destination slot and commits the block at that destination', async () => {
+  it('highlights the destination without resizing it and commits the block there', async () => {
     const onChange = vi.fn()
     const { container } = render(<Editor onChange={onChange} content={{
       type: 'doc',
@@ -132,10 +132,10 @@ describe('block editor interactions', () => {
     fireEvent(document, new MouseEvent('pointermove', {
       bubbles: true, cancelable: true, buttons: 1, clientX: 160, clientY: 178,
     }))
-    await waitFor(() => expect(container.querySelector('.is-over > [data-drag-placeholder]')).not.toBeNull())
-    const target = container.querySelector<HTMLElement>('.is-over > [data-drag-placeholder]')!.parentElement!
-    expect(target.style.width).toBe('320px')
-    expect(target.style.height).toBe('60px')
+    await waitFor(() => expect(container.querySelector('[data-editor-drop-active]')).not.toBeNull())
+    const target = container.querySelector<HTMLElement>('[data-editor-drop-active]')!
+    expect(target.style.width).toBe('')
+    expect(target.style.height).toBe('')
     fireEvent(document, new MouseEvent('pointerup', {
       bubbles: true, cancelable: true, button: 0, clientX: 160, clientY: 178,
     }))

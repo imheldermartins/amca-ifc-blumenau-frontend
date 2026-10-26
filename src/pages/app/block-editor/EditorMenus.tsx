@@ -432,8 +432,9 @@ export function EditorMenus({ editor }: EditorMenusProps) {
         updateDelay={0}
         resizeDelay={0}
         shouldShow={shouldShowBubbleMenu}
-        options={{ placement: 'top', offset: 10 }}
-        className="flex items-center gap-1 rounded-lg border border-divider-contrast bg-glass p-1 shadow-xl backdrop-blur-md"
+        appendTo={() => editor.view.dom.closest<HTMLElement>('[role="dialog"]') ?? document.body}
+        options={{ strategy: 'fixed', placement: 'top', offset: 10 }}
+        className="z-[80] flex items-center gap-1 rounded-lg border border-divider-contrast bg-glass p-1 shadow-xl backdrop-blur-md"
       >
         <EmphasisGroup editor={editor} />
         <span className="mx-0.5 h-6 w-px bg-divider" aria-hidden="true" />

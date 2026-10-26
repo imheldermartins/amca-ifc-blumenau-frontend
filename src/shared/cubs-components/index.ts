@@ -90,4 +90,5 @@ export type {
 
 export { CUBS_COMPONENTS_VERSION } from './version'
 export { MentionTextField } from './MentionTextField'
+export { displayMentionText } from './lib/mentionPresentation'
 export type { MentionInputConfig, MentionInputOption, MentionTextFieldProps } from './MentionTextField'

@@ -6,9 +6,10 @@ export type EditorBlockKind =
   | 'enumerateList'
   | 'checkList'
   | 'image'
-  | 'formSubmit'
   | 'mathBlock'
   | 'codeBlock'
+  | 'tableRecursive'
+  | 'calendarRecursive'
 
 export interface EditorBlockActionProps {
   editor: Editor

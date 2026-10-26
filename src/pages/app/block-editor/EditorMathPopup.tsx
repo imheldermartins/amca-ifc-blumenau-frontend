@@ -100,7 +100,7 @@ export function EditorMathPopup({ editor, position, onPositionChange }: { editor
     <Popover.Anchor virtualRef={anchor} />
     <Popover.Portal>
       <Popover.Content data-editor-math-popup aria-label={i18n('pages.block-editor.math.edit')} side="bottom" align="start" sideOffset={8}
-        className={`${FLOATING_SURFACE_CLASSES} z-50 p-3`} onCloseAutoFocus={(event) => event.preventDefault()}>
+        className={`${FLOATING_SURFACE_CLASSES} z-[90] p-3`} onCloseAutoFocus={(event) => event.preventDefault()}>
         <MathForm key={position} editor={editor} position={position} close={close} />
       </Popover.Content>
     </Popover.Portal>

@@ -196,6 +196,7 @@ export interface CubsDatabaseProps {
    * A seleção de linhas mudou — `selectedPagesIds` completo.
    */
   onSelectionChange?: (selectedPagesIds: string[]) => void
+  selectionAction?: { label: string; onSelect: () => void }
   /** Envia uma página/linha para a lixeira. */
   onDeleteRow?: (rowId: string) => void
   /** Envia as páginas selecionadas para a lixeira após confirmação no header. */
@@ -366,6 +367,7 @@ export function CubsDatabase({
   onColumnLockChange,
   filterSyncStatus,
   toolbarLabels,
+  selectionAction,
   loading,
   emptyLabel,
   placeholderLabel = 'Em breve.',
@@ -581,6 +583,7 @@ export function CubsDatabase({
         filters={effectiveFilters}
         labels={resolvedToolbarLabels}
         syncStatus={filterSyncStatus}
+        selectionAction={selectionAction}
         settings={mockSettings}
         onSettingsChange={(patch) => {
           if (patch.tileSize !== undefined && onGridConfigChange) {

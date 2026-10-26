@@ -5,7 +5,6 @@ import {
   DEFAULT_EDITOR_BLOCK_OPTION_ID,
   EDITOR_BLOCK_OPTIONS,
   insertBlockFromCatalog,
-  insertFormSubmitBlock,
 } from './blockCatalog'
 import { createEditorExtensions } from './editorExtensions'
 
@@ -84,12 +83,4 @@ describe('editor block catalog', () => {
     expect(column?.firstChild?.attrs.kind).toBe('bulletList')
   })
 
-  it('grava somente a referência da view no bloco de envio de formulário', () => {
-    const currentEditor = createEditor('')
-    insertFormSubmitBlock(currentEditor, '01KXVZ00000000000000000001')
-    const block = currentEditor.state.doc.firstChild?.firstChild?.firstChild
-    expect(block?.attrs.kind).toBe('formSubmit')
-    expect(block?.attrs.formViewId).toBe('01KXVZ00000000000000000001')
-    expect(block?.textContent).toBe('')
-  })
 })

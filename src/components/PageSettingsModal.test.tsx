@@ -7,6 +7,16 @@ function props(overrides: Partial<PageSettingsContentProps> = {}): PageSettingsC
   return { initialFragment: '#collaborators', onFragmentChange: vi.fn(), pageId: 'page-1', pageTitle: 'Planejamento', ...overrides }
 }
 describe('PageSettingsContent', () => {
+  it('offers PDF generation from the page menu, including when member management is unavailable', () => {
+    const onSelect = vi.fn()
+    render(<PageSettingsContent {...props({ showCollaborators: false, pdfAction: { label: 'Gerar PDF', onSelect } })} />)
+    expect(screen.queryByRole('tab', { name: 'Colaboradores' })).toBeNull()
+    expect(screen.queryByTestId('members-panel')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Gerar PDF em Lote' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Gerar PDF da página selecionada' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar PDF' }))
+    expect(onSelect).toHaveBeenCalledOnce()
+  })
   it('abre o mesmo painel da listagem no escopo da página e repassa atualizações', () => {
     const onFragmentChange = vi.fn<(fragment: PageSettingsFragment) => void>(), onMembersChanged = vi.fn()
     render(<PageSettingsContent {...props({ onFragmentChange, onMembersChanged })} />)

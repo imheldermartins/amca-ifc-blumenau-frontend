@@ -62,7 +62,7 @@ export function Popover({
           collisionPadding={collisionPadding}
           sticky={sticky}
           className={cn(
-            'z-50',
+            'pointer-events-auto z-[90]',
             FLOATING_SURFACE_CLASSES,
             className,
           )}

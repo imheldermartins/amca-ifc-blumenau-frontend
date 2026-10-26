@@ -40,7 +40,7 @@ export function Tooltip({
             align={align}
             sideOffset={sideOffset}
             className={cn(
-              'z-[70] max-w-80 rounded-md bg-foreground px-2 py-1 text-xs leading-snug text-background shadow-lg',
+              'z-[100] max-w-80 rounded-md bg-foreground px-2 py-1 text-xs leading-snug text-background shadow-lg',
               'select-none data-[state=closed]:animate-out data-[state=delayed-open]:animate-in',
               'data-[state=closed]:fade-out-0 data-[state=delayed-open]:fade-in-0',
               className,

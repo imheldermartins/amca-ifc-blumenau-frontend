@@ -14,8 +14,9 @@ import { BlockInsertDock } from './BlockInsertDock'
 import { createEditorExtensions } from './editorExtensions'
 import { EditorEnvironmentProvider } from './EditorEnvironment'
 import { EditorMathPopup } from './EditorMathPopup'
-import type { FormBlockOption } from './editorEnvironmentContext'
 import { createDocumentChangeDebouncer } from './documentChanges'
+import type { RecursiveColumn, RecursiveRelation } from '@/shared/recursive-template'
+import { pdfMentionOptions } from './recursiveEditor'
 
 function createBlockId(): string {
   return crypto.randomUUID()
@@ -52,28 +53,35 @@ function createEmptyEditorContent(): JSONContent {
 
 export function Editor({
   content,
-  forms = [],
   onChange = () => undefined,
   onChangeDeferred,
-  onOpenForm = () => undefined,
+  recursiveColumns = [],
+  recursiveRelations = [],
+  hasChildren = false,
+  readOnly = false,
 }: {
   content?: JSONContent
-  forms?: FormBlockOption[]
   onChange?: (content: JSONContent) => void
   onChangeDeferred?: (readContent: () => JSONContent) => void
-  onOpenForm?: (viewId: string) => void
+  recursiveColumns?: RecursiveColumn[]
+  recursiveRelations?: RecursiveRelation[]
+  hasChildren?: boolean
+  readOnly?: boolean
 }) {
   const [mathPosition, setMathPosition] = useState<number | null>(null)
   const mentions = useOptionalMention()
   const mentionRef = useRef(mentions)
   mentionRef.current = mentions
+  const recursiveRef = useRef<ReturnType<typeof pdfMentionOptions>>([])
+  recursiveRef.current = pdfMentionOptions(recursiveColumns)
   const changeRef = useRef(onChange)
   changeRef.current = onChange
   const changesRef = useRef<ReturnType<typeof createDocumentChangeDebouncer> | null>(null)
   if (!changesRef.current) changesRef.current = createDocumentChangeDebouncer((snapshot) => changeRef.current(snapshot))
   useEffect(() => () => changesRef.current?.flush(), [])
   const editor = useEditor({
-    extensions: createEditorExtensions({ onMathClick: setMathPosition, mentionOptions: () => mentionRef.current?.options ?? [] }),
+    editable: !readOnly,
+    extensions: createEditorExtensions({ onMathClick: setMathPosition, mentionOptions: () => [...mentionRef.current?.options ?? [], ...recursiveRef.current] }),
     content: content ?? createEmptyEditorContent(),
     onUpdate: ({ editor: current }) => {
       const readContent = () => current.getJSON()
@@ -87,16 +95,17 @@ export function Editor({
     },
   })
 
+  useEffect(() => { editor?.setEditable(!readOnly, false) }, [editor, readOnly])
   if (!editor) return null
 
   return (
-    <EditorEnvironmentProvider value={{ forms, openForm: onOpenForm }}>
+    <EditorEnvironmentProvider value={{ recursiveColumns, recursiveRelations, hasChildren }}>
     <section className="cubs-editor w-full">
       <EditorDnd editor={editor}>
         <EditorContent editor={editor} />
-        <BlockInsertDock editor={editor} forms={forms} />
+        {!readOnly && <><BlockInsertDock editor={editor} />
         <EditorMenus editor={editor} />
-        <EditorMathPopup editor={editor} position={mathPosition} onPositionChange={setMathPosition} />
+        <EditorMathPopup editor={editor} position={mathPosition} onPositionChange={setMathPosition} /></>}
       </EditorDnd>
     </section>
     </EditorEnvironmentProvider>

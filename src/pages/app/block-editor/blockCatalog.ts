@@ -4,6 +4,7 @@ import { Selection } from '@tiptap/pm/state'
 
 import { DEFAULT_IMAGE_COMPRESSION_PRESET } from './imageCompression'
 import type { EditorBlockKind } from './types'
+import { defaultRecursiveConfig } from '@/shared/recursive-template'
 
 export type EditorBlockOptionId =
   | 'text'
@@ -11,9 +12,10 @@ export type EditorBlockOptionId =
   | 'bullet-list'
   | 'numbered-list'
   | 'check-list'
-  | 'form-submit'
   | 'math-block'
   | 'code-block'
+  | 'table-recursive'
+  | 'calendar-recursive'
 
 export type EditorBlockContentPreset =
   | 'paragraph'
@@ -24,7 +26,7 @@ export type EditorBlockContentPreset =
   | 'codeBlock'
 
 export interface EditorBlockPayloadPreset {
-  action: 'insert' | 'select-image' | 'select-form'
+  action: 'insert' | 'select-image'
   kind: EditorBlockKind
   content?: EditorBlockContentPreset
   attrs: {
@@ -50,6 +52,8 @@ export interface EditorBlockOption {
  * as duas superfícies apenas projetam esta configuração.
  */
 export const EDITOR_BLOCK_OPTIONS = {
+  'table-recursive': { id: 'table-recursive', icon: 'lucide:table', labelKey: 'recursive.table', descriptionKey: 'recursive.table-description', payload: { action: 'insert', kind: 'tableRecursive', content: 'paragraph', attrs: { indent: 0 } } },
+  'calendar-recursive': { id: 'calendar-recursive', icon: 'lucide:calendar-days', labelKey: 'recursive.calendar', descriptionKey: 'recursive.calendar-description', payload: { action: 'insert', kind: 'calendarRecursive', content: 'paragraph', attrs: { indent: 0 } } },
   text: {
     id: 'text',
     icon: 'lucide:text-cursor-input',
@@ -114,18 +118,6 @@ export const EDITOR_BLOCK_OPTIONS = {
       attrs: { indent: 0 },
     },
   },
-  'form-submit': {
-    id: 'form-submit',
-    icon: 'lucide:send',
-    labelKey: 'pages.block-editor.blocks.form-submit',
-    descriptionKey: 'pages.block-editor.block-library.descriptions.form-submit',
-    payload: {
-      action: 'select-form',
-      kind: 'formSubmit',
-      content: 'paragraph',
-      attrs: { indent: 0 },
-    },
-  },
   'math-block': {
     id: 'math-block', icon: 'lucide:sigma', labelKey: 'pages.block-editor.blocks.math-block',
     descriptionKey: 'pages.block-editor.block-library.descriptions.math-block',
@@ -144,17 +136,19 @@ export const EDITOR_BLOCK_OPTION_IDS = [
   'bullet-list',
   'numbered-list',
   'check-list',
-  'form-submit',
   'math-block',
   'code-block',
+  'table-recursive',
+  'calendar-recursive',
 ] as const satisfies readonly EditorBlockOptionId[]
 
 export const DEFAULT_EDITOR_BLOCK_OPTION_ID: EditorBlockOptionId = 'text'
 
 export const EDITOR_BLOCK_SECTIONS: { labelKey: string; options: EditorBlockOptionId[] }[] = [
+  { labelKey: 'recursive.section', options: ['table-recursive', 'calendar-recursive'] },
   { labelKey: 'pages.block-editor.block-library.sections.text', options: ['text', 'bullet-list', 'numbered-list', 'check-list'] },
   { labelKey: 'pages.block-editor.block-library.sections.technical', options: ['math-block', 'code-block'] },
-  { labelKey: 'pages.block-editor.block-library.sections.media', options: ['image', 'form-submit'] },
+  { labelKey: 'pages.block-editor.block-library.sections.media', options: ['image'] },
 ]
 
 const EDITOR_BLOCK_OPTION_BY_KIND: Record<EditorBlockKind, EditorBlockOptionId> = {
@@ -163,9 +157,10 @@ const EDITOR_BLOCK_OPTION_BY_KIND: Record<EditorBlockKind, EditorBlockOptionId> 
   bulletList: 'bullet-list',
   enumerateList: 'numbered-list',
   checkList: 'check-list',
-  formSubmit: 'form-submit',
   mathBlock: 'math-block',
   codeBlock: 'code-block',
+  tableRecursive: 'table-recursive',
+  calendarRecursive: 'calendar-recursive',
 }
 
 export function editorBlockOptionForKind(kind: string): EditorBlockOption {
@@ -208,6 +203,7 @@ function editableBlockDepth(editor: Editor): number | null {
 
 function isEmptyTextBlock(node: ProseMirrorNode): boolean {
   return (
+    node.attrs.kind === 'richText' &&
     node.textContent.length === 0 &&
     node.childCount === 1 &&
     node.firstChild?.type.name === 'paragraph'
@@ -235,6 +231,7 @@ export function insertBlockFromCatalog(
     {
       id: crypto.randomUUID(),
       kind: option.payload.kind,
+      ...(['tableRecursive', 'calendarRecursive'].includes(option.payload.kind) ? { recursive: defaultRecursiveConfig() } : {}),
       ...option.payload.attrs,
     },
     CONTENT_BUILDERS[contentPreset](state.schema),
@@ -245,28 +242,6 @@ export function insertBlockFromCatalog(
   transaction.setSelection(
     Selection.near(transaction.doc.resolve(insertionPosition + 1), 1),
   )
-  editor.view.dispatch(transaction.scrollIntoView())
-  editor.commands.focus()
-  return true
-}
-
-export function insertFormSubmitBlock(editor: Editor, formViewId: string): boolean {
-  const { state } = editor
-  const depth = editableBlockDepth(editor)
-  if (depth === null) return false
-  const { $from } = state.selection
-  const sourceBlock = $from.node(depth)
-  const sourceStart = $from.before(depth)
-  const replaceCurrent = isEmptyTextBlock(sourceBlock)
-  const insertionPosition = replaceCurrent ? sourceStart : $from.after(depth)
-  const block = state.schema.nodes.editableBlock.create(
-    { id: crypto.randomUUID(), kind: 'formSubmit', indent: 0, formViewId },
-    state.schema.nodes.paragraph.create(),
-  )
-  const transaction = replaceCurrent
-    ? state.tr.replaceWith(sourceStart, $from.after(depth), block)
-    : state.tr.insert(insertionPosition, block)
-  transaction.setSelection(Selection.near(transaction.doc.resolve(insertionPosition + 1), 1))
   editor.view.dispatch(transaction.scrollIntoView())
   editor.commands.focus()
   return true

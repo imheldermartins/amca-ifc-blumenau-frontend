@@ -53,6 +53,29 @@ const labels: DatabaseViewToolbarLabels = {
   },
 }
 
+describe('selection action beside filters', () => {
+  afterEach(cleanup)
+  it('uses the same position beside filters for a single selection or a batch and hides when cleared', () => {
+    const onSelect = vi.fn()
+    const props = { viewKind: 'table' as const, columns: [], rows: [], filters: emptyViewFilters(), labels }
+    const view = render(<DatabaseViewToolbar {...props} />)
+    expect(screen.queryByRole('button', { name: /Gerar PDF/ })).toBeNull()
+    view.rerender(<DatabaseViewToolbar {...props} selectionAction={{ label: 'Gerar PDF da página selecionada', onSelect }} />)
+    const single = screen.getByRole('button', { name: 'Gerar PDF da página selecionada' })
+    expect(single.previousElementSibling?.textContent).toContain('Filtros')
+    fireEvent.click(single)
+    expect(onSelect).toHaveBeenCalledOnce()
+    view.rerender(<DatabaseViewToolbar {...props} selectionAction={{ label: 'Gerar PDF em Lote', onSelect }} />)
+    const batch = screen.getByRole('button', { name: 'Gerar PDF em Lote' })
+    expect(batch).toBe(single)
+    expect(batch.previousElementSibling?.textContent).toContain('Filtros')
+    fireEvent.click(batch)
+    expect(onSelect).toHaveBeenCalledTimes(2)
+    view.rerender(<DatabaseViewToolbar {...props} />)
+    expect(screen.queryByRole('button', { name: /Gerar PDF/ })).toBeNull()
+  })
+})
+
 function Probe() {
   const [filters, setFilters] = useState<ViewFiltersV2>({
     ...emptyViewFilters('2026-08-30T12:00:00.000Z'),

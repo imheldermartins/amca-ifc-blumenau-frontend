@@ -1,13 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useImperativeHandle, useRef, type Ref } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from 'cubs-components'
-import { FormView, type DataViewSettings, type FormSubmissionInput, type HeaderCol } from 'cubs-database'
 
-import { useModal } from '@/hooks/useModal'
 import { useFeedback } from '@/contexts/FeedbackContext'
 import { i18n } from '@/lib/i18n'
 import { pageDocumentService } from '@/services/PageDocumentService'
 import { EDITOR_IDLE_MS, readDocumentSnapshot, type DocumentSnapshot } from './block-editor/documentChanges'
+import { pagePdfService } from '@/services/PagePdfService'
+
+export interface PageBlockEditorHandle { pageId: string; flush: () => Promise<void> }
 
 const BlockEditor = lazy(() =>
   import('./block-editor/Editor').then(({ Editor }) => ({ default: Editor })),
@@ -16,43 +17,45 @@ const BlockEditor = lazy(() =>
 /**
  * Conteúdo da aba de documento da página.
  *
- * O documento usa persistência própria e mantém os blocos de formulário
- * referenciando apenas a view; label e ícone são resolvidos ao renderizar.
+ * O documento tem persistência própria e edição de conteúdo em blocos.
  */
 export function PageBlockEditor({
+  ref,
   pageId,
-  settings,
-  columns,
-  lockedColumnKeys,
-  onLoadRelationOptions,
-  onSubmit,
+  readOnly = false,
 }: {
+  ref?: Ref<PageBlockEditorHandle>
   pageId: string
-  settings: DataViewSettings
-  columns: HeaderCol[]
-  lockedColumnKeys?: ReadonlySet<string>
-  onLoadRelationOptions?: (databaseId: string, input: Parameters<NonNullable<HeaderCol['loadRelationOptions']>>[0]) => ReturnType<NonNullable<HeaderCol['loadRelationOptions']>>
-  onSubmit?: (viewId: string, input: FormSubmissionInput) => Promise<unknown>
+  readOnly?: boolean
 }) {
   const document = useQuery({
     queryKey: ['page-document', pageId],
     queryFn: () => pageDocumentService.load(pageId),
   })
-  const { openModal } = useModal()
+  const catalog = useQuery({ queryKey: ['page-pdf-catalog', pageId], queryFn: () => pagePdfService.catalog(pageId) })
+  const savingRef = useRef<Promise<unknown> | null>(null)
   const feedback = useFeedback()
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastContentRef = useRef<DocumentSnapshot | null>(null)
   const mountedRef = useRef(true)
   const activePageRef = useRef(pageId)
-  const persist = useCallback(async (snapshot: DocumentSnapshot, report = true) => {
+  const persist = useCallback(async (snapshot: DocumentSnapshot, report = true, failLoud = false) => {
     const shouldReport = () => report && mountedRef.current && activePageRef.current === pageId && lastContentRef.current === snapshot
     try {
-      await pageDocumentService.save(pageId, readDocumentSnapshot(snapshot))
+      const request = pageDocumentService.save(pageId, readDocumentSnapshot(snapshot))
+      savingRef.current = request
+      await request
       if (shouldReport()) feedback({ title: i18n('pages.app.pagina.views.document.save-success'), variant: 'success' })
-    } catch {
+    } catch (error) {
       if (shouldReport()) feedback({ title: i18n('pages.app.pagina.views.document.save-error'), variant: 'error' })
+      if (failLoud) throw error
     }
   }, [feedback, pageId])
+  useImperativeHandle(ref, () => ({ pageId, flush: async () => {
+    if (pendingRef.current) { clearTimeout(pendingRef.current); pendingRef.current = null }
+    await savingRef.current?.catch(() => undefined)
+    if (lastContentRef.current) await persist(lastContentRef.current, false, true)
+  } }), [pageId, persist])
   const save = useCallback((content: DocumentSnapshot) => {
     lastContentRef.current = content
     if (pendingRef.current) clearTimeout(pendingRef.current)
@@ -74,10 +77,6 @@ export function PageBlockEditor({
       }
     }
   }, [pageId, persist])
-  const forms = useMemo(() => Object.entries(settings).flatMap(([viewId, view]) =>
-    view.view === 'form' && view.form
-      ? [{ viewId, label: view.form.submitButton.label, icon: view.form.submitButton.icon }]
-      : []), [settings])
   if (document.isPending) return <div aria-busy="true" className="min-h-120 animate-pulse rounded-xl bg-contrast/40" />
   if (document.isError) return <div role="alert" className="grid min-h-72 place-content-center justify-items-center gap-3 rounded-xl border border-divider p-6 text-center">
     <p className="text-sm opacity-70">Não foi possível carregar o documento. Nenhuma alteração foi feita.</p>
@@ -85,6 +84,7 @@ export function PageBlockEditor({
   </div>
   return (
     <div className="w-full">
+      {catalog.isError && <p role="alert" className="mb-3 text-sm opacity-65">{i18n('pdf.catalog-error')}</p>}
       <Suspense
         fallback={(
           <div
@@ -96,26 +96,13 @@ export function PageBlockEditor({
       >
         <BlockEditor
           content={document.data?.content ?? undefined}
-          forms={forms}
+          readOnly={readOnly}
+          recursiveColumns={catalog.data?.columns ?? []}
+          recursiveRelations={catalog.data?.relations ?? []}
+          hasChildren={Boolean(catalog.data?.children.length)}
           onChange={save}
           onChangeDeferred={save}
-          onOpenForm={(viewId) => {
-            const activeForm = settings[viewId]
-            openModal({
-              size: 'lg',
-              content: activeForm?.view === 'form' && activeForm.form ? <FormView
-                columns={columns.map((column) => column.type === 'relation' && column.relation && onLoadRelationOptions ? {
-                  ...column,
-                  loadRelationOptions: (input) => onLoadRelationOptions(column.relation!.targetDatabaseId, input),
-                } : column)}
-                lockedColumnKeys={lockedColumnKeys}
-                config={activeForm.form}
-                initialMode="preview"
-                showModeSwitch={false}
-                onSubmit={onSubmit ? (input) => onSubmit(viewId, input) : undefined}
-              /> : <p className="p-5 text-sm opacity-60">Este formulário não está mais disponível.</p>,
-            })
-          }}
+
         />
       </Suspense>
     </div>

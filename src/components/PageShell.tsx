@@ -69,6 +69,7 @@ export interface PageShellProps extends UsePageRealtimeOptions {
   content?: PageContentSlots
   /** Decisão global de lock-in da coluna sintética `title`. */
   titleReadOnly?: boolean
+  pdfAction?: { label: string; onSelect: () => void }
 }
 
 /**
@@ -91,12 +92,14 @@ export function PageShell({
   onContentViewChange,
   content,
   titleReadOnly = false,
+  pdfAction,
   ...realtimeOptions
 }: PageShellProps) {
   const mentions = useOptionalMention()
   const mentionInput = useMemo(() => mentions ? ({ options: mentions.options.filter((option) => option.id !== `pages:${pageId}:title`), resolve: mentions.resolve, token: mentionToken, label: i18n('mentions.label'), empty: i18n('mentions.empty') }) : undefined, [mentions?.options, mentions?.resolve, pageId])
   const auth = useAuth()
   const permission = usePageAccess(pageId)
+  const mayManageMembers = can(permission.data, 'read', 'members') || ['add_members', 'promote_members', 'remove_members'].some((action) => can(permission.data, 'write', action))
   const { openModal } = useModal()
   const pageSettingsModalRef = useRef<ModalHandle | null>(null)
   const [pageSettingsOpen, setPageSettingsOpen] = useState(false)
@@ -290,11 +293,16 @@ export function PageShell({
           }}
           pageId={pageId}
           pageTitle={displayedTitle}
+          showCollaborators={mayManageMembers}
+          pdfAction={pdfAction && { label: pdfAction.label, onSelect: () => {
+            pageSettingsModalRef.current?.closeModal()
+            pdfAction.onSelect()
+          } }}
           onMembersChanged={() => setCollaboratorsRevision((revision) => revision + 1)}
         />,
       })
     },
-    [displayedTitle, openModal, pageId],
+    [displayedTitle, openModal, pageId, mayManageMembers, pdfAction],
   )
 
   // Deep-link real: carregar, navegar por back/forward ou escrever o hash
@@ -425,8 +433,8 @@ export function PageShell({
         onCancelTitle={cancelTitleEdit}
         onContentViewChange={changeContentView}
         onOpenCollaborators={
-          can(permission.data, 'read', 'members') || ['add_members', 'promote_members', 'remove_members'].some((action) => can(permission.data, 'write', action))
-            ? () => openPageSettings('#collaborators')
+          mayManageMembers || pdfAction
+            ? () => openPageSettings(mayManageMembers ? '#collaborators' : '#general')
             : undefined
         }
       />

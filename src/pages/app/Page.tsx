@@ -3,6 +3,7 @@ import { usePageAccess } from '@/hooks/usePageAccess'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { CubsDatabase, DatabaseMentionProvider } from 'cubs-database'
 import { MentionScopeProvider } from '@/contexts/MentionContext'
 import { useMention } from '@/hooks/useMention'
@@ -25,7 +26,8 @@ import { ReplaceViewFiltersContent } from '@components/ReplaceViewFiltersModal'
 import { DeleteViewConfirmationContent } from '@components/DeleteViewConfirmationModal'
 import { FormPublicationDialog } from '@components/FormPublicationDialog'
 import { ColumnRelationRollupDialog, type ColumnRelationRollupTarget } from '@/components/ColumnRelationRollupDialog'
-import { PageBlockEditor } from './PageBlockEditor'
+import { PageBlockEditor, type PageBlockEditorHandle } from './PageBlockEditor'
+import { PdfExportContent } from '@/components/PagePdfControls'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useWorkspace } from '@/contexts/WorkspaceContext'
 import { useDatabaseViewQuery } from '@/hooks/useDatabaseViewQuery'
@@ -74,6 +76,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
 }
 
 function PageContent({ pageId, initialTitle }: PageProps) {
+  const queryClient = useQueryClient()
   const mention = useMention()
   const trackMentionText = useCallback((text: string) => mention.register(mentionIds(text)), [mention.register])
   const mentionInput = useMemo(() => ({ options: mention.options, resolve: mention.resolve, token: mentionToken, track: trackMentionText, label: i18n('mentions.label'), empty: i18n('mentions.empty'), unavailable: i18n('mentions.unavailable') }), [mention.options, mention.resolve, trackMentionText])
@@ -81,6 +84,14 @@ function PageContent({ pageId, initialTitle }: PageProps) {
   const filterConflictModalRef = useRef<ModalHandle | null>(null)
   const projectionBridge = useRef<DatabaseProjectionBridge | null>(null)
   const [contentView, setContentView] = useState<PageContentView>('files')
+  const [pdfSelection, setPdfSelection] = useState<{ pageId: string; ids: string[] }>({ pageId, ids: [] })
+  const blockEditorRef = useRef<PageBlockEditorHandle | null>(null)
+  const openPdf = useCallback((selectedIds: string[] = []) => {
+    openModal({ size: selectedIds.length > 1 ? 'md' : 'xl', className: 'overflow-hidden p-0', content: <PdfExportContent pageId={pageId} selectedIds={selectedIds} beforeGenerate={async () => {
+      if (blockEditorRef.current?.pageId === pageId) await blockEditorRef.current.flush()
+    }} /> })
+  }, [openModal, pageId])
+  const handlePdfSelection = useCallback((ids: string[]) => setPdfSelection({ pageId, ids }), [pageId])
   // O documento resolve blocos de formulário contra o mesmo catálogo de views;
   // por isso a base permanece carregada também fora da tab `files`.
   const databasePageId = pageId
@@ -105,6 +116,12 @@ function PageContent({ pageId, initialTitle }: PageProps) {
     handlers,
     replaceLoadedRows,
   } = usePageDatabase(databasePageId, projectionBridge)
+  const onStructureChanged = realtimeOptions.onStructureChanged
+  const handlePdfStructureChanged = useCallback((event: Parameters<NonNullable<typeof onStructureChanged>>[0]) => {
+    onStructureChanged?.(event)
+    void queryClient.invalidateQueries({ queryKey: ['page-pdf-catalog', pageId] })
+    void queryClient.invalidateQueries({ queryKey: ['mentions'] })
+  }, [onStructureChanged, pageId, queryClient])
   const addView = handlers.onAddView
   const duplicateView = handlers.onDuplicateView
   const deleteView = handlers.onDeleteView
@@ -124,6 +141,7 @@ function PageContent({ pageId, initialTitle }: PageProps) {
     onPersistFilters: mayEdit ? handlers.onViewFiltersChange : async () => undefined,
   })
   const changeView = viewQuery.changeView
+  useEffect(() => { setPdfSelection((current) => current.pageId === pageId && !current.ids.length ? current : { pageId, ids: [] }) }, [pageId, contentView, viewQuery.activeViewId])
   const paged = useDatabasePagination({ pageId, viewId: viewQuery.activeViewId, view: settings[viewQuery.activeViewId], columns, filters: viewQuery.effectiveFilters, enabled: contentView === 'files' && Boolean(database) && !failed, onRows: replaceLoadedRows })
   projectionBridge.current = paged.bridge
   const pinnedCalendarPageIds = useMemo(() => new Set(schedule.pins.map((pin) => pin.pageId)), [schedule.pins])
@@ -563,8 +581,10 @@ function PageContent({ pageId, initialTitle }: PageProps) {
         contentView={contentView}
         onContentViewChange={handleContentViewChange}
         titleReadOnly={Boolean(pageTitleLock.data?.locked && !pageTitleLock.data.canEdit)}
+        pdfAction={{ label: i18n('pdf.title'), onSelect: () => openPdf() }}
         content={{
           files: (
+            <>
             <CubsDatabase
               pageId={pageId}
               pageTitle={database?.pageTitle ?? initialTitle ?? undefined}
@@ -583,6 +603,8 @@ function PageContent({ pageId, initialTitle }: PageProps) {
               placeholderLabel={i18n('pages.app.cubs-database.em-breve')}
               onOpenRow={handleOpenRow}
               {...(mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers : {})}
+              onSelectionChange={handlePdfSelection}
+              selectionAction={pdfSelection.pageId === pageId && pdfSelection.ids.length > 0 ? { label: i18n(pdfSelection.ids.length > 1 ? 'pdf.batch' : 'pdf.selected-page'), onSelect: () => openPdf(pdfSelection.ids) } : undefined}
               onCellChange={mayEditRows && !columnLocks.isPending && !columnLocks.isError ? handlers.onCellChange : undefined}
               onColumnTypeChange={mayEdit ? handleColumnTypeChange : undefined}
               onLoadRelationOptions={paged.loadRelationOptions}
@@ -616,18 +638,17 @@ function PageContent({ pageId, initialTitle }: PageProps) {
               viewMenuItems={mayEdit ? viewMenuItems : undefined}
               onRenameView={mayEdit ? handlers.onRenameView : undefined}
             />
+            </>
           ),
           document: <PageBlockEditor
+            ref={blockEditorRef}
             key={pageId}
             pageId={pageId}
-            settings={settings}
-            columns={columns}
-            onLoadRelationOptions={paged.loadRelationOptions}
-            lockedColumnKeys={lockedColumnKeys}
-            onSubmit={mayEdit && !columnLocks.isPending && !columnLocks.isError ? handlers.onFormSubmit : undefined}
+            readOnly={!mayEdit}
           />,
         }}
         {...realtimeOptions}
+        onStructureChanged={handlePdfStructureChanged}
       />
       <FormulaDrawer key={pageId} pageId={pageId} target={formulaTarget?.pageId===pageId?formulaTarget.config:null} onClose={()=>setFormulaTarget(null)} onSaved={handlers.onFormulaSaved}/>
     </DatabaseMentionProvider>

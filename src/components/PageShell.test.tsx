@@ -104,6 +104,21 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 describe('PageShell — page-updated', () => {
+  it('opens PDF generation from the avatar menu and closes settings before handing off', async () => {
+    dependencies.permissions = { read: ['view'], write: [] }
+    const onSelect = vi.fn()
+    render(<PageShell pageId={PAGE_ID} pdfAction={{ label: 'Gerar PDF', onSelect }} />)
+    await screen.findByText('Título inicial')
+    expect(screen.queryByRole('button', { name: 'Gerar PDF' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'pages.app.page-settings.open-collaborators' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByTestId('members-panel')).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Gerar PDF em Lote' })).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gerar PDF' }))
+    expect(onSelect).toHaveBeenCalledOnce()
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(window.location.hash).toBe('')
+  })
   it('mostra após reload a última edição calculada das páginas filhas', async () => {
     dependencies.getPage.mockResolvedValueOnce(page('Título inicial', PAGE_ID, '2026-08-31 17:58:00'))
     render(<PageShell pageId={PAGE_ID} />)

@@ -26,7 +26,7 @@ import { ColumnLayoutRules, MAX_COLUMNS } from './columnLayoutRules'
 import { type EditorDragData } from './EditorDnd'
 import { EditorDropPlaceholder } from './EditorDropPlaceholder'
 import { useEditorInteractions } from './EditorInteractionContext'
-import { useEditorEnvironment } from './editorEnvironmentContext'
+import { RecursiveBlockView } from './RecursiveBlockView'
 
 function stringAttribute(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
@@ -308,7 +308,7 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
       <NodeViewContent className="cubs-editor-column-content" />
       <EditorDropPlaceholder id={rightId} setNodeRef={rightDrop.setNodeRef} className="cubs-editor-column-drop-zone is-right" />
 
-      {hasNextColumn && (
+      {hasNextColumn && editor.isEditable && (
         <button
           type="button"
           role="separator"
@@ -335,11 +335,6 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
 export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
   const blockId = stringAttribute(node.attrs.id) ?? crypto.randomUUID()
   const kind = stringAttribute(node.attrs.kind) ?? 'richText'
-  const formViewId = stringAttribute(node.attrs.formViewId)
-  const environment = useEditorEnvironment()
-  const form = kind === 'formSubmit'
-    ? environment.forms.find((candidate) => candidate.viewId === formViewId)
-    : undefined
   const resolved = resolvedPosition({ editor, getPos })
   const rowDepth = ancestorDepth(resolved, 'blockRow')
   const columnDepth = ancestorDepth(resolved, 'blockColumn')
@@ -441,7 +436,7 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
     >
       {drag.isDragging && <DragPlaceholder />}
       <EditorDropPlaceholder id={beforeId} setNodeRef={beforeDrop.setNodeRef} className="cubs-editor-item-drop-zone is-before" />
-      <button
+      {editor.isEditable && <button
         ref={drag.setActivatorNodeRef}
         type="button"
         contentEditable={false}
@@ -458,20 +453,10 @@ export function EditableBlockView({ editor, getPos, node }: NodeViewProps) {
         {Array.from({ length: 6 }, (_, index) => (
           <span key={index} aria-hidden="true" />
         ))}
-      </button>
-      {kind === 'formSubmit' ? (
-        <div contentEditable={false} className="cubs-editor-block-content flex min-h-20 items-center justify-center rounded-xl border border-divider bg-contrast/35 p-4">
-          <button
-            type="button"
-            disabled={!form}
-            onClick={() => { if (form) environment.openForm(form.viewId) }}
-            className="inline-flex items-center gap-2 rounded-lg bg-p-purple px-4 py-2 text-sm font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Icon icon={form?.icon ?? 'lucide:send'} className="size-4" />
-            {form?.label ?? 'Formulário indisponível'}
-          </button>
-        </div>
-      ) : <NodeViewContent className="cubs-editor-block-content min-h-9" />}
+      </button>}
+      {kind === 'tableRecursive' || kind === 'calendarRecursive' ? <RecursiveBlockView readOnly={!editor.isEditable} kind={kind} value={node.attrs.recursive}
+        onChange={(recursive) => { const pos = getPos(); if (typeof pos === 'number') editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, recursive })) }}
+        onDelete={() => { const pos = getPos(); if (typeof pos === 'number') editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run() }} /> : <NodeViewContent className="cubs-editor-block-content min-h-9" />}
       <EditorDropPlaceholder id={afterId} setNodeRef={afterDrop.setNodeRef} className="cubs-editor-item-drop-zone is-after" />
       <div contentEditable={false} className="pointer-events-none absolute inset-0 z-50">
         <ContextMenu

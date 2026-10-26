@@ -1,21 +1,13 @@
 import { createContext, useContext } from 'react'
-import type { CatalogIcon } from 'cubs-database'
-
-export interface FormBlockOption {
-  viewId: string
-  label: string
-  icon: CatalogIcon | null
-}
+import type { RecursiveColumn, RecursiveRelation } from '@/shared/recursive-template'
 
 export interface EditorEnvironmentValue {
-  forms: FormBlockOption[]
-  openForm: (viewId: string) => void
+  recursiveColumns?: RecursiveColumn[]
+  recursiveRelations?: RecursiveRelation[]
+  hasChildren?: boolean
 }
 
-export const EditorEnvironmentContext = createContext<EditorEnvironmentValue>({
-  forms: [],
-  openForm: () => undefined,
-})
+export const EditorEnvironmentContext = createContext<EditorEnvironmentValue>({})
 
 export function useEditorEnvironment() {
   return useContext(EditorEnvironmentContext)

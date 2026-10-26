@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Icon } from '@iconify/react'
 import { Button, cn, SOFT_SELECTION_CLASSES } from 'cubs-components'
 
 import { AccessMembersPanel } from '@/pages/access/AccessMembersPanel'
@@ -14,6 +15,8 @@ export interface PageSettingsContentProps {
   pageId?: string
   pageTitle: string | null
   onMembersChanged?: () => void
+  showCollaborators?: boolean
+  pdfAction?: { label: string; onSelect: () => void }
 }
 
 const SECTIONS: Array<{ fragment: PageSettingsFragment; labelKey: string }> = [
@@ -28,43 +31,56 @@ export function PageSettingsContent({
   pageId,
   pageTitle,
   onMembersChanged,
+  showCollaborators = true,
+  pdfAction,
 }: PageSettingsContentProps) {
   const [fragment, setFragment] = useState(initialFragment)
-  const activeSection = SECTIONS.find((section) => section.fragment === fragment) ?? SECTIONS[0]
+  const sections = SECTIONS.filter((section) => showCollaborators || section.fragment !== '#collaborators')
+  const activeSection = sections.find((section) => section.fragment === fragment) ?? sections[0]
 
   return (
     <>
       <div id="page-settings-dialog" className="grid min-h-80 grid-cols-1 sm:grid-cols-[10rem_minmax(0,1fr)]">
-        <nav
-          role="tablist"
-          aria-label={i18n('pages.app.page-settings.navigation')}
-          className="flex flex-col gap-1 p-3"
-        >
-          {SECTIONS.map((section) => {
-            const selected = section.fragment === activeSection.fragment
-            const slug = section.fragment.slice(1)
-            return (
-              <Button
-                key={section.fragment}
-                id={`page-settings-tab-${slug}`}
-                role="tab"
-                aria-selected={selected}
-                aria-controls={`page-settings-panel-${slug}`}
-                variant="text"
-                color="from-theme"
-                className={cn(
-                  'w-full justify-start px-2 py-1.5 font-medium',
-                  selected && SOFT_SELECTION_CLASSES,
-                )}
-                onClick={() => {
-                  setFragment(section.fragment)
-                  onFragmentChange?.(section.fragment)
-                }}
-              >
-                {i18n(section.labelKey)}
-              </Button>
-            )
-          })}
+        <nav className="flex flex-col gap-1 p-3" aria-label={i18n('pages.app.page-settings.navigation')}>
+          <div role="tablist" aria-label={i18n('pages.app.page-settings.navigation')} className="flex flex-col gap-1">
+            {sections.map((section) => {
+              const selected = section.fragment === activeSection.fragment
+              const slug = section.fragment.slice(1)
+              return (
+                <Button
+                  key={section.fragment}
+                  id={`page-settings-tab-${slug}`}
+                  role="tab"
+                  aria-selected={selected}
+                  aria-controls={`page-settings-panel-${slug}`}
+                  variant="text"
+                  color="from-theme"
+                  className={cn(
+                    'w-full justify-start px-2 py-1.5 font-medium',
+                    selected && SOFT_SELECTION_CLASSES,
+                  )}
+                  onClick={() => {
+                    setFragment(section.fragment)
+                    onFragmentChange?.(section.fragment)
+                  }}
+                >
+                  {i18n(section.labelKey)}
+                </Button>
+              )
+            })}
+          </div>
+          {pdfAction && (
+            <Button
+              type="button"
+              variant="text"
+              color="from-theme"
+              className="mt-3 w-full justify-start gap-2 px-2 py-1.5 font-medium"
+              onClick={pdfAction.onSelect}
+            >
+              <Icon icon="lucide:download" aria-hidden="true" className="size-4 shrink-0" />
+              {pdfAction.label}
+            </Button>
+          )}
         </nav>
 
         <section

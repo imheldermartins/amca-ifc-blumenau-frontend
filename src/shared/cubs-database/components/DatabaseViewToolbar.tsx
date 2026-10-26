@@ -90,6 +90,7 @@ export interface DatabaseViewToolbarLabels {
 }
 
 export interface DatabaseViewToolbarProps {
+  selectionAction?: { label: string; onSelect: () => void }
   board?: DataViewType['board']
   onBoardChange?: (patch: NonNullable<DataViewType['board']>) => void
   columns: HeaderCol[]
@@ -148,6 +149,7 @@ export function DatabaseViewToolbar({
   availableViewKinds = DATA_VIEW_KINDS,
   onChange,
   syncStatus,
+  selectionAction,
   onAddRow,
   settings = DEFAULT_VIEW_MOCK_SETTINGS,
   onSettingsChange,
@@ -277,6 +279,7 @@ export function DatabaseViewToolbar({
         />
       ) : null}
 
+      {headerControls.filters && selectionAction ? <Button type="button" variant="outlined" className="gap-2" onClick={selectionAction.onSelect}><Icon icon="lucide:file-down" aria-hidden="true" className="size-4" />{selectionAction.label}</Button> : null}
       {headerControls.filterChips ? document.clauses.map((clause, index) => {
         const column = columnsById.get(clause.columnId)
         const columnType = column ? columnTypes[column.id] : undefined

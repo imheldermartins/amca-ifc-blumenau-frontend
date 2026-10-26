@@ -2,12 +2,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
+import { createRef } from 'react'
 
 import { FeedbackProvider } from '@/contexts/FeedbackContext'
-import { PageBlockEditor } from './PageBlockEditor'
+import { PageBlockEditor, type PageBlockEditorHandle } from './PageBlockEditor'
 
 const api = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), snapshot: vi.fn() }))
 vi.mock('@/services/PageDocumentService', () => ({ pageDocumentService: api }))
+vi.mock('@/services/PagePdfService', () => ({ pagePdfService: { catalog: async () => ({ children: [], columns: [] }) } }))
 vi.mock('@/hooks/useModal', () => ({ useModal: () => ({ openModal: vi.fn() }) }))
 vi.mock('./block-editor/Editor', () => ({
   Editor: ({ onChange, onChangeDeferred }: { onChange: (content: JSONContent) => void; onChangeDeferred?: (read: () => JSONContent) => void }) => <>
@@ -24,15 +26,16 @@ function deferred() {
 }
 
 async function setup() {
+  const editorRef = createRef<PageBlockEditorHandle>()
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   for (const id of ['page-1', 'page-2']) client.setQueryData(['page-document', id], { content: null, revision: 1 })
   const tree = (pageId: string) => <QueryClientProvider client={client}><FeedbackProvider>
-    <PageBlockEditor pageId={pageId} settings={{}} columns={[]} />
+    <PageBlockEditor ref={editorRef} pageId={pageId} />
   </FeedbackProvider></QueryClientProvider>
   const mounted = render(tree('page-1'))
   await screen.findByRole('button', { name: 'Editar conteúdo' })
   vi.useFakeTimers()
-  return { ...mounted, switchPage: () => mounted.rerender(tree('page-2')) }
+  return { ...mounted, editorRef, switchPage: () => mounted.rerender(tree('page-2')) }
 }
 
 beforeEach(() => {
@@ -46,6 +49,19 @@ afterEach(async () => {
 })
 
 describe('PageBlockEditor save feedback', () => {
+  it('flushes pending edits for the page menu export and propagates a save failure', async () => {
+    const { editorRef } = await setup()
+    expect(screen.queryByRole('button', { name: 'Gerar PDF' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Digitar conteúdo' }))
+    expect(api.save).not.toHaveBeenCalled()
+    await act(async () => { await editorRef.current!.flush() })
+    expect(api.save).toHaveBeenCalledOnce()
+    expect(editorRef.current!.pageId).toBe('page-1')
+    await act(async () => vi.advanceTimersByTimeAsync(600))
+    expect(api.save).toHaveBeenCalledOnce()
+    api.save.mockRejectedValueOnce(new Error('offline'))
+    await act(async () => { await expect(editorRef.current!.flush()).rejects.toThrow('offline') })
+  })
   it('waits for idle before reading the editor JSON and does not save it again on unmount', async () => {
     const view = await setup()
     fireEvent.click(screen.getByRole('button', { name: 'Digitar conteúdo' }))

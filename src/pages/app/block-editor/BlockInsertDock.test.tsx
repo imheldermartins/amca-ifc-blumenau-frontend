@@ -10,7 +10,7 @@ import { ModalProvider } from '@/contexts/ModalContext'
 let editor: Editor | null = null
 
 beforeEach(() => {
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 480, 100))
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 320, 100))
 })
 
 afterEach(() => {
@@ -55,15 +55,21 @@ describe('BlockInsertDock', () => {
     vi.useFakeTimers()
     const currentEditor = createEditor()
     renderDock(<BlockInsertDock editor={currentEditor} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    const addButton = screen.getByRole('button', { name: 'Novo item' })
     const control = addButton.closest('[data-block-insert-control]')
     expect(control).not.toBeNull()
+    const anchorClasses = control!.className
+    expect(anchorClasses).toContain('fixed bottom-4 right-4')
+    expect(addButton.className).toContain('rounded-full')
+    expect(addButton.textContent).toBe('Novo item')
 
     fireEvent.pointerEnter(control!)
     act(() => vi.advanceTimersByTime(3_000))
     expect(screen.queryByRole('toolbar', { name: 'Tipos de bloco' })).toBeNull()
     fireEvent.click(addButton)
     expect(screen.getByRole('toolbar', { name: 'Tipos de bloco' })).toBeTruthy()
+    expect(control!.className).toBe(anchorClasses)
+    expect(addButton.textContent).toBe('Novo item')
     const column = currentEditor.state.doc.firstChild?.firstChild
     expect(column?.childCount).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: 'Texto rico' }))
@@ -75,7 +81,7 @@ describe('BlockInsertDock', () => {
   it('mantém a dock aberta ao sair com o mouse e fecha no segundo clique', () => {
     vi.useFakeTimers()
     renderDock(<BlockInsertDock editor={createEditor()} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    const addButton = screen.getByRole('button', { name: 'Novo item' })
     const control = addButton.closest('[data-block-insert-control]')
 
     fireEvent.click(addButton)
@@ -91,7 +97,7 @@ describe('BlockInsertDock', () => {
   it('abre Mais com seções de tipos e sem detalhes técnicos sobre compressão', () => {
     vi.useFakeTimers()
     renderDock(<BlockInsertDock editor={createEditor()} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    const addButton = screen.getByRole('button', { name: 'Novo item' })
     fireEvent.click(addButton)
 
     fireEvent.click(screen.getByRole('button', { name: 'Mais' }))
@@ -106,20 +112,24 @@ describe('BlockInsertDock', () => {
     expect(screen.queryByRole('button', { name: 'Enviar formulário' })).toBeNull()
   })
 
-  it('só oferece e insere o bloco de formulário quando existe uma view form', () => {
+  it('does not offer a form component in the block library', () => {
     vi.useFakeTimers()
     const currentEditor = createEditor()
-    renderDock(<BlockInsertDock editor={currentEditor} forms={[{
-      viewId: '01KXVZ00000000000000000001',
-      label: 'Enviar inscrição',
-      icon: 'lucide:send',
-    }]} />)
-    const addButton = screen.getByRole('button', { name: 'Adicionar bloco' })
+    renderDock(<BlockInsertDock editor={currentEditor} />)
+    const addButton = screen.getByRole('button', { name: 'Novo item' })
     fireEvent.click(addButton)
     fireEvent.click(screen.getByRole('button', { name: 'Mais' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar formulário' }))
-    const column = currentEditor.state.doc.firstChild?.firstChild
-    expect(column?.child(1).attrs.kind).toBe('formSubmit')
-    expect(column?.child(1).attrs.formViewId).toBe('01KXVZ00000000000000000001')
+    expect(screen.queryByRole('button', { name: 'Enviar formulário' })).toBeNull()
+  })
+  it('separates basic actions from advanced blocks with an unlabeled vertical divider', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1200, 100))
+    renderDock(<BlockInsertDock editor={createEditor()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Novo item' }))
+    const divider = screen.getByRole('separator')
+    expect(divider.getAttribute('aria-orientation')).toBe('vertical')
+    expect(divider.className).toContain('border-divider')
+    expect(screen.getByRole('button', { name: 'Texto rico' }).compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(divider.compareDocumentPosition(screen.getByRole('button', { name: 'Tabela recursiva' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Enviar formulário' })).toBeNull()
   })
 })

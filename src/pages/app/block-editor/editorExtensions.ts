@@ -30,9 +30,10 @@ const BLOCK_KINDS = new Set<EditorBlockKind>([
   'enumerateList',
   'checkList',
   'image',
-  'formSubmit',
   'mathBlock',
   'codeBlock',
+  'tableRecursive',
+  'calendarRecursive',
 ])
 
 function normalizeIndent(value: unknown): number {
@@ -249,7 +250,7 @@ const TextBlockPlaceholder = Extension.create({
               if ($from.node(depth).type.name === 'editableBlock') { block = $from.node(depth); break }
             }
             if ((!editor.isFocused && !documentEmpty) || !empty || !node.isTextblock || node.type.name === 'codeBlock' || node.content.size > 0
-              || !block || ['image', 'formSubmit', 'mathBlock', 'codeBlock'].includes(normalizeKind(block.attrs.kind))) {
+              || !editor.isEditable || !block || ['image', 'mathBlock', 'codeBlock', 'tableRecursive', 'calendarRecursive'].includes(normalizeKind(block.attrs.kind))) {
               return DecorationSet.empty
             }
             const position = $from.before()
@@ -361,11 +362,7 @@ export const EditableBlock = Node.create({
         parseHTML: (element) => normalizeIndent(element.getAttribute('data-block-indent')),
         renderHTML: ({ indent }) => ({ 'data-block-indent': normalizeIndent(indent) }),
       },
-      formViewId: {
-        default: null,
-        parseHTML: (element) => element.getAttribute('data-form-view-id'),
-        renderHTML: ({ formViewId }) => formViewId ? { 'data-form-view-id': formViewId } : {},
-      },
+      recursive: { default: null, parseHTML: (element) => { try { return JSON.parse(element.getAttribute('data-recursive') ?? 'null') } catch { return null } }, renderHTML: ({ recursive }) => recursive ? { 'data-recursive': JSON.stringify(recursive) } : {} },
     }
   },
 
@@ -378,7 +375,13 @@ export const EditableBlock = Node.create({
   },
 
   addNodeView() {
-    return ReactNodeViewRenderer(EditableBlockView, { trackNodeViewPosition: true })
+    const createView = ReactNodeViewRenderer(EditableBlockView, { trackNodeViewPosition: true })
+    return (props) => {
+      const view = createView(props), stopEvent = view.stopEvent?.bind(view)
+      view.stopEvent = (event) => event.target instanceof Element && Boolean(event.target.closest('.recursive-table-editor'))
+        ? true : stopEvent?.(event) ?? false
+      return view
+    }
   },
 })
 

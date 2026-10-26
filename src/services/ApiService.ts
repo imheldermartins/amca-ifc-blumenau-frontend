@@ -147,6 +147,12 @@ export class ApiService {
     return this.http.post<T>(url, body, config).then((response) => response.data)
   }
 
+  async postBinary(url: string, body?: unknown): Promise<{ blob: Blob; filename: string }> {
+    const response = await this.http.post<Blob>(url, body, { responseType: 'blob', timeout: 180_000 });
+    const filename = /filename="([^"]+)"/.exec(String(response.headers['content-disposition'] ?? ''))?.[1] ?? (response.data.type.includes('zip') ? 'cubspages.zip' : 'pagina.pdf');
+    return { blob: response.data, filename };
+  }
+
   put<T>(url: string, body?: unknown): Promise<T> {
     return this.http.put<T>(url, body).then((response) => response.data)
   }
