@@ -57,6 +57,7 @@ import { patchRowCells } from '@/lib/databaseLocalState'
 import { flowLocalChanges } from '@/lib/flowLocalChanges'
 
 const COLUMN_RESIZE_PREVIEW_TTL_MS = 2_000
+const hasCalculatedColumns = (database: ParsedDatabase | null) => database?.headerCols.some((column) => column.type === 'formula' || column.type === 'extract_as')
 
 function createDefaultHeatmapConfig(columns: readonly { id: string; type?: ColumnDataType }[]): HeatmapConfig | undefined {
   const dateColumnId = columns.find((column) => column.type === 'date')?.id
@@ -534,7 +535,7 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
 
       // Durante a primeira leitura ou outra leitura já ativa, garante que a
       // resposta anterior ao evento não vença o merge incremental.
-      if (loadedPageIdRef.current !== pageId || loadInFlightRef.current) reload()
+      if (loadedPageIdRef.current !== pageId || loadInFlightRef.current || (!paginationBridge && (event.type === 'row-created' || event.type === 'row-deleted') && hasCalculatedColumns(current))) reload()
     },
     [pageId, reload, paginationBridge],
   )
@@ -1006,14 +1007,15 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       }
       if (currentPageIdRef.current !== pageId) return undefined
       paginationBridge?.current?.onCreatedRow(row)
+      if (!paginationBridge && hasCalculatedColumns(databaseRef.current)) reload()
       return row
-    }, [pageId, mutateCell, handleWriteError, paginationBridge]),
+    }, [pageId, mutateCell, handleWriteError, paginationBridge, reload]),
     onAddRow: useCallback(() => {
       if (!pageId) return
 
       // A API cria somente `pages` + `page_edges`; nenhuma célula EAV nasce
-      // aqui. A resposta HTTP e o broadcast `row-created` usam o mesmo merge
-      // idempotente: a ordem em que chegarem não duplica nem recarrega a base.
+      // aqui, mas Formula/Resumo precisam de uma projeção calculada do servidor.
+      // HTTP e socket continuam compartilhando o mesmo merge idempotente.
       pageWriteService
         .createRow(pageId)
         .then((created) => {
@@ -1027,13 +1029,16 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
             return
           }
           const current = databaseRef.current
-          if (!current || current.rows.some((candidate) => candidate.id === created.id)) return
-          const next = { ...current, rows: [...current.rows, row] }
-          databaseRef.current = next
-          setDatabase(next)
+          if (!current) return
+          if (!current.rows.some((candidate) => candidate.id === created.id)) {
+            const next = { ...current, rows: [...current.rows, row] }
+            databaseRef.current = next
+            setDatabase(next)
+          }
+          if (hasCalculatedColumns(current)) reload()
         })
         .catch(handleWriteError)
-    }, [handleWriteError, pageId, paginationBridge]),
+    }, [handleWriteError, pageId, paginationBridge, reload]),
     onAddColumn: useCallback((type: ColumnDataType = 'text', config?: ColumnConfigPatch) => {
       if (!pageId || columnCreationsInFlightRef.current.has(pageId)) return
       // A guarda é síncrona: duas ativações antes do próximo render precisam

@@ -47,13 +47,15 @@ const ROOT: PageViewQueryScope = { type: 'root' }
 interface Session {
   identity: string; owner: string; cache: CacheState; generation: number; denied: boolean
   queue: FetchParam[]; active: FetchParam | null; next: FetchParam | undefined; running: boolean
+  activeGeneration: number
   consumed: FetchEnvelope | null; completed: Map<string, string>
   pins: Map<string, number>; viewports: Map<string, WindowViewport>; averageHeight: Map<string, number>
   clocks: Map<string, string>; interactions: number; dirty: boolean; timer?: ReturnType<typeof setTimeout>
   revokedBranches: Set<string>
   mutations: Map<string, number>; mutationRevision: number; pendingWrites: number
 }
-const newSession = (identity: string, owner: string): Session => ({ identity, owner, cache: EMPTY_CACHE, generation: 0, denied: false, queue: [], active: null, next: undefined, running: false, consumed: null, completed: new Map(), pins: new Map(), viewports: new Map(), averageHeight: new Map(), clocks: new Map(), interactions: 0, dirty: false, revokedBranches: new Set(), mutations: new Map(), mutationRevision: 0, pendingWrites: 0 })
+const newSession = (identity: string, owner: string): Session => ({ identity, owner, cache: EMPTY_CACHE, generation: 0, denied: false, queue: [], active: null, activeGeneration: -1, next: undefined, running: false, consumed: null, completed: new Map(), pins: new Map(), viewports: new Map(), averageHeight: new Map(), clocks: new Map(), interactions: 0, dirty: false, revokedBranches: new Set(), mutations: new Map(), mutationRevision: 0, pendingWrites: 0 })
+const hasCalculatedColumns = (columns?: HeaderCol[]) => columns?.some((column) => column.type === 'formula' || column.type === 'extract_as')
 const requestKey = (param: FetchParam) => JSON.stringify(param)
 const streamKey = (param: FetchParam) => pageViewScopeKey(param.scope ?? ROOT)
 const affectsMembership = (options: PaginationOptions, projection: PageViewQueryProjection | null, columnId: string) =>
@@ -151,13 +153,15 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
       const atStart = session.generation
       const { replaceId: _replaceId, recovery: _recovery, ...input } = pageParam
       const view = optionsRef.current.view?.view
+      const includeRowIds = input.includeRowIds ?? (hasCalculatedColumns(optionsRef.current.columns) ? Object.keys(session.cache.created).slice(0, 50) : [])
       const projection = await databaseService.queryView(options.pageId, options.viewId, {
         ...input,
+        ...(includeRowIds.length ? { includeRowIds } : {}),
         ...(view && { view }),
         filters: optionsRef.current.filters,
         limit: input.limit ?? 50,
       }, signal)
-      return { projection, param: pageParam, generation: atStart, identity }
+      return { projection, param: { ...pageParam, ...(includeRowIds.length ? { includeRowIds } : {}) }, generation: atStart, identity }
     },
     getNextPageParam: () => session.next, getPreviousPageParam: () => undefined,
     maxPages: 1, // Transport never becomes a second unbounded row cache.
@@ -180,14 +184,14 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const current = sessionRef.current
     if (current.denied || !enabledRef.current || current.cache.failures[streamKey(param)] || (param.scope?.type === 'graph' && current.revokedBranches.has(param.scope.parentId))) return
     const id = requestKey(param)
-    if (requestKey(current.active ?? {}) !== id && !current.queue.some((entry) => requestKey(entry) === id)) current.queue.push(param)
+    if ((requestKey(current.active ?? {}) !== id || current.activeGeneration !== current.generation) && !current.queue.some((entry) => requestKey(entry) === id)) current.queue.push(param)
     pumpRef.current()
   }, [])
   pumpRef.current = () => {
     const current = sessionRef.current
     if (current.running || current.pendingWrites || queryRef.current.isFetching || !current.queue.length || current.denied || !enabledRef.current) return
     const param = current.queue.shift()!
-    current.next = param; current.active = param; current.running = true
+    current.next = param; current.active = param; current.activeGeneration = current.generation; current.running = true
     void queryRef.current.fetchNextPage({ cancelRefetch: false }).then((result) => {
       if (current !== sessionRef.current || current.denied) return
       if (result.error) {
@@ -240,7 +244,17 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const previous = new Map(before.windows.flatMap((window) => window.rows.map((row) => [row.id, row] as const)))
     for (const entry of Object.values(before.created)) previous.set(entry.row.id, entry.row)
     const created = { ...before.created }
-    let windows = before.windows
+    const unavailable = new Set(projection.includedRows === undefined ? [] : (param.includeRowIds ?? []).filter((id) => !projection.includedRows!.some((row) => row.page_id === id)))
+    for (const id of unavailable) delete created[id]
+    const authoritative = (row: RowData) => {
+      const entry = created[row.id]
+      if (!entry) return row
+      const merged = { ...entry.row, ...row, cells: { ...entry.row.cells, ...row.cells } }
+      created[row.id] = { ...entry, row: merged }
+      return merged
+    }
+    for (const row of parseRows(projection.includedRows ?? [])) authoritative(row)
+    let windows = unavailable.size ? before.windows.map((window) => ({ ...window, rows: window.rows.filter((row) => !unavailable.has(row.id)) })) : before.windows
     for (const window of projection.windows) {
       const rows = shareDatabaseRows(parseRows(window.rows), previous).map((row) => {
         const entry = before.created[row.id]
@@ -248,7 +262,7 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
           delete created[row.id]
           return row
         }
-        return entry?.row ?? row
+        return entry ? authoritative(row) : row
       })
       const incoming: CachedDatabaseWindow = { ...window, rows, id: param.replaceId ?? ++nextId.current }
       windows = mergeDatabaseWindow(windows, incoming, param.direction ?? 'next', param.replaceId)
@@ -295,7 +309,8 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const preserveCatalogCursor = partialGroups && !param.groupCursor && (before.projection?.groups?.length ?? 0) > (projection.groups?.length ?? 0)
     const relationTargets = mergeRelationTargets(before.projection?.relationTargets, projection.relationTargets,
       [...trimmed.windows.flatMap((window) => window.rows), ...Object.values(created).map((entry) => entry.row)])
-    const nextProjection = { ...before.projection, ...projection, relationTargets, groups, days: projection.days ?? before.projection?.days,
+    const { includedRows: _includedRows, ...summary } = projection
+    const nextProjection = { ...before.projection, ...summary, relationTargets, groups, days: projection.days ?? before.projection?.days,
       ...(preserveCatalogCursor ? { groupsNextCursor: before.projection?.groupsNextCursor } : {}) }
     commit(current, { ...before, created, projection: nextProjection, windows: trimmed.windows, gaps, failures, navigation })
     const edges = trimmed.windows.filter((window) => window.key === streamKey(param))
@@ -387,6 +402,13 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     }
     return { commit: (confirmed, orderRevision) => finish(confirmed, false, orderRevision), rollback: () => finish(undefined, true) }
   }, [applyChanges, commit, invalidate])
+  const refreshCreatedRows = useCallback(() => {
+    if (!hasCalculatedColumns(optionsRef.current.columns)) return
+    const ids = Object.keys(sessionRef.current.cache.created)
+    // Hydrate cells without waiting for the editor to blur or moving its window.
+    for (let offset = 0; offset < ids.length; offset += 50) enqueue({ scope: scopeRef.current, metadataOnly: true, includeRowIds: ids.slice(offset, offset + 50) })
+  }, [enqueue])
+  const resync = useCallback(() => { invalidate(); refreshCreatedRows() }, [invalidate, refreshCreatedRows])
   const onCreatedRow = useCallback((row: RowData) => {
     const current = sessionRef.current
     if (current.denied || !enabledRef.current) return
@@ -405,7 +427,8 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     const value = selectId ? mergedRow.cells[selectId]?.value : null
     const createdScope: PageViewQueryScope = optionsRef.current.view?.view === 'board' ? { type: 'board', optionId: typeof value === 'string' ? value : '__unassigned__' } : scopeRef.current
     commit(current, { ...current.cache, created: { ...current.cache.created, [row.id]: { row: mergedRow, scope: createdScope, wasPinned: previousCreated?.wasPinned ?? Boolean(current.pins.get(row.id)) } } })
-  }, [commit])
+    if (!previousCreated) refreshCreatedRows()
+  }, [commit, refreshCreatedRows])
   const accepts = useCallback((pageId: string, entity: string, updatedAt: string) => {
     const current = sessionRef.current
     const belongs = pageId === optionsRef.current.pageId || current.cache.windows.some((window) => window.scope.type === 'graph' && window.scope.parentId === pageId)
@@ -480,7 +503,7 @@ export function useDatabasePagination(options: PaginationOptions): { pagination:
     invalidate()
   }, [accepts, commit, invalidate, onCreatedRow])
   const onRowOrder = useCallback((payload: RowOrderUpdatedPayload) => { if (payload.viewId === optionsRef.current.viewId && accepts(payload.pageId, `order:${payload.viewId}`, payload.updatedAt)) invalidate() }, [accepts, invalidate])
-  const bridge = useMemo<DatabaseProjectionBridge>(() => ({ orderRevision: cache.projection?.orderRevision ?? 0, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, onResync: invalidate, onAccessDenied: deny }), [cache.projection?.orderRevision, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, invalidate, deny])
+  const bridge = useMemo<DatabaseProjectionBridge>(() => ({ orderRevision: cache.projection?.orderRevision ?? 0, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, onResync: resync, onAccessDenied: deny }), [cache.projection?.orderRevision, onLocalMutation, onCreatedRow, onEvent, onStructure, onRowOrder, resync, deny])
   const bridgeRef = useRef(bridge); bridgeRef.current = bridge
   const branchIds = [...new Set(cache.windows.flatMap((window) => window.scope.type === 'graph' && window.scope.parentId !== options.pageId ? [window.scope.parentId] : []))].sort().join(',')
   const branchChannels = useRef(new Map<string, PageRealtimeChannel>())

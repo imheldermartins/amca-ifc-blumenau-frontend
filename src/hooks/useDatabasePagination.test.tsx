@@ -194,6 +194,56 @@ describe('SQL projection pagination transport', () => {
     expect(hook.result.current.pagination.streams.root.rows.filter((row) => row.id === 'new-page')).toHaveLength(1)
     expect(queryView).toHaveBeenCalledTimes(1)
   })
+  it('hydrates the new Lote index outside retained windows and accepts recalculated values while pinned', async () => {
+    const columns: HeaderCol[] = [{ id: 'lote', title: 'Lote', type: 'formula', formula: { version: 1, source: 'padStart(toText(index()), 4, "0")', revision: 1 } }]
+    const hook = dynamicSetup('table', filters, undefined, columns)
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    const calculated = { page_id: 'new-lote', page_title: null, page_columns: { lote: { row_id: null, row_data: JSON.stringify({ value: '#0051' }), column_name: 'Lote', column_type: 'formula' as const, column_data: null } } }
+    queryView.mockImplementation(async (_page, _view, input) => ({ ...projection(), includedRows: input.includeRowIds?.includes('new-lote') ? [calculated] : [] }))
+    act(() => {
+      hook.result.current.bridge.onCreatedRow({ id: 'new-lote', cells: {} })
+      hook.result.current.pagination.pinRow?.('new-lote', true)
+      hook.result.current.pagination.onInteractionChange?.(true)
+    })
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows.find((row) => row.id === 'new-lote')?.cells.lote?.value).toBe('#0051'))
+    expect(hook.result.current.pagination.streams.root.rows).toHaveLength(51)
+    calculated.page_columns.lote.row_data = JSON.stringify({ value: '#0052' })
+    act(() => hook.result.current.bridge.onResync())
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows.find((row) => row.id === 'new-lote')?.cells.lote?.value).toBe('#0052'))
+    hook.unmount()
+  })
+  it('does not let a pinned local birth override an authoritative formula in a window', async () => {
+    const hook = setup()
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    act(() => { hook.result.current.bridge.onCreatedRow({ id: 'new-lote', cells: {} }); hook.result.current.pagination.pinRow?.('new-lote', true) })
+    const fresh = projection()
+    fresh.windows[0].rows.push({ page_id: 'new-lote', page_title: 'Novo lote', page_columns: { lote: { row_id: null, row_data: '{"value":"#0051"}', column_name: 'Lote', column_type: 'formula', column_data: null } } })
+    queryView.mockResolvedValue(fresh)
+    act(() => hook.result.current.bridge.onResync())
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows.find((row) => row.id === 'new-lote')?.cells.lote?.value).toBe('#0051'))
+    hook.unmount()
+  })
+  it('reissues a stale hydration during editing and drops a created row if it is no longer authorized', async () => {
+    const columns: HeaderCol[] = [{ id: 'lote', title: 'Lote', type: 'formula' }]
+    const hook = dynamicSetup('table', filters, undefined, columns)
+    await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))
+    let finish!: (value: PageViewQueryProjection) => void
+    queryView.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const includedRows = [{ page_id: 'new-lote', page_title: null, page_columns: { lote: { row_id: null, row_data: '{"value":"#0051"}', column_name: 'Lote', column_type: 'formula' as const, column_data: null } } }]
+    queryView.mockResolvedValue({ ...projection(), windows: [], includedRows })
+    act(() => {
+      hook.result.current.bridge.onCreatedRow({ id: 'new-lote', cells: {} })
+      hook.result.current.pagination.onInteractionChange?.(true)
+    })
+    await waitFor(() => expect(finish).toBeTypeOf('function'))
+    act(() => hook.result.current.bridge.onResync())
+    await act(async () => finish({ ...projection(), windows: [], includedRows: [] }))
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows.find((row) => row.id === 'new-lote')?.cells.lote?.value).toBe('#0051'))
+    queryView.mockResolvedValue({ ...projection(), windows: [], includedRows: [] })
+    act(() => hook.result.current.bridge.onResync())
+    await waitFor(() => expect(hook.result.current.pagination.streams.root.rows.some((row) => row.id === 'new-lote')).toBe(false))
+    hook.unmount()
+  })
   it('não reconcilia as rows quando uma coluna vazia é criada', async () => {
     const hook = setup()
     await waitFor(() => expect(hook.result.current.pagination.streams.root?.rows).toHaveLength(50))

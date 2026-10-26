@@ -300,6 +300,17 @@ describe('usePageDatabase — identidade da rota', () => {
 })
 
 describe('usePageDatabase — criação de página-linha', () => {
+  it('refreshes calculated columns after a creation ACK without depending on a socket echo', async () => {
+    const original = { ...database('inicial'), headerCols: [{ id: COLUMN_ID, title: 'Lote', type: 'formula' as const }] }
+    const calculated = { ...original, rows: [...original.rows, { id: NEW_ROW_ID, cells: { [COLUMN_ID]: { value: '#0002' } } }] }
+    dependencies.loadPage.mockResolvedValueOnce(original).mockResolvedValue(calculated)
+    const { result } = renderHook(() => usePageDatabase(PAGE_ID), { wrapper: createWrapper() })
+    await waitFor(() => expect(result.current.database?.headerCols[0]?.type).toBe('formula'))
+    act(() => result.current.handlers.onAddRow())
+    await waitFor(() => expect(result.current.database?.rows.find((row) => row.id === NEW_ROW_ID)?.cells[COLUMN_ID]?.value).toBe('#0002'))
+    expect(dependencies.loadPage).toHaveBeenCalledTimes(2)
+    expect(result.current.database?.rows.filter((row) => row.id === NEW_ROW_ID)).toHaveLength(1)
+  })
   it('entrega a criação à paginação sem manter uma segunda cópia em database.rows', async () => {
     const bridge = { current: {
       orderRevision: 1, onEvent: vi.fn(), onStructure: vi.fn(), onResync: vi.fn(),
