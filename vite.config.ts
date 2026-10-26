@@ -19,15 +19,15 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@components': path.resolve(__dirname, './src/components'),
-      '@contexts': path.resolve(__dirname, './src/contexts'),
-      '@locales': path.resolve(__dirname, './src/locales'),
+      '@': path.resolve(import.meta.dirname, './src'),
+      '@components': path.resolve(import.meta.dirname, './src/components'),
+      '@contexts': path.resolve(import.meta.dirname, './src/contexts'),
+      '@locales': path.resolve(import.meta.dirname, './src/locales'),
       // Libs autorais: a FONTE é src/shared/<nome> (edite lá); packages/<nome>
       // é o snapshot versionável. O alias garante que o app consome a fonte,
       // não o node_modules.
-      'cubs-database': path.resolve(__dirname, './src/shared/cubs-database'),
-      'cubs-components': path.resolve(__dirname, './src/shared/cubs-components'),
+      'cubs-database': path.resolve(import.meta.dirname, './src/shared/cubs-database'),
+      'cubs-components': path.resolve(import.meta.dirname, './src/shared/cubs-components'),
     },
   },
   server: {
