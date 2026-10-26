@@ -2,8 +2,6 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  closestCorners,
-  pointerWithin,
   useSensor,
   useSensors,
   type CollisionDetection,
@@ -21,6 +19,7 @@ import {
 } from 'react'
 
 import { i18n } from '@/lib/i18n'
+import { handleCollisions } from '@/shared/dnd/dragAnchor'
 
 import { editorBlockOptionForKind } from './blockCatalog'
 import { moveBlockToDrop, type EditorDropTarget } from './blockLayout'
@@ -51,17 +50,9 @@ function isDropTarget(value: unknown): value is EditorDropTarget {
   return value.type === 'row' || value.type === 'column' || value.type === 'item'
 }
 
-const editorCollisionDetection: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args)
-  const hitIds = new Set(pointerCollisions.map((collision) => collision.id))
-  const containersUnderPointer = args.droppableContainers.filter((container) =>
-    hitIds.has(container.id),
-  )
-  const candidates = containersUnderPointer.length > 0
-    ? containersUnderPointer
-    : args.droppableContainers
-
-  return closestCorners({ ...args, droppableContainers: candidates }).slice(0, 1)
+export const editorCollisionDetection: CollisionDetection = (args) => {
+  const nearest = handleCollisions(args)[0]
+  return nearest && (nearest.data?.value ?? Infinity) <= 48 ? [nearest] : []
 }
 
 export function EditorDnd({ editor, children }: EditorDndProps) {

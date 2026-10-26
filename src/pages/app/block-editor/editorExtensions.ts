@@ -299,7 +299,7 @@ export const BlockRow = Node.create({
 export const BlockColumn = Node.create({
   name: 'blockColumn',
   group: 'column',
-  content: 'editableBlock+',
+  content: '(editableBlock|blockRow)+',
   defining: true,
   isolating: true,
 

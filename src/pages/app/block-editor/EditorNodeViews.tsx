@@ -80,16 +80,14 @@ function commitRowWidths(
   let row: ProseMirrorNode | undefined
   let rowPosition = -1
 
-  let offset = 0
-  for (let index = 0; index < editor.state.doc.childCount; index += 1) {
-    const candidate = editor.state.doc.child(index)
+  editor.state.doc.descendants((candidate, position) => {
     if (candidate.type.name === 'blockRow' && candidate.attrs.id === rowId) {
       row = candidate
-      rowPosition = offset
-      break
+      rowPosition = position
+      return false
     }
-    offset += candidate.nodeSize
-  }
+    return !row
+  })
   if (!row || rowPosition < 0) return
 
   const normalized = ColumnLayoutRules.normalize(widths)
@@ -217,7 +215,7 @@ export function BlockColumnView({ editor, getPos, node }: NodeViewProps) {
 
     const rowElement = event.currentTarget.closest<HTMLElement>('.cubs-editor-row-content')
     const rowWidth = Array.from(
-      rowElement?.querySelectorAll<HTMLElement>(':scope [data-editor-column]') ?? [],
+      rowElement?.querySelectorAll<HTMLElement>(':scope > [data-node-view-content-react] > .node-blockColumn > [data-editor-column]') ?? [],
     ).reduce((total, column) => total + column.getBoundingClientRect().width, 0)
     if (rowWidth <= 0 || rowLayout.columnIds.some((id) => !id)) return
 

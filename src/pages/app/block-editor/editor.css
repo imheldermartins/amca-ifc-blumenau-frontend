@@ -20,12 +20,17 @@
   min-width: 0;
 }
 
-.cubs-editor-row-content .node-blockColumn {
+.cubs-editor-row-content > [data-node-view-content-react] > .node-blockColumn {
   flex: var(--editor-column-grow, 100) 1 0;
   min-width: 0;
 }
 
 .cubs-editor-column-content .node-editableBlock {
+  min-width: 0;
+}
+
+.cubs-editor-column-content > [data-node-view-content-react] > .node-blockRow {
+  width: 100%;
   min-width: 0;
 }
 
@@ -446,9 +451,9 @@
 
 .cubs-editor-row-drop-zone.is-over,
 .cubs-editor-item-drop-zone.is-over {
-  position: relative;
-  inset: auto;
-  margin-block: 0.25rem;
+  background: color-mix(in oklab, var(--p-purple) 14%, transparent);
+  outline: 1px dashed var(--p-purple);
+  border-radius: 4px;
 }
 
 .cubs-editor-column-drop-zone {
@@ -465,19 +470,10 @@
   right: 0;
 }
 
-.cubs-editor-column:has(> .cubs-editor-column-drop-zone.is-over) {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.cubs-editor-column:has(> .cubs-editor-column-drop-zone.is-over) > .cubs-editor-column-content {
-  flex: 1;
-  min-width: 0;
-}
-
 .cubs-editor-column-drop-zone.is-over {
-  position: relative;
-  inset: auto;
+  background: color-mix(in oklab, var(--p-purple) 10%, transparent);
+  outline: 1px dashed var(--p-purple);
+  border-radius: 4px;
 }
 
 .cubs-editor-item-drop-zone {
@@ -500,7 +496,7 @@
   position: absolute;
   z-index: 9;
   top: 0;
-  right: -1.25rem;
+  right: -0.3rem;
   bottom: 0;
   display: flex;
   width: 0.5rem;

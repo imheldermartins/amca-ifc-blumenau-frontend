@@ -13,7 +13,7 @@ const schema = new Schema({
       attrs: { id: { default: null }, kind: { default: 'richText' } },
     },
     blockColumn: {
-      content: 'editableBlock+',
+      content: '(editableBlock|blockRow)+',
       attrs: { id: { default: null }, span: { default: 4 } },
     },
     blockRow: { content: 'blockColumn{1,4}', attrs: { id: { default: null } } },
@@ -40,6 +40,23 @@ function document(...rows: ReturnType<typeof row>[]) {
 }
 
 describe('moveBlockToDrop', () => {
+  it('moves between nested rows without flattening the sibling columns or losing row ownership', () => {
+    const nested = schema.nodes.blockRow.create({ id: 'nested' }, [column('inner-a', 50, block('a')), column('inner-b', 50, block('b'))]);
+    const host = schema.nodes.blockColumn.create({ id: 'host', span: 50 }, [nested, block('c')]);
+    const input = document(row('outer', host, column('sibling', 50, block('d'))));
+    const result = moveBlockToDrop(input, 'd', { type: 'item', blockId: 'b', edge: 'after' });
+    expect(result).toHaveLength(1);
+    const outer = result![0]!;
+    expect(outer.childCount).toBe(1);
+    expect(outer.firstChild!.attrs.span).toBe(100);
+    const inner = outer.firstChild!.firstChild!;
+    expect(inner.attrs.id).toBe('nested');
+    expect(inner.childCount).toBe(2);
+    expect(inner.child(1).content.content.map((node) => node.attrs.id)).toEqual(['b', 'd']);
+    expect(outer.firstChild!.lastChild!.attrs.id).toBe('c');
+    expect(() => schema.nodes.doc.create(null, result).check()).not.toThrow();
+  });
+
   it('cria uma coluna dentro da row alvo', () => {
     const result = moveBlockToDrop(
       document(

@@ -1,7 +1,5 @@
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
-
 import { ColumnLayoutRules, MAX_COLUMNS } from './columnLayoutRules'
-
 export { MAX_COLUMNS } from './columnLayoutRules'
 
 export type EditorDropTarget =
@@ -9,224 +7,69 @@ export type EditorDropTarget =
   | { type: 'column'; columnId: string; edge: 'left' | 'right' }
   | { type: 'item'; blockId: string; edge: 'before' | 'after' }
 
-interface RowEntry {
-  id: string
-  node: ProseMirrorNode
-}
+interface LayoutRow { kind: 'row'; node: ProseMirrorNode; columns: LayoutColumn[]; parent: LayoutColumn | null }
+interface LayoutColumn { node: ProseMirrorNode; items: LayoutItem[]; parent: LayoutRow }
+type LayoutItem = LayoutRow | ProseMirrorNode
+const isRow = (item: LayoutItem): item is LayoutRow => 'kind' in item && item.kind === 'row'
+export const columnSpans = (count: number) => ColumnLayoutRules.equalWidths(count)
 
-function stringAttribute(value: unknown): string | null {
-  return typeof value === 'string' && value.length > 0 ? value : null
-}
-
-function getRows(doc: ProseMirrorNode): RowEntry[] {
-  const rows: RowEntry[] = []
-
-  doc.forEach((node) => {
-    if (node.type.name !== 'blockRow') return
-    const id = stringAttribute(node.attrs.id)
-    if (id) rows.push({ id, node })
-  })
-
-  return rows
-}
-
-function childNodes(node: ProseMirrorNode): ProseMirrorNode[] {
-  const children: ProseMirrorNode[] = []
-  node.forEach((child) => children.push(child))
-  return children
-}
-
-function copyColumn(
-  column: ProseMirrorNode,
-  blocks: ProseMirrorNode[],
-  span: number,
-): ProseMirrorNode {
-  return column.type.create({ ...column.attrs, span }, blocks, column.marks)
-}
-
-export function columnSpans(count: number): number[] {
-  return ColumnLayoutRules.equalWidths(count)
-}
-
-function normalizeRow(
-  row: ProseMirrorNode,
-  columns: ProseMirrorNode[],
-): ProseMirrorNode {
-  const spans = columnSpans(columns.length)
-  return row.type.create(
-    row.attrs,
-    columns.map((column, index) =>
-      copyColumn(column, childNodes(column), spans[index]),
-    ),
-    row.marks,
-  )
-}
-
-function normalizeStoredRow(row: ProseMirrorNode): ProseMirrorNode {
-  const columns = childNodes(row)
-  const widths = ColumnLayoutRules.normalize(
-    columns.map((column) => column.attrs.span),
-  )
-  return row.type.create(
-    row.attrs,
-    columns.map((column, index) =>
-      copyColumn(column, childNodes(column), widths[index]),
-    ),
-    row.marks,
-  )
-}
-
-function findBlock(rows: RowEntry[], blockId: string) {
-  for (const row of rows) {
-    const columns = childNodes(row.node)
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      const column = columns[columnIndex]
-      const blocks = childNodes(column)
-      const blockIndex = blocks.findIndex((block) => block.attrs.id === blockId)
-      if (blockIndex >= 0) {
-        return {
-          row,
-          columns,
-          column,
-          columnIndex,
-          blocks,
-          blockIndex,
-          block: blocks[blockIndex],
-        }
-      }
-    }
-  }
-  return null
-}
-
-function findColumn(rows: ProseMirrorNode[], columnId: string) {
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-    const row = rows[rowIndex]
-    const columns = childNodes(row)
-    const columnIndex = columns.findIndex((column) => column.attrs.id === columnId)
-    if (columnIndex >= 0) return { row, rowIndex, columns, columnIndex }
-  }
-  return null
-}
-
-function findTargetBlock(rows: ProseMirrorNode[], blockId: string) {
-  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
-    const row = rows[rowIndex]
-    const columns = childNodes(row)
-    for (let columnIndex = 0; columnIndex < columns.length; columnIndex += 1) {
-      const column = columns[columnIndex]
-      const blocks = childNodes(column)
-      const blockIndex = blocks.findIndex((block) => block.attrs.id === blockId)
-      if (blockIndex >= 0) {
-        return { row, rowIndex, columns, column, columnIndex, blocks, blockIndex }
-      }
-    }
-  }
-  return null
-}
-
-export function moveBlockToDrop(
-  doc: ProseMirrorNode,
-  activeBlockId: string,
-  target: EditorDropTarget,
-): ProseMirrorNode[] | null {
+/** Every row owns its columns; nested rows remain inside their own column. */
+export function moveBlockToDrop(doc: ProseMirrorNode, activeBlockId: string, target: EditorDropTarget): ProseMirrorNode[] | null {
   if (target.type === 'item' && target.blockId === activeBlockId) return null
-
-  const originalRows = getRows(doc).map((entry) => ({
-    ...entry,
-    node: normalizeStoredRow(entry.node),
-  }))
-  const source = findBlock(originalRows, activeBlockId)
+  const allRows: LayoutRow[] = [], allColumns: LayoutColumn[] = []
+  const parseRow = (node: ProseMirrorNode, parent: LayoutColumn | null): LayoutRow => {
+    const row: LayoutRow = { kind: 'row', node, columns: [], parent }; allRows.push(row)
+    node.forEach((columnNode) => {
+      const column: LayoutColumn = { node: columnNode, items: [], parent: row }; row.columns.push(column); allColumns.push(column)
+      columnNode.forEach((item) => column.items.push(item.type.name === 'blockRow' ? parseRow(item, column) : item))
+    })
+    return row
+  }
+  const roots: LayoutRow[] = []
+  doc.forEach((node) => { if (node.type.name === 'blockRow') roots.push(parseRow(node, null)) })
+  const findBlock = (id: string) => {
+    for (const column of allColumns) {
+      const index = column.items.findIndex((item) => !isRow(item) && item.attrs.id === id)
+      if (index >= 0) return { column, index, node: column.items[index] as ProseMirrorNode }
+    }
+    return null
+  }
+  const source = findBlock(activeBlockId)
   if (!source) return null
-
-  const rows = originalRows.map((entry) => entry.node)
-  const sourceRowIndex = originalRows.findIndex((entry) => entry.id === source.row.id)
-  const sourceColumns = [...source.columns]
-  const sourceBlocks = [...source.blocks]
-  const [activeBlock] = sourceBlocks.splice(source.blockIndex, 1)
-
-  const removesSourceColumn = sourceBlocks.length === 0
-  if (removesSourceColumn) sourceColumns.splice(source.columnIndex, 1)
-  else {
-    sourceColumns[source.columnIndex] = copyColumn(
-      source.column,
-      sourceBlocks,
-      ColumnLayoutRules.storedWidth(source.column.attrs.span),
-    )
-  }
-
-  if (sourceColumns.length === 0) rows.splice(sourceRowIndex, 1)
-  else if (removesSourceColumn) {
-    rows[sourceRowIndex] = normalizeRow(source.row.node, sourceColumns)
+  const targetRow = target.type === 'row' ? allRows.find((row) => row.node.attrs.id === target.rowId) : undefined
+  const targetColumn = target.type === 'column' ? allColumns.find((column) => column.node.attrs.id === target.columnId) : undefined
+  const targetBlock = target.type === 'item' ? findBlock(target.blockId) : undefined
+  if (target.type === 'row' && (!targetRow || targetRow === source.column.parent && targetRow.columns.length === 1 && source.column.items.length === 1)) return null
+  if (target.type === 'column' && (!targetColumn || targetColumn === source.column && source.column.items.length === 1)) return null
+  if (target.type === 'item' && !targetBlock) return null
+  source.column.items.splice(source.index, 1)
+  if (target.type === 'item' && targetBlock) {
+    const index = targetBlock.column.items.indexOf(targetBlock.node)
+    targetBlock.column.items.splice(index + (target.edge === 'after' ? 1 : 0), 0, source.node)
   } else {
-    rows[sourceRowIndex] = source.row.node.type.create(
-      source.row.node.attrs,
-      sourceColumns,
-      source.row.node.marks,
-    )
+    const newColumn = (parent: LayoutRow): LayoutColumn => ({ node: source.column.node.type.create({ ...source.column.node.attrs, id: crypto.randomUUID(), span: 100 }, source.node), items: [source.node], parent })
+    if (target.type === 'column' && targetColumn) {
+      const row = targetColumn.parent
+      row.columns = row.columns.filter((column) => column.items.length > 0)
+      if (row.columns.length >= MAX_COLUMNS) return null
+      row.columns.splice(row.columns.indexOf(targetColumn) + (target.edge === 'right' ? 1 : 0), 0, newColumn(row))
+    } else if (target.type === 'row' && targetRow) {
+      const row: LayoutRow = { kind: 'row', node: source.column.parent.node.type.create({ ...source.column.parent.node.attrs, id: crypto.randomUUID() }), columns: [], parent: targetRow.parent }
+      row.columns = [newColumn(row)]
+      const siblings = targetRow.parent?.items ?? roots
+      const index = siblings.indexOf(targetRow)
+      siblings.splice(index + (target.edge === 'after' ? 1 : 0), 0, row)
+    }
   }
-
-  if (target.type === 'row') {
-    const targetRowIndex = rows.findIndex((row) => row.attrs.id === target.rowId)
-    if (targetRowIndex < 0) return null
-
-    const newColumn = source.column.type.create(
-      {
-        ...source.column.attrs,
-        id: crypto.randomUUID(),
-        span: ColumnLayoutRules.totalPercent,
-      },
-      activeBlock,
-    )
-    const newRow = source.row.node.type.create(
-      { ...source.row.node.attrs, id: crypto.randomUUID() },
-      newColumn,
-    )
-    rows.splice(targetRowIndex + (target.edge === 'after' ? 1 : 0), 0, newRow)
-    return rows
+  const build = (row: LayoutRow): ProseMirrorNode | null => {
+    const columns = row.columns.flatMap((column) => {
+      const items = column.items.flatMap((item) => { const node = isRow(item) ? build(item) : item; return node ? [node] : [] })
+      return items.length ? [{ column, items }] : []
+    })
+    if (!columns.length) return null
+    const widths = columns.length === row.node.childCount ? ColumnLayoutRules.normalize(columns.map(({ column }) => column.node.attrs.span)) : columnSpans(columns.length)
+    return row.node.type.create(row.node.attrs, columns.map(({ column, items }, index) => column.node.type.create({ ...column.node.attrs, span: widths[index] }, items, column.node.marks)), row.node.marks)
   }
-
-  if (target.type === 'column') {
-    const targetColumn = findColumn(rows, target.columnId)
-    if (!targetColumn || targetColumn.columns.length >= MAX_COLUMNS) return null
-
-    const newColumn = source.column.type.create(
-      {
-        ...source.column.attrs,
-        id: crypto.randomUUID(),
-        span: ColumnLayoutRules.totalPercent,
-      },
-      activeBlock,
-    )
-    const targetColumns = [...targetColumn.columns]
-    targetColumns.splice(
-      targetColumn.columnIndex + (target.edge === 'right' ? 1 : 0),
-      0,
-      newColumn,
-    )
-    rows[targetColumn.rowIndex] = normalizeRow(targetColumn.row, targetColumns)
-    return rows
-  }
-
-  const targetBlock = findTargetBlock(rows, target.blockId)
-  if (!targetBlock) return null
-
-  const targetBlocks = [...targetBlock.blocks]
-  targetBlocks.splice(
-    targetBlock.blockIndex + (target.edge === 'after' ? 1 : 0),
-    0,
-    activeBlock,
-  )
-  const targetColumns = [...targetBlock.columns]
-  targetColumns[targetBlock.columnIndex] = copyColumn(
-    targetBlock.column,
-    targetBlocks,
-    ColumnLayoutRules.storedWidth(targetBlock.column.attrs.span),
-  )
-  rows[targetBlock.rowIndex] = targetBlock.row.type.create(
-    targetBlock.row.attrs,
-    targetColumns,
-    targetBlock.row.marks,
-  )
-  return rows
+  const result = roots.flatMap((row) => { const node = build(row); return node ? [node] : [] })
+  return result.length ? result : null
 }
