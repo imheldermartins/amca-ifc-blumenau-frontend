@@ -10,7 +10,8 @@
     "empty": "Nenhuma variável disponível para esta busca.",
     "me": "Eu",
     "unavailable": "Variável indisponível",
-    "sections": { "users": "Usuários", "pages": "Página atual", "workspace": "Workspace", "organization": "Organização" },
+    "today": "hoje",
+    "sections": { "users": "Usuários", "pages": "Página atual", "workspace": "Workspace", "organization": "Organização", "global": "Global" },
     "fields": { "name": "Nome", "email": "E-mail", "title": "Título" }
   },
   "common": {

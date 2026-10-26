@@ -14,6 +14,24 @@ const id = 'workspace:01M00000000000000000000001:data.campaign'
 const content = { type: 'doc', content: [{ type: 'blockRow', attrs: { id: 'r' }, content: [{ type: 'blockColumn', attrs: { id: 'c', span: 100 }, content: [{ type: 'editableBlock', attrs: { id: 'b', kind: 'richText' }, content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { id, label: null, mentionSuggestionChar: '@' } }] }] }] }] }] }
 afterEach(cleanup)
 describe('official Tiptap mentions', () => {
+  it('reopens datetime chips and copies the formal value without a catalog or a matching current @hoje option', async () => {
+    const datetime = '2026-10-26T15:04:59.123Z'
+    const dated = structuredClone(content)
+    dated.content[0]!.content[0]!.content[0]!.content[0]!.content[0]!.attrs.id = datetime
+    const editor = new TiptapEditor({ extensions: createEditorExtensions(), content: dated })
+    expect(editor.getText()).toContain('26/10/2026 às 12:04')
+    expect(editor.getHTML()).toContain('26/10/2026 às 12:04')
+    expect(decodePageDocument(encodePageDocument(editor.getJSON()))).toEqual(editor.getJSON())
+    expect(JSON.stringify(editor.getJSON())).toContain(datetime)
+    expect(JSON.stringify(editor.getJSON())).not.toContain('26/10/2026 às')
+    editor.destroy()
+    const changed = vi.fn()
+    render(<ModalProvider><Editor content={dated} onChange={changed} /></ModalProvider>)
+    const chip = await screen.findByText('26/10/2026 às 12:04')
+    expect(chip.getAttribute('data-mention-id')).toBe(datetime)
+    expect(chip.getAttribute('title')).toBe('hoje')
+    expect(changed).not.toHaveBeenCalled()
+  })
   it('copies readable text in plain and HTML formats while preserving the typed HTML reference', () => {
     const extensions = () => createEditorExtensions({ mentionOptions: () => [{ id, label: 'Campanha', value: 'Outono', section: 'Workspace' }] })
     const editor = new TiptapEditor({ extensions: extensions(), content })

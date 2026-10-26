@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { MentionInputConfig } from 'cubs-components'
 import { DatabaseMentionColumnsProvider, DatabaseMentionProvider, RowMentionProvider, useDatabaseMentions } from './mentions'
-import { mentionId, mentionToken } from '@/shared/mentions'
+import { mentionId, mentionToken, resolveMentionText } from '@/shared/mentions'
 import type { HeaderCol, RowData } from './types'
 import { TextCellEditor } from './components/cells/TextCellEditor'
 import { BoardCard } from './components/BoardView'
@@ -54,6 +54,13 @@ function paginated(view: 'table' | 'board' | 'grid', rows: RowData[]): DatabaseP
 }
 
 describe('page mention context', () => {
+  it('preserves global @hoje options and resolves old datetime tokens inside row titles', () => {
+    const datetime = '2026-10-26T15:04:59.123Z', old = '2026-01-01T01:02:03.004Z'
+    const global = { ...config, options: [...config.options, { id: datetime, label: 'hoje', value: '26/10/2026 às 12:04', section: 'Global' }], resolve: (text: string) => resolveMentionText(text, {}) }
+    render(<DatabaseMentionProvider value={global}><RowMentionProvider row={{ ...row, cells: { page_title: { value: `Criado ${mentionToken(old)}` } } }} columns={columns}><Probe text={token('title')} /></RowMentionProvider></DatabaseMentionProvider>)
+    expect(screen.getByText(datetime)).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Criado 31/12/2025 às 22:02')
+  })
   it.each([['table', false], ['board', false], ['grid', false], ['table', true], ['board', true], ['grid', true]] as const)('inserts the row Lote formula in the actual %s view title (paginated=%s)', async (view, usePagination) => {
     const change = vi.fn()
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320)

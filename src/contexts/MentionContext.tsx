@@ -6,7 +6,7 @@ import { useWorkspace } from './WorkspaceContext'
 import { MentionProvider } from '@/hooks/useMention'
 import { mentionService } from '@/services/MentionService'
 import { i18n } from '@/lib/i18n'
-import { mentionId, parseMentionId, resolveMentionText, type MentionOption, type MentionScope } from '@/shared/mentions'
+import { formatDatetimeMention, mentionId, parseMentionId, resolveMentionText, type MentionOption, type MentionScope } from '@/shared/mentions'
 
 /** A new scope owns its catalog and registered references; nothing bleeds across pages. */
 export function MentionScopeProvider({ children, scope }: { children: ReactNode; scope: MentionScope }) {
@@ -24,6 +24,7 @@ function ScopedMentions({ children, scope }: { children: ReactNode; scope: Menti
   }), [client, user?.id])
   const [groups, setGroups] = useState<Record<string, Record<string, string>>>({})
   const [registered, setRegistered] = useState<string[]>([])
+  const [today] = useState(() => new Date().toISOString())
   const catalog = useQuery({ queryKey: ['mentions', user?.id, scope, 'catalog'], queryFn: () => mentionService.catalog(scope), enabled: Boolean(user), refetchInterval: 30_000 })
   const options = useMemo(() => {
     const result: MentionOption[] = []
@@ -51,9 +52,10 @@ function ScopedMentions({ children, scope }: { children: ReactNode; scope: Menti
       add(kind, entity.id, 'name', entity.name)
       Object.entries(entity.data).forEach(([key, value]) => add(kind, entity.id, `data.${key}`, value))
     }
+    result.push({ id: today, label: i18n('mentions.today'), value: formatDatetimeMention(today)!, section: i18n('mentions.sections.global'), search: '@hoje hoje datetime' })
     return result
-  }, [catalog.data, user])
-  const ids = useMemo(() => [...new Set([...options.map((option) => option.id), ...registered])].sort(), [options, registered])
+  }, [catalog.data, user, today])
+  const ids = useMemo(() => [...new Set([...options.map((option) => option.id).filter((id) => parseMentionId(id)), ...registered])].sort(), [options, registered])
   const catalogSignature = JSON.stringify(options.map((option) => [option.id, option.value]))
   const resolved = useQuery({
     queryKey: ['mentions', user?.id, scope, 'values', ids, catalogSignature], enabled: Boolean(user && ids.length),
@@ -74,7 +76,7 @@ function ScopedMentions({ children, scope }: { children: ReactNode; scope: Menti
   const addMentionsGroup = useCallback((name: string, entries: Record<string, string>) => setGroups((current) => ({ ...current, [name]: entries })), [])
   const mentions = useMemo(() => {
     const result = { ...groups }
-    options.forEach((option) => { const kind = parseMentionId(option.id)!.kind; result[kind] = { ...result[kind], [option.id]: option.value } })
+    options.forEach((option) => { const kind = parseMentionId(option.id)?.kind ?? 'global'; result[kind] = { ...result[kind], [option.id]: option.value } })
     return result
   }, [groups, options])
   const resolve = useCallback((text: string) => displayMentionText(text, (token) => resolveMentionText(token, values, i18n('mentions.unavailable')), i18n('mentions.unavailable')), [values])

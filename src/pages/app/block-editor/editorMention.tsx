@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { displayMentionText } from 'cubs-components'
 import { useOptionalMention } from '@/hooks/useMention'
 import { i18n } from '@/lib/i18n'
-import { mentionToken, type MentionOption } from '@/shared/mentions'
+import { formatDatetimeMention, mentionToken, type MentionOption } from '@/shared/mentions'
 import { CHILD_TITLE, PDF_TITLE, pdfColumn } from '@/shared/recursive-template'
 import { useEditorEnvironment } from './editorEnvironmentContext'
 import { recursiveMentionOptions } from './recursiveEditor'
@@ -17,6 +17,7 @@ export const EDITOR_MENTION_PLUGIN_KEY = new PluginKey('cubsMention')
 function MentionView({ node }: NodeViewProps) {
   const context = useOptionalMention()
   const id = String(node.attrs.id ?? '')
+  const datetime = formatDatetimeMention(id)
   const environment = useEditorEnvironment()
   const recursive = id.startsWith('recursive:') || id.startsWith('pdf:page:')
   const recursiveColumn = environment.recursiveColumns?.find((col) => id === `recursive:child:columns.${col.id}`)
@@ -24,17 +25,19 @@ function MentionView({ node }: NodeViewProps) {
   const relationLabel = environment.recursiveRelations?.flatMap((relation) => recursiveMentionOptions(relation.columns, relation.id, relation.name)).find((option) => option.id === id)?.label
   const recursiveLabel = id === CHILD_TITLE || id === PDF_TITLE ? i18n('recursive.page-title') : relationLabel ?? pdfProperty?.name ?? (recursiveColumn ? recursiveColumn.name || i18n('recursive.unnamed-property') : undefined)
   const register = context?.register
-  useEffect(() => { if (!recursive) register?.([id]) }, [register, id, recursive])
-  const label = recursive ? recursiveLabel : context?.options.find((option) => option.id === id)?.label
+  useEffect(() => { if (!recursive && !datetime) register?.([id]) }, [register, id, recursive, datetime])
+  const label = datetime ? i18n('mentions.today') : recursive ? recursiveLabel : context?.options.find((option) => option.id === id)?.label
   return <NodeViewWrapper as="span" contentEditable={false} title={label ? displayMentionText(label, context?.resolve, i18n('mentions.unavailable')) : undefined}
     className="rounded-full bg-p-purple/10 px-2.5 py-0.5 text-p-purple" data-mention-id={id}>
-    {displayMentionText(recursive ? recursiveLabel ?? i18n('mentions.unavailable') : context?.values[id] ?? i18n('mentions.unavailable'), context?.resolve, i18n('mentions.unavailable'))}
+    {displayMentionText(datetime ?? (recursive ? recursiveLabel ?? i18n('mentions.unavailable') : context?.values[id] ?? i18n('mentions.unavailable')), context?.resolve, i18n('mentions.unavailable'))}
   </NodeViewWrapper>
 }
 
 /** Official Mention + Suggestion handle the schema, cursor range, insertion and deletion. */
 export function createEditorMention(getOptions: () => MentionOption[] = () => []) {
   const readable = (id: string) => {
+    const datetime = formatDatetimeMention(id)
+    if (datetime !== null) return datetime
     const option = getOptions().find((option) => option.id === id)
     return displayMentionText(option ? option.value || option.label : i18n('mentions.unavailable'), (token) => getOptions().find((entry) => mentionToken(entry.id) === token)?.value ?? i18n('mentions.unavailable'), i18n('mentions.unavailable'))
   }
