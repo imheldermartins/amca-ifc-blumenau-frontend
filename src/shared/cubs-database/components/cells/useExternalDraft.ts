@@ -35,7 +35,7 @@ export interface ExternalDraft {
   /** `onChange` do campo — marca que a edição é do usuário. */
   change: (next: string) => void
   /** `onFocus` do campo — registra também o elemento que deve perder o foco. */
-  focus: (event?: FocusEvent<HTMLInputElement>) => void
+  focus: (event?: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void
   /**
    * Chame no início do blur. `false` = o usuário não editou nada (e o
    * rascunho já foi realinhado ao valor externo), então NÃO commite.
@@ -64,7 +64,7 @@ export function useExternalDraft(
   const [seen, setSeen] = useState(external)
   const focused = useRef(false)
   const dirty = useRef(false)
-  const focusedElement = useRef<HTMLInputElement | null>(null)
+  const focusedElement = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const pendingConflict = useRef(false)
   const onConflictRef = useRef(onConflict)
   onConflictRef.current = onConflict

@@ -27,7 +27,8 @@ export const TextCellEditor = memo(function TextCellEditor({
   inputClassName,
   autoFocus,
   onEditingEnd,
-}: CellEditorProps & { className?: string; inputClassName?: string; autoFocus?: boolean; onEditingEnd?: () => void }) {
+  multiline = false,
+}: CellEditorProps & { className?: string; inputClassName?: string; autoFocus?: boolean; onEditingEnd?: () => void; multiline?: boolean }) {
   const text = typeof value === 'string' ? value : value == null ? '' : String(value)
   const mentions = useDatabaseMentions(column)
   const field = useExternalDraft(text, {
@@ -47,6 +48,7 @@ export const TextCellEditor = memo(function TextCellEditor({
   return (
     <MentionTextField
       mentions={mentions}
+      multiline={multiline}
       autoFocus={autoFocus}
       aria-label={column.title}
       aria-invalid={hasError || undefined}
@@ -65,7 +67,10 @@ export const TextCellEditor = memo(function TextCellEditor({
       onValueChange={field.change}
       onBlur={() => { commit(); onEditingEnd?.() }}
       onKeyDown={(event) => {
-        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Enter' && (!multiline || !event.shiftKey)) {
+          event.preventDefault()
+          event.currentTarget.blur()
+        }
         if (event.key === 'Escape') {
           // `revert` limpa o "editado", então o blur seguinte não commita.
           field.revert()

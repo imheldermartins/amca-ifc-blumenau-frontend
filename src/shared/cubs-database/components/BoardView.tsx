@@ -5,9 +5,9 @@ import { DndContext, DragOverlay, KeyboardSensor, MeasuringStrategy, PointerSens
   type CollisionDetection, type DragEndEvent, type DragOverEvent, type DragStartEvent, type KeyboardCoordinateGetter } from '@dnd-kit/core'
 import { SortableContext, useSortable } from '@dnd-kit/sortable'
 import { MotionConfig, motion, useReducedMotion } from 'motion/react'
-import { ColorPicker, DragPlaceholder, OPTION_COLOR_SWATCH, TextField, cn } from 'cubs-components'
+import { ColorPicker, DragPlaceholder, OPTION_COLOR_SWATCH, TextField, cn, displayMentionText } from 'cubs-components'
 import type { BoardCreateInput, BoardMoveInput, BoardViewConfig, CellChange, CellEditConflict, ColumnConfigPatch, FlowDefinition,
-  ColumnOption, FlowExecutionResult, FlowMacroOption, FlowMacroSectionsBuilder, HeaderCol, OptionColor, RowData } from '../types'
+  CellEditorProps, ColumnOption, FlowExecutionResult, FlowMacroOption, FlowMacroSectionsBuilder, HeaderCol, OptionColor, RowData } from '../types'
 import { BOARD_UNASSIGNED, boardColumn, boardKey, boardRowOrder, relocateBoardCard } from '../boardView'
 import { databaseCardProperties } from '../calendarItems'
 import { mappedProps } from '../calendarPropertyRenderers'
@@ -20,10 +20,15 @@ import { FlowEditorDialog } from './FlowEditorDialog'
 import { rowMoveAnchor, type DatabasePagination } from '../pagination'
 import { pageViewScopeKey, type PageViewQueryScope } from '../pageViewQueryContract'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
+import { cardTopCollisions } from '../../dnd/dragAnchor'
 
 const BACKGROUNDS: Record<OptionColor, string> = {
   red: 'bg-p-red-500/10', pink: 'bg-p-pink-500/10', orange: 'bg-p-orange-500/10', yellow: 'bg-p-yellow-500/10',
   green: 'bg-p-green-500/10', blue: 'bg-p-blue-500/10', purple: 'bg-p-purple-500/10', grey: 'bg-p-grey-500/10',
+}
+const CARD_ACTION_HOVERS: Record<OptionColor, string> = {
+  red: 'hover:bg-p-red-500/15', pink: 'hover:bg-p-pink-500/15', orange: 'hover:bg-p-orange-500/15', yellow: 'hover:bg-p-yellow-500/15',
+  green: 'hover:bg-p-green-500/15', blue: 'hover:bg-p-blue-500/15', purple: 'hover:bg-p-purple-500/15', grey: 'hover:bg-p-grey-500/15',
 }
 const ADD_BUTTON_COLORS: Record<OptionColor, string> = {
   red: 'bg-p-red-500/20 border-p-red-500/40 text-p-red-600 hover:bg-p-red-500/30 dark:text-p-red-400',
@@ -85,13 +90,14 @@ interface CardProps extends Pick<BoardViewProps, 'onOpenRow' | 'onCellChange' | 
 export const BoardCard = memo(function BoardCard(props: CardProps) {
   return <RowMentionProvider row={props.row} columns={props.columns}><BoardCardContent {...props} /></RowMentionProvider>
 })
+const BoardTextCellEditor = (props: CellEditorProps) => <TextCellEditor {...props} multiline inputClassName="min-h-8 py-1 break-words" />
 
 function BoardCardContent({ row, columns, color, showLabels, editing, autoFocus, overlay, handle, onEdit, onFinish,
   onOpenRow, onCellChange, onCellEditConflict, lockedColumnKeys, cellErrors, onFlowOpen }: CardProps) {
   const titleColumn = columns.find((column) => column.key === 'title')
   const previousTitle = titleColumn ? row.cells[titleColumn.id]?.value : undefined
   const mentions = useDatabaseMentions()
-  const title = mentions?.resolve(String(previousTitle || 'Sem título')) ?? String(previousTitle || 'Sem título')
+  const title = displayMentionText(String(previousTitle || 'Sem título'), mentions?.resolve, mentions?.unavailable)
   const locked = (column: HeaderCol) => Boolean(lockedColumnKeys?.has(column.key === 'title' ? 'title' : column.id))
   const properties = databaseCardProperties(row, columns.filter((column) => column !== titleColumn), Boolean(editing))
   const commit = (column: HeaderCol, value: unknown) => {
@@ -100,23 +106,29 @@ function BoardCardContent({ row, columns, color, showLabels, editing, autoFocus,
   return <article data-board-card={row.id} inert={overlay || undefined} aria-hidden={overlay || undefined} className={cn('group relative w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-foreground/10 p-3 text-sm shadow-sm', BACKGROUNDS[color], overlay && 'pointer-events-none shadow-lg')}
     onDoubleClick={(event) => {
       if (!overlay && !(event.target as HTMLElement).closest('button,input,textarea,[role="combobox"]')) onEdit?.(row.id)
-    }} onKeyDown={(event) => { if (editing && event.key === 'Escape') onFinish?.() }}>
-    <div className="flex items-center gap-1.5">
+    }} onKeyDown={(event) => { if (editing && event.key === 'Escape') onFinish?.() }}
+    onBlur={(event) => {
+      // Text fields commit their draft before this bubbles to the card. Keep
+      // internal field changes and portaled property pickers inside edit mode.
+      if (!editing || overlay || !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) || !event.currentTarget.contains(event.target)) return
+      if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return
+      onFinish?.()
+    }}>
+    <div className="flex items-start gap-1.5">
       <button type="button" aria-label={`Arrastar ${title}`} className={cn(handleClass, '-ml-1 flex size-6 shrink-0 items-center justify-center', overlay && 'opacity-70')} disabled={!handle} {...handle}><Icon icon="lucide:grip-vertical" className="size-4" /></button>
-      <h3 className="min-w-0 flex-1 break-words font-semibold leading-5">
-        {editing && titleColumn && onCellChange && !locked(titleColumn) && !overlay ? <TextCellEditor column={titleColumn} rowId={row.id}
+      <h3 className="min-w-0 flex-1 break-words font-semibold leading-6">
+        {editing && titleColumn && onCellChange && !locked(titleColumn) && !overlay ? <TextCellEditor multiline column={titleColumn} rowId={row.id}
           value={previousTitle} autoFocus={autoFocus} hasError={cellErrors?.has(cellErrorKey(row.id, titleColumn.id))}
-          onEditingEnd={autoFocus ? onFinish : undefined}
-          className="[font:inherit]" inputClassName="h-6 border-0 p-0 [font:inherit]" onCommit={(value) => commit(titleColumn, value)}
+          className="[font:inherit]" inputClassName="min-h-6 border-0 p-0 break-words [font:inherit]" onCommit={(value) => commit(titleColumn, value)}
           onExternalConflict={() => onCellEditConflict?.({ rowId: row.id, columnId: titleColumn.id, columnTitle: titleColumn.title, value: previousTitle, displayValue: title })} /> : title}
       </h3>
-      {editing && !overlay ? <button type="button" aria-label="Concluir edição" title="Concluir edição" onClick={onFinish} className="flex size-6 shrink-0 items-center justify-center rounded hover:bg-active"><Icon icon="lucide:check" className="size-4" /></button> : null}
-      {onOpenRow ? <button type="button" aria-label={`Abrir ${title}`} onClick={() => !overlay && onOpenRow(row)} className="flex size-6 shrink-0 items-center justify-center rounded opacity-50 hover:bg-active hover:opacity-100"><Icon icon="lucide:arrow-up-right" className="size-4" /></button> : null}
+      {editing && !overlay ? <button type="button" aria-label="Concluir edição" title="Concluir edição" onClick={onFinish} className={cn('flex size-6 shrink-0 items-center justify-center rounded transition-colors', CARD_ACTION_HOVERS[color])}><Icon icon="lucide:check" className="size-4" /></button> : null}
+      {onOpenRow ? <button type="button" aria-label={`Abrir ${title}`} onClick={() => !overlay && onOpenRow(row)} className={cn('flex size-6 shrink-0 items-center justify-center rounded opacity-50 transition-colors hover:opacity-100', CARD_ACTION_HOVERS[color])}><Icon icon="lucide:arrow-up-right" className="size-4" /></button> : null}
     </div>
     {properties.length ? <dl className="mt-3 flex w-full min-w-0 max-w-full flex-col items-start gap-2 overflow-hidden">
       {properties.map((property) => {
         const column = property.column
-        const Editor = CELL_EDITORS[property.type]
+        const Editor = property.type === 'text' ? BoardTextCellEditor : CELL_EDITORS[property.type]
         return <div key={property.id} className={cn('flex w-full min-w-0 max-w-full items-start overflow-hidden', showLabels && 'gap-1.5')}>
           <dt className={cn('min-w-0 max-w-[50%] shrink truncate text-xs opacity-60', !showLabels && 'sr-only')}>{property.label}:</dt>
           <dd className="min-w-0 flex-1 overflow-hidden">
@@ -302,7 +314,8 @@ const BoardLane = memo(function BoardLane({ option, ids, rowById, presentation, 
   const contents = useMemo(() => {
     if (pagination && !overlay) return <SortableContext items={items} strategy={noSortTransforms}>
       <VirtualInfiniteList items={ids.flatMap((id) => rowById.get(id) ?? [])} itemKey={rowKey} renderItem={(row) => renderCard(row.id)}
-        pagination={pagination} scope={scope} stream={stream} pinnedIds={pinnedIds} estimateSize={96} gap={8} disabled={pending} />
+        pagination={pagination} scope={scope} stream={stream} pinnedIds={pinnedIds} estimateSize={96} gap={8} disabled={pending}
+        scrollMode="page" />
     </SortableContext>
     const cards = ids.map(renderCard)
     return overlay ? cards : <SortableContext items={items} strategy={noSortTransforms}>{cards}</SortableContext>
@@ -320,18 +333,19 @@ const collisionDetection: CollisionDetection = (args) => {
   const containers = args.droppableContainers.filter((entry) => kind === 'board'
     ? entry.data.current?.kind === 'board'
     : entry.data.current?.kind !== 'board')
-  if (!args.pointerCoordinates) return closestCenter({ ...args, droppableContainers: containers }).slice(0, 1)
+  if (!args.pointerCoordinates && kind === 'board') return closestCenter({ ...args, droppableContainers: containers }).slice(0, 1)
   if (kind === 'board') return pointerWithin({ ...args, droppableContainers: containers }).slice(0, 1)
 
-  // The pointer chooses the Board. Within it, the overlay chooses the nearest
-  // card, including through headers and gaps. The moving placeholder cannot
+  // The handle chooses the Board and the nearest card's top, including through
+  // headers and gaps. The moving placeholder cannot
   // compete with the destination cards or keep the drag stuck in its old slot.
   const boards = containers.filter((entry) => entry.data.current?.kind === 'column')
-  const boardHit = pointerWithin({ ...args, droppableContainers: boards })[0]
-  if (!boardHit) return []
+  const anchor = args.pointerCoordinates ?? { x: args.collisionRect.left + 24, y: args.collisionRect.top + 24 }
+  const boardHit = pointerWithin({ ...args, pointerCoordinates: anchor, droppableContainers: boards })[0]
+  if (!boardHit) return args.pointerCoordinates ? [] : cardTopCollisions({ ...args, droppableContainers: containers.filter((entry) => entry.data.current?.kind === 'card') }).slice(0, 1)
   const optionKey = boards.find((entry) => entry.id === boardHit.id)?.data.current?.optionKey
-  const cards = containers.filter((entry) => entry.id !== args.active.id && entry.data.current?.kind === 'card' && entry.data.current.optionKey === optionKey)
-  const cardHit = closestCenter({ ...args, droppableContainers: cards })[0]
+  const cards = containers.filter((entry) => (!args.pointerCoordinates || entry.id !== args.active.id) && entry.data.current?.kind === 'card' && entry.data.current.optionKey === optionKey)
+  const cardHit = cardTopCollisions({ ...args, droppableContainers: cards })[0]
   return [cardHit ?? boardHit]
 }
 
@@ -425,9 +439,7 @@ export function BoardView({ columns, rows, allRows = rows, config, onConfigChang
     const activeRect = context.collisionRect
     return rect && activeRect ? {
       x: currentCoordinates.x + rect.left - activeRect.left + (rect.width - activeRect.width) / 2,
-      // Cross the midpoint explicitly so ArrowDown inserts after its target;
-      // ArrowUp inserts before it, even when both cards have the same height.
-      y: currentCoordinates.y + rect.top - activeRect.top + (rect.height - activeRect.height) / 2 + (direction === 'ArrowDown' ? 1 : direction === 'ArrowUp' ? -1 : 0),
+      y: currentCoordinates.y + rect.top - activeRect.top + (direction === 'ArrowDown' ? 1 : direction === 'ArrowUp' ? -1 : 0),
     } : undefined
   }, [])
   const keyboardOptions = useMemo(() => ({ coordinateGetter: keyboardCoordinates }), [keyboardCoordinates])
@@ -490,7 +502,7 @@ export function BoardView({ columns, rows, allRows = rows, config, onConfigChang
     } else if (!collapsed.has(targetKey)) { clearHover(); setExpanded(null) }
     const translated = item.rect.current.translated
     const insertAfter = target.data.current?.kind === 'card' && translated
-      && translated.top + translated.height / 2 > target.rect.top + target.rect.height / 2
+      && translated.top > target.rect.top
     setDraftGroups((current) => {
       if (!current) return current
       const id = item.data.current?.rowId as string
@@ -560,10 +572,10 @@ export function BoardView({ columns, rows, allRows = rows, config, onConfigChang
     <DndContext sensors={sensors} measuring={measuring} collisionDetection={collisionDetection} onDragStart={start} onDragOver={over}
       onDragMove={(event) => {
         // onDragOver fires only when the target id changes. Reproject while
-        // crossing the same card's midpoint as well, using current geometry.
+        // crossing the same card's top edge as well, using current geometry.
         if (event.active.data.current?.kind === 'card' && (!event.collisions || event.collisions[0]?.id === event.over?.id)) over(event)
       }} onDragCancel={reset} onDragEnd={(event) => { void end(event) }}>
-      <motion.div layoutScroll className="flex items-stretch gap-3 overflow-x-auto px-1 pb-4" style={{ scrollbarGutter: 'stable' } as CSSProperties}>
+      <motion.div layoutScroll className="flex items-stretch gap-3 overflow-x-auto overflow-y-hidden px-1 pb-4" style={{ scrollbarGutter: 'stable' } as CSSProperties}>
         <SortableContext items={shownOrder.map(boardId)} strategy={noSortTransforms}>
           {shownOrder.map((key) => <SortableColumn key={key} optionKey={key} disabled={!onConfigChange || pending} placeholder={active?.kind === 'board' && active.id === key} height={active?.height ?? 256} width={active?.width ?? 320}>
             {(handle) => renderColumn(key, handle)}

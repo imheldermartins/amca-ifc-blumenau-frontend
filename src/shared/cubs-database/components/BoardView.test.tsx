@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DndContextProps } from '@dnd-kit/core'
 import type { HeaderCol, RowData } from '../types'
 import { BOARD_UNASSIGNED } from '../boardView'
@@ -29,6 +29,7 @@ const rows: RowData[] = [
   { id: 'one', cells: { page_title: { value: 'Página um' }, [SELECT]: { value: FIRST }, [PROP]: { value: 'Texto' } } },
   { id: 'two', cells: { page_title: { value: 'Página dois' } } },
 ]
+beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}) })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 function dragStart() {
   const item = { id: 'card:one', data: { current: { kind: 'card', rowId: 'one', optionKey: FIRST, measure: () => ({ width: 302, height: 124 }) } }, rect: { current: { initial: null, translated: { top: 0, height: 124 } } } }
@@ -41,6 +42,42 @@ function dragOver(item: ReturnType<typeof dragStart>, key = SECOND) {
   return target
 }
 describe('BoardView', () => {
+  it.each([
+    ['Nome', 'page_title', 'Página um', 'Enter'],
+    ['Descrição', PROP, 'Texto', 'Enter'],
+    ['Nome', 'page_title', 'Página um', 'blur'],
+    ['Descrição', PROP, 'Texto', 'blur'],
+  ])('commits %s and finishes editing on %s', async (label, columnId, previousValue, trigger) => {
+    const change = vi.fn()
+    render(<BoardView columns={columns} rows={rows} onCellChange={change} />)
+    fireEvent.doubleClick(screen.getByText('Página um'))
+    const input = screen.getByRole('textbox', { name: label })
+    act(() => input.focus())
+    fireEvent.change(input, { target: { value: 'Atualizado' } })
+    if (trigger === 'Enter') fireEvent.keyDown(input, { key: 'Enter' })
+    else act(() => input.blur())
+    await waitFor(() => expect(change).toHaveBeenCalledExactlyOnceWith({ rowId: 'one', columnId, value: 'Atualizado', previousValue }))
+    expect(screen.queryByRole('button', { name: 'Concluir edição' })).toBeNull()
+  })
+
+  it('keeps editing while moving between fields and allows multiline input and cancellation', () => {
+    const change = vi.fn()
+    render(<BoardView columns={columns} rows={rows} onCellChange={change} />)
+    fireEvent.doubleClick(screen.getByText('Página um'))
+    const title = screen.getByRole('textbox', { name: 'Nome' })
+    const description = screen.getByRole('textbox', { name: 'Descrição' })
+    act(() => title.focus())
+    fireEvent.change(title, { target: { value: 'Novo nome' } })
+    act(() => description.focus())
+    expect(change).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Concluir edição' })).toBeTruthy()
+    fireEvent.change(description, { target: { value: 'Descartar' } })
+    fireEvent.keyDown(description, { key: 'Enter', shiftKey: true })
+    expect(document.activeElement).toBe(description)
+    fireEvent.keyDown(description, { key: 'Escape' })
+    expect(change).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Concluir edição' })).toBeNull()
+  })
   it('does not resurrect a newly created editor after realtime deletion and balances interaction ownership', async () => {
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(320)
     vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(320)
@@ -251,17 +288,18 @@ describe('BoardView', () => {
     expect(collisions).toEqual([])
   })
 
-  it('updates insertion continuously within the same target using the overlay center', async () => {
+  it('updates insertion at the top edge of the same target regardless of overlay height', async () => {
     const move = vi.fn(async () => undefined)
     const { container } = render(<BoardView columns={columns} rows={[rows[0]!, { ...rows[1]!, cells: { ...rows[1]!.cells, [SELECT]: { value: FIRST } } }]} onMove={move} onCellChange={vi.fn()} />)
     const item = dragStart()
     const target = { id: 'card:two', data: { current: { kind: 'card', rowId: 'two', optionKey: FIRST } }, rect: { top: 140, height: 124 } }
     const placement = () => Array.from(container.querySelector(`[data-board-column="${FIRST}"]`)!.querySelectorAll('[data-board-card],[data-drag-placeholder]')).map((node) => node.getAttribute('data-board-card') ?? 'placeholder')
     item.rect.current.translated.top = 80
+    item.rect.current.translated.height = 800
     act(() => dnd.props.onDragOver?.({ active: item, over: target } as never))
     expect(placement()).toEqual(['placeholder', 'two'])
-    // Both top edges are still above the target midpoint. Only the overlay
-    // center crosses it; the target id does not change during this move.
+    // The tall overlay already covers the target, but only its top determines
+    // insertion. The target id does not change during this move.
     item.rect.current.translated.top = 141
     act(() => dnd.props.onDragMove?.({ active: item, over: target } as never))
     expect(placement()).toEqual(['two', 'placeholder'])
@@ -276,7 +314,7 @@ describe('BoardView', () => {
     expect(move).toHaveBeenCalledWith({ rowId: 'one', selectColumnId: SELECT, optionId: FIRST, orderedRows: ['two', 'one'] })
   })
 
-  it('inserts after the next card on ArrowDown rather than stopping at its midpoint', async () => {
+  it('crosses the next card top on ArrowDown', async () => {
     const move = vi.fn(async () => undefined)
     render(<BoardView columns={columns} rows={[rows[0]!, { ...rows[1]!, cells: { ...rows[1]!.cells, [SELECT]: { value: FIRST } } }]} onMove={move} onCellChange={vi.fn()} />)
     const item = dragStart()
