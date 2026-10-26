@@ -1,6 +1,7 @@
 import type { GlobalSettingsFragment } from "@/components/GlobalSettingsModal"
 import { NotificationCenter } from '@/components/NotificationCenter'
 import { Typography } from "@/components/Typography"
+import { SearchBar } from '@/components/SearchBar'
 import { useAuth } from "@/contexts/AuthContext"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { useWorkspace } from "@/contexts/WorkspaceContext"
@@ -12,13 +13,16 @@ import { Button, cn, Popover, SOFT_SELECTION_CLASSES, Switch } from "@/shared/cu
 import { Icon } from "@iconify/react"
 import { useLocation, useNavigate } from "@tanstack/react-router"
 import React from "react"
+import { WorkspaceButton } from './WorkspaceButton'
 
-interface SidebarProps {
+export interface SidebarProps {
     collapsed: boolean
     accountMenuOpen?: boolean
     setAccountMenuOpen: (open: boolean) => void
     openGlobalSettings: (fragment: GlobalSettingsFragment) => void
     openSignOutConfirmation: () => void
+    mobile?: boolean
+    onNavigate?: () => void
 };
 
 export default ({ 
@@ -26,7 +30,9 @@ export default ({
     accountMenuOpen, 
     setAccountMenuOpen, 
     openGlobalSettings,
-    openSignOutConfirmation
+    openSignOutConfirmation,
+    mobile = false,
+    onNavigate,
 }: SidebarProps) => {
     const { theme, toggleTheme } = useTheme()
     const auth = useAuth()
@@ -75,6 +81,7 @@ export default ({
 
     function navigateSidebar(target: 'home' | 'collaborating' | 'chat' | 'schedule') {
         if (!currentWorkspaceId || !currentPageRootId) return
+        onNavigate?.()
 
         const mapRouteTarget = {
             home: `/${currentLang}/page/${currentPageRootId}`,
@@ -116,13 +123,19 @@ export default ({
     return <>
         <aside
             className={cn(
-                'm-3 rounded-2xl border border-divider-contrast bg-background p-2 shadow-2xl shadow-dark-900/15 backdrop-blur-xl',
-                'flex flex-col justify-between shrink-0 overflow-hidden',
-                'transition-[width] duration-300 ease-in-out',
-                collapsed ? 'w-14 items-center' : 'w-48 items-start',
+                'flex min-h-0 shrink-0 flex-col justify-between overflow-hidden bg-background',
+                mobile
+                    ? 'h-full w-full gap-3 p-3'
+                    : cn(
+                        'm-3 rounded-2xl border border-divider-contrast p-2 shadow-2xl shadow-dark-900/15 backdrop-blur-xl',
+                        'transition-[width] duration-300 ease-in-out',
+                        collapsed ? 'w-14 items-center' : 'w-48 items-start',
+                    ),
             )}
         >
-            <div className={cn('flex-1', collapsed ? 'w-9 transition-[width] delay-300 duration-150' : 'w-full')}>
+            <div className={cn('min-h-0 flex-1 overflow-y-auto', collapsed ? 'w-9 transition-[width] delay-300 duration-150' : 'w-full')}>
+                {mobile && <div className="mb-3"><WorkspaceButton mobile onNavigate={onNavigate} /></div>}
+                {mobile && <SearchBar className="mb-3 w-full" />}
                 <nav>
                     <ul className={cn('flex flex-col gap-1')}>
                         {navItems.map((item, index) => (
@@ -131,9 +144,12 @@ export default ({
                                     type="button"
                                     disabled={!currentWorkspaceId || !currentPageRootId}
                                     onClick={() => navigateSidebar(item.target)}
+                                    aria-label={item.name}
+                                    aria-current={item.active ? 'page' : undefined}
                                     className={cn(
                                         collapsed ? 'w-9' : 'w-full',
                                         'h-9 px-2 flex flex-nowrap justify-start items-center rounded text-sm ease-in-out duration-300 transition-[width,color,background-color,box-shadow] overflow-clip',
+                                        mobile && 'h-11 rounded-lg',
                                         item.active
                                             ? SOFT_SELECTION_CLASSES
                                             : 'hover:bg-active',
@@ -141,7 +157,7 @@ export default ({
                                     )}
                                 >
                                     <Icon icon={item.icon} fontSize={20} className={cn('shrink-0')} />
-                                    <Typography variant="body" as="span" className={cn('whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}>
+                                    <Typography variant="body" as="span" className={cn('truncate whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}>
                                         {item.name}
                                     </Typography>
                                 </button>
@@ -154,7 +170,7 @@ export default ({
                 <Popover
                     open={accountMenuOpen}
                     onOpenChange={setAccountMenuOpen}
-                    side="right"
+                    side={mobile ? 'top' : 'right'}
                     align="end"
                     sideOffset={8}
                     trigger={
@@ -164,6 +180,7 @@ export default ({
                             className={cn(
                                 collapsed ? 'w-9' : 'w-full',
                                 'h-9 px-2 flex flex-nowrap justify-start items-center rounded text-sm ease-in-out duration-300 transition-[width,color,background-color,box-shadow] overflow-clip',
+                                mobile && 'h-11 rounded-lg',
                             )}
                             aria-label={i18n('pages.app.account-menu.open')}
                         >
@@ -171,7 +188,7 @@ export default ({
                             <Typography
                                 variant="body"
                                 as="span"
-                                className={cn('whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}
+                                className={cn('truncate whitespace-nowrap transition-[margin]', collapsed ? 'ml-2' : 'ml-1')}
                             >
                                 {userLabel}
                             </Typography>
@@ -205,6 +222,7 @@ export default ({
                                 {
                                     onClick: () => {
                                         setAccountMenuOpen(false)
+                                        onNavigate?.()
                                         openModal({
                                             size: 'sm',
                                             content: ({ closeModal }) => <NotificationCenter onClose={closeModal} />,

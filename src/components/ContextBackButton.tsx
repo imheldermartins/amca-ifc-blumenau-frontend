@@ -1,6 +1,6 @@
 import { Icon } from '@iconify/react'
 import { useCanGoBack, useNavigate, useRouter } from '@tanstack/react-router'
-import { Button } from 'cubs-components'
+import { Button, cn } from 'cubs-components'
 
 export function ContextBackButton({ fallback, label, className }: {
   fallback: string
@@ -16,7 +16,7 @@ export function ContextBackButton({ fallback, label, className }: {
       type="button"
       variant="text"
       color="from-theme"
-      className={className}
+      className={cn('active:translate-y-0', className)}
       onClick={() => canGoBack ? router.history.back() : void navigate({ href: fallback, replace: true })}
     >
       <Icon icon="lucide:arrow-left" className="size-4" />

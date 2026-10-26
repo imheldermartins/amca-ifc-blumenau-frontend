@@ -1,45 +1,15 @@
 import { SearchBar } from "@/components/SearchBar";
-import { Typography } from "@/components/Typography";
-import { useLanguage } from "@/contexts/LanguageContext";
-import { useWorkspace, type WorkspaceState } from "@/contexts/WorkspaceContext";
 import { i18n } from "@/lib/i18n";
-import { replaceQuery } from "@/lib/queryParams";
 import { THEME } from "@/lib/theme";
-import { can } from "@/services/AccessService";
 import { Button } from "@/shared/cubs-components";
 import { Icon } from "@iconify/react";
-import { useCanGoBack, useNavigate } from "@tanstack/react-router";
+import { useCanGoBack } from "@tanstack/react-router";
+import { WorkspaceButton } from './WorkspaceButton';
 
 export default ({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed: () => void }) => {
-    const { slug: currentLang } = useLanguage()
-    const navigate = useNavigate()
     const canGoBack = useCanGoBack()
-    const workspaceState = useWorkspace()
-
-    const currentWorkspaceId = workspaceState.workspaceId
-
-    function openWorkspaceArea() {
-        const workspace = workspaceState.workspace
-        if (can(workspace, 'write', 'update')) {
-            void navigate({
-                to: '/$lang/workspaces/$workspaceId/settings/general',
-                params: { lang: currentLang, workspaceId: workspace!.id },
-                search: (previous) => replaceQuery(previous, {}),
-            })
-            return
-        }
-
-        if (!currentWorkspaceId) return
-        const pageRootId = workspaceState.workspace?.pageRootId
-        if (!pageRootId) return
-        void navigate({
-            to: '/$lang/page/$pageId',
-            params: { lang: currentLang, pageId: pageRootId },
-            search: (previous) => replaceQuery(previous, {}),
-        })
-    }
     return (
-        <header className='z-20 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center py-1 px-6 bg-background'>
+        <header className='z-20 hidden shrink-0 grid-cols-[minmax(0,1fr)_minmax(12rem,20rem)_minmax(0,1fr)] items-center gap-12 bg-background px-4 py-1 md:grid lg:px-6'>
             <div className='min-w-0 justify-self-start'>
                 <Button
                     variant='text'
@@ -56,44 +26,28 @@ export default ({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed:
                 </Button>
             </div>
             <div className='relative w-full justify-self-center'>
-                <Button
-                    type='button'
-                    variant='text'
-                    color='from-theme'
-                    disabled={!canGoBack}
-                    aria-label={i18n('common.navigation.back')}
-                    onClick={() => {
-                        if (canGoBack) window.history.back()
-                    }}
-                    className='absolute right-full top-1/2 mr-2 size-8 -translate-y-1/2 p-0 text-foreground/60 hover:bg-active hover:text-p-purple disabled:bg-transparent disabled:text-foreground/25 disabled:opacity-100'
-                >
-                    <Icon icon='lucide:arrow-left' className='size-4' />
-                </Button>
+                <div className='absolute inset-y-0 right-full mr-2 flex items-center'>
+                    <Button
+                        id='button-navigate-back'
+                        type='button'
+                        variant='text'
+                        color='from-theme'
+                        disabled={!canGoBack}
+                        aria-label={i18n('common.navigation.back')}
+                        onClick={() => {
+                            if (canGoBack) window.history.back()
+                        }}
+                        className='size-9 shrink-0 p-0 text-foreground/60 active:translate-y-0 hover:bg-active hover:text-p-purple disabled:bg-transparent disabled:text-foreground/25 disabled:opacity-100'
+                    >
+                        <Icon aria-hidden='true' icon='lucide:arrow-left' className='pointer-events-none size-4' />
+                    </Button>
+                </div>
                 <SearchBar className='w-full' />
             </div>
 
             <div className='min-w-0 max-w-full justify-self-end'>
-                <Button
-                    variant='text'
-                    color='from-theme'
-                    className='min-w-0 max-w-full px-2 py-1 hover:bg-active/50'
-                    onClick={openWorkspaceArea}
-                    aria-label={i18n('common.workspace.abrir-detalhes')}
-                >
-                    {workspaceState.workspace?.icon && (
-                        <Icon icon={workspaceState.workspace?.icon} fontSize={20} className={THEME.textMuted} />
-                    )}
-                    <Typography variant="subtitle" as='span' className='truncate ml-0.5'>
-                        {workspaceLabel(workspaceState)}
-                    </Typography>
-                </Button>
+                <WorkspaceButton />
             </div>
         </header>
     );
 }
-
-const workspaceLabel = (lb: WorkspaceState) =>
-    lb.loading ? i18n('common.carregando')
-        : lb.failed ? i18n('common.workspace.indisponivel')
-            : !lb.workspace ? i18n('common.workspace.selecionar')
-                : (lb.workspace.organizationName ? lb.workspace.organizationName + ' • ' : '') + (lb.workspace.name ?? i18n('common.workspace.sem-nome'));

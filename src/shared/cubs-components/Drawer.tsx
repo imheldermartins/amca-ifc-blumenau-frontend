@@ -12,10 +12,12 @@ export interface DrawerProps {
   closeLabel: string
   className?: string
   panelClassName?: string
+  side?: 'left' | 'right'
+  trigger?: ReactNode
   children: ReactNode
 }
 
-/** Drawer lateral controlada, com foco preso e largura de metade da viewport. */
+/** Drawer lateral controlada, com portal, foco preso e largura personalizável. */
 export function Drawer({
   open,
   onOpenChange,
@@ -23,10 +25,13 @@ export function Drawer({
   closeLabel,
   className,
   panelClassName,
+  side = 'right',
+  trigger,
   children,
 }: DrawerProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
       <Dialog.Portal>
         <Dialog.Overlay
           className={cn(
@@ -39,10 +44,11 @@ export function Drawer({
           aria-describedby={undefined}
           data-drawer-content
           className={cn(
-            'fixed inset-y-0 right-0 z-50 flex w-1/2 flex-col bg-background shadow-2xl shadow-dark-900/20',
-            'border-l border-divider',
-            'data-[state=open]:animate-in data-[state=open]:slide-in-from-right',
-            'data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right',
+            'fixed inset-y-0 z-50 flex w-1/2 flex-col border-divider bg-background shadow-2xl shadow-dark-900/20',
+            'data-[state=open]:animate-in data-[state=closed]:animate-out',
+            side === 'left'
+              ? 'left-0 border-r data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left'
+              : 'right-0 border-l data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right',
             panelClassName,
           )}
         >
