@@ -19,6 +19,12 @@ const macros: FlowMacroOption[] = [
 ]
 
 describe('macroMentions', () => {
+  it('hides missing catalog IDs and preserves them when editing the surrounding text', () => {
+    const source = '@columns.01M00000000000000000000001 / @people.01M00000000000000000000002.email'
+    const display = formatMacroMentions(source, [])
+    expect(display).toBe('@{Indisponivel} / @{Indisponivel_2}')
+    expect(parseMacroMentions(`Olá ${display}!`, [], source)).toBe(`Olá ${source}!`)
+  })
   it('codifica o rótulo em uma menção legível Pascal_Snake_Case', () => {
     expect(macroMentionSlug('  título da página  ')).toBe('Titulo_Da_Pagina')
     expect(encodeMacroMention('Hélder Martins · e-mail')).toBe('@{Helder_Martins_E_Mail}')

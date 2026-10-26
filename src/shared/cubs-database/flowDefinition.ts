@@ -89,7 +89,10 @@ export function toFlowDefinitionV2(
       const node = byId.get(current)
       if (!node) break
       if (node.type === 'email') {
-        result.push({ id: node.id, type: 'email', config: { to: node.config.to, subject: node.config.subject, body: node.config.body } })
+        result.push({ id: node.id, type: 'email', config: { to: node.config.to, subject: node.config.subject, body: node.config.body,
+          ...(node.config.attachPagePdf !== undefined && { attachPagePdf: node.config.attachPagePdf }),
+          ...(node.config.pdfIncludePageTitle !== undefined && { pdfIncludePageTitle: node.config.pdfIncludePageTitle }),
+          ...(node.config.pdfTemplate !== undefined && { pdfTemplate: node.config.pdfTemplate }) } })
         current = node.config.nextNodeId
         continue
       }

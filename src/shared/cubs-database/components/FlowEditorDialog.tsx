@@ -20,7 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Icon } from '@iconify/react'
-import { Button, DatePicker, DragPlaceholder, IconPicker, TextField, dragPlaceholderStyle, Select, cn } from 'cubs-components'
+import { Button, DatePicker, DragPlaceholder, IconPicker, TextField, dragPlaceholderStyle, Select, Switch, cn, displayMentionText } from 'cubs-components'
 
 import type {
   ColumnDataType,
@@ -254,7 +254,7 @@ function MacroField({ label, value, onChange, sections, multiline, placeholder }
   const readCaret = () => setCaret(inputRef.current?.selectionStart ?? value.length)
   const commitDisplayValue = (next: string) => {
     setDisplayValue(next)
-    onChange(parseMacroMentions(next, macros))
+    onChange(parseMacroMentions(next, macros, value))
   }
   const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     commitDisplayValue(event.target.value)
@@ -265,7 +265,8 @@ function MacroField({ label, value, onChange, sections, multiline, placeholder }
   const insert = (macro: FlowMacroOption) => {
     if (!match) return
     const start = caret - match[0].length
-    const mention = mentionMaps.canonicalToMention.get(macro.token) ?? macro.token
+    const mention = mentionMaps.canonicalToMention.get(macro.token)
+    if (!mention) return
     const next = `${displayValue.slice(0, start)}${mention}${displayValue.slice(caret)}`
     const nextCaret = start + mention.length
     commitDisplayValue(next)
@@ -381,8 +382,8 @@ function MacroField({ label, value, onChange, sections, multiline, placeholder }
                   onClick={() => insert(macro)}
                   className={cn('flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs', active ? 'bg-p-purple-500/10 text-p-purple' : 'hover:bg-active')}
                 >
-                  <span className="min-w-0 truncate"><strong>{macro.label}</strong> <span className="text-p-purple opacity-70">{mentionMaps.canonicalToMention.get(macro.token)}</span></span>
-                  {macro.preview != null && <span className="max-w-32 truncate opacity-45">{macro.preview}</span>}
+                  <span className="min-w-0 truncate"><strong>{displayMentionText(macro.label)}</strong> <span className="text-p-purple opacity-70">{mentionMaps.canonicalToMention.get(macro.token)}</span></span>
+                  {macro.preview != null && <span className="max-w-32 truncate opacity-45">{displayMentionText(macro.preview)}</span>}
                 </button>
               )})}
             </div>
@@ -868,6 +869,9 @@ function SortableFlowCard({ node, path, editable, depth, columns, macroSections,
       <RecipientField value={node.config.to} onChange={(to) => onChange({ ...node, config: { ...node.config, to } })} options={recipientOptions} />
       <MacroField label="Assunto" value={node.config.subject} onChange={(subject) => onChange({ ...node, config: { ...node.config, subject } })} sections={macroSections} placeholder="Assunto do e-mail" />
       <MacroField label="Mensagem" value={node.config.body} onChange={(body) => onChange({ ...node, config: { ...node.config, body } })} sections={macroSections} multiline placeholder="Digite @ para inserir dados" />
+      <Switch aria-label="Anexar PDF da página" label="Anexar PDF da página" checked={node.config.attachPagePdf ?? false} onCheckedChange={(attachPagePdf) => onChange({ ...node, config: { ...node.config, attachPagePdf, pdfTemplate: 'parent' } })} />
+      {node.config.attachPagePdf && <Switch aria-label="Incluir título da página no PDF" label="Incluir título da página no PDF" checked={node.config.pdfIncludePageTitle ?? true} onCheckedChange={(pdfIncludePageTitle) => onChange({ ...node, config: { ...node.config, pdfIncludePageTitle } })} />}
+      {node.config.attachPagePdf && <p className="text-xs opacity-60">O PDF usa o editor de blocos da página pai como template.</p>}
     </div>}
 
     {editable && node.type === 'set_value' && <div className="mt-3 grid gap-2">
@@ -943,6 +947,7 @@ export interface FlowEditorDialogProps {
 }
 
 export function FlowEditorDialog({ open, mode, column, row, columns, onOpenChange, loadMacros, buildMacroSections, onSave, onExecute, onButtonChange, readOnly = false }: FlowEditorDialogProps) {
+  const [popoverContainer, setPopoverContainer] = useState<HTMLElement | null>(null)
   const [buttonLabel, setButtonLabel] = useState('')
   const [draft, setDraft] = useState<FlowDefinitionV2>(() => createDefaultFlowDefinition())
   const [macros, setMacros] = useState<FlowMacroOption[]>([])
@@ -1070,8 +1075,9 @@ export function FlowEditorDialog({ open, mode, column, row, columns, onOpenChang
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-dark-900/35 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0" />
         <Dialog.Content
+          ref={setPopoverContainer}
           onEscapeKeyDown={(event) => { if (activeDragId) event.preventDefault() }}
-          className="fixed left-1/2 top-1/2 z-50 flex max-h-[88dvh] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-divider bg-background shadow-2xl shadow-dark-900/20 focus:outline-none"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[88dvh] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-visible rounded-2xl border border-divider bg-background shadow-2xl shadow-dark-900/20 focus:outline-none"
         >
           <header className="flex shrink-0 items-start gap-3 border-b border-divider px-5 py-4">
             <span className="mt-0.5 flex size-9 items-center justify-center rounded-xl bg-p-purple-500/10 text-p-purple">
@@ -1098,7 +1104,7 @@ export function FlowEditorDialog({ open, mode, column, row, columns, onOpenChang
                   const label = buttonLabel.trim() || null
                   if (label !== (column.flowButton?.label ?? null)) onButtonChange(column.id, { flowButton: { label, icon: column.flowButton?.icon || 'lucide:play' } })
                 }} />
-              <IconPicker label="Ícone do botão Flow" value={(column.flowButton?.icon || 'lucide:play') as CatalogIcon} disabled={pending}
+              <IconPicker label="Ícone do botão Flow" value={(column.flowButton?.icon || 'lucide:play') as CatalogIcon} disabled={pending} portalContainer={popoverContainer}
                 labels={{ choose: 'Escolher ícone', search: 'Buscar ícone', empty: 'Nenhum ícone encontrado', loading: 'Carregando ícones…', loadMore: 'Carregar mais' }}
                 onValueChange={(icon) => onButtonChange(column.id, { flowButton: { label: buttonLabel.trim() || null, icon: icon || 'lucide:play' } })} />
             </div> : null}

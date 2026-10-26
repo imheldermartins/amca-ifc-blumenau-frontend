@@ -62,7 +62,7 @@ interface MacroMentionMaps {
   mentionToCanonical: Map<string, string>
 }
 
-export function createMacroMentionMaps(macros: readonly FlowMacroOption[]): MacroMentionMaps {
+export function createMacroMentionMaps(macros: readonly FlowMacroOption[], source = ''): MacroMentionMaps {
   const canonicalToMention = new Map<string, string>()
   const mentionToCanonical = new Map<string, string>()
   const counts = new Map<string, number>()
@@ -77,17 +77,28 @@ export function createMacroMentionMaps(macros: readonly FlowMacroOption[]): Macr
     canonicalToMention.set(macro.token, mention)
     mentionToCanonical.set(mention, macro.token)
   }
+  // Missing/loading catalog entries still retain their canonical identity when edited.
+  for (const match of source.matchAll(/@(?:columns\.[\w-]+|people\.[\w-]+\.(?:email|name)|page\.title|workspace\.(?:name|data\.[\w.-]+))/g)) {
+    const canonical = match[0]
+    if (canonicalToMention.has(canonical)) continue
+    const base = encodeMacroMention('Indisponível')
+    const count = (counts.get(base) ?? 0) + 1
+    counts.set(base, count)
+    const mention = count === 1 ? base : base.replace(/}$/, `_${count}}`)
+    canonicalToMention.set(canonical, mention)
+    mentionToCanonical.set(mention, canonical)
+  }
   return { canonicalToMention, mentionToCanonical }
 }
 
 export function formatMacroMentions(value: string, macros: readonly FlowMacroOption[]): string {
-  const { canonicalToMention } = createMacroMentionMaps(macros)
+  const { canonicalToMention } = createMacroMentionMaps(macros, value)
   return [...canonicalToMention.entries()]
     .sort(([left], [right]) => right.length - left.length)
     .reduce((text, [canonical, mention]) => text.split(canonical).join(mention), value)
 }
 
-export function parseMacroMentions(value: string, macros: readonly FlowMacroOption[]): string {
-  const { mentionToCanonical } = createMacroMentionMaps(macros)
+export function parseMacroMentions(value: string, macros: readonly FlowMacroOption[], source = ''): string {
+  const { mentionToCanonical } = createMacroMentionMaps(macros, source)
   return value.replace(MENTION, (mention) => mentionToCanonical.get(mention) ?? mention)
 }

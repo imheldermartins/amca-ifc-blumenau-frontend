@@ -68,7 +68,7 @@ interface FlowNodeBase<TType extends FlowNodeType, TConfig> {
 export type FlowStartNode = FlowNodeBase<'start', { nextNodeId: string }>
 export type FlowEmailNode = FlowNodeBase<
   'email',
-  { to: string; subject: string; body: string; nextNodeId: string }
+  { to: string; subject: string; body: string; nextNodeId: string; attachPagePdf?: boolean; pdfTemplate?: 'page' | 'parent'; pdfIncludePageTitle?: boolean }
 >
 export type FlowSetValueNode = FlowNodeBase<
   'set_value',
@@ -102,7 +102,7 @@ export interface FlowDefinitionV1 {
 export type FlowStartNodeV2 = FlowNodeBase<'start', Record<string, never>>
 export type FlowEmailStepV2 = FlowNodeBase<
   'email',
-  { to: string; subject: string; body: string }
+  { to: string; subject: string; body: string; attachPagePdf?: boolean; pdfTemplate?: 'page' | 'parent'; pdfIncludePageTitle?: boolean }
 >
 export type FlowSetValueStepV2 = FlowNodeBase<
   'set_value',

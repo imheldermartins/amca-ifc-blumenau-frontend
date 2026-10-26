@@ -4,6 +4,14 @@ import type { FlowDefinitionV1, FlowSwitchStepV2, HeaderCol } from './types'
 import { createDefaultFlowDefinition, toFlowDefinitionV2 } from './flowDefinition'
 
 describe('flowDefinition v2', () => {
+  it('preserves the PDF title switch when upgrading a legacy email action', () => {
+    const converted = toFlowDefinitionV2({ version: 1, trigger: { type: 'manual' }, nodes: [
+      { id: 'start', type: 'start', config: { nextNodeId: 'email' } },
+      { id: 'email', type: 'email', config: { to: '@page.title', subject: 'PDF', body: 'PDF', nextNodeId: 'done', attachPagePdf: true, pdfIncludePageTitle: false } },
+      { id: 'done', type: 'callback', config: { message: '' } },
+    ] });
+    expect(converted.nodes[1]).toMatchObject({ config: { attachPagePdf: true, pdfIncludePageTitle: false } });
+  });
   it('cria novos flows diretamente no contrato estruturado', () => {
     const flow = createDefaultFlowDefinition()
     expect(flow.version).toBe(2)

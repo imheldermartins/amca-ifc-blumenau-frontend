@@ -1,9 +1,14 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { FlowDefinition, FlowExecutionResult, FlowStepV2, HeaderCol, RowData } from '../types'
 import { moveFlowStep } from '../flowTree'
 import { FlowEditorDialog } from './FlowEditorDialog'
+
+vi.mock('@/shared/cubs-components/iconCatalog', () => ({ loadIconCatalog: async () => [
+  { library: 'lucide', name: 'archive', value: 'lucide:archive' },
+  { library: 'lucide', name: 'play', value: 'lucide:play' },
+] }))
 
 const flow: FlowDefinition = {
   version: 1,
@@ -49,6 +54,40 @@ const row: RowData = {
 afterEach(() => cleanup())
 
 describe('FlowEditorDialog', () => {
+  it('keeps the icon picker inside the dialog and allows focusing, searching and selecting', async () => {
+    const change = vi.fn(), close = vi.fn()
+    render(<FlowEditorDialog open mode="configure" column={column} columns={[column]} onOpenChange={close} onSave={vi.fn()} onButtonChange={change} />)
+    const dialog = screen.getByRole('dialog', { name: 'Aprovação' })
+    fireEvent.click(screen.getByRole('button', { name: 'Ícone do botão Flow' }))
+    const search = await screen.findByRole('searchbox', { name: 'Buscar ícone' })
+    act(() => search.focus())
+    expect(document.activeElement).toBe(search)
+    expect(dialog.contains(search)).toBe(true)
+    fireEvent.change(search, { target: { value: 'archive' } })
+    fireEvent.click(await screen.findByRole('option', { name: 'archive' }))
+    expect(change).toHaveBeenCalledWith(column.id, { flowButton: { label: null, icon: 'lucide:archive' } })
+    expect(close).not.toHaveBeenCalled()
+    expect(screen.queryByRole('searchbox', { name: 'Buscar ícone' })).toBeNull()
+  })
+  it('defaults the PDF title switch to on and saves the off setting in the email action', async () => {
+    const onSave = vi.fn();
+    const emailFlow: FlowDefinition = { version: 2, trigger: { type: 'manual' }, nodes: [
+      { id: 'start', type: 'start', config: {} },
+      { id: 'email', type: 'email', config: { to: '@page.title', subject: 'PDF', body: 'PDF', attachPagePdf: true } },
+      { id: 'done', type: 'callback', config: { message: '' } },
+    ] };
+    const pdfColumn = { ...column, flow: emailFlow };
+    render(<FlowEditorDialog open mode="configure" column={pdfColumn} columns={[pdfColumn]} onOpenChange={vi.fn()} onSave={onSave} />);
+    expect(screen.queryByRole('checkbox', { name: 'Anexar PDF da página' })).toBeNull();
+    expect(screen.getByRole('switch', { name: 'Anexar PDF da página' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.queryByRole('button', { name: 'Template da página pai' })).toBeNull();
+    const toggle = screen.getByRole('switch', { name: 'Incluir título da página no PDF' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar flow' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[1].nodes[1].config.pdfIncludePageTitle).toBe(false);
+  });
   it('preserva o rascunho ao atualizar o botão e aplica bloqueio com o painel aberto', async () => {
     const onSave = vi.fn()
     const onButtonChange = vi.fn()

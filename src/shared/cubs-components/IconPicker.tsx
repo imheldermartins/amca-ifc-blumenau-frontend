@@ -25,6 +25,8 @@ export interface IconPickerProps {
   disabled?: boolean
   errorMessage?: string
   className?: string
+  /** Keeps search and selection inside a containing dialog's focus scope. */
+  portalContainer?: HTMLElement | null
   /** Ícone editável usado em cabeçalhos; mantém o catálogo e o popover. */
   variant?: 'field' | 'icon'
   /** Injeção opcional para catálogos de host/teste; o padrão cobre Cuida + Lucide. */
@@ -42,6 +44,7 @@ export function IconPicker({
   disabled,
   errorMessage,
   className,
+  portalContainer,
   variant = 'field',
   loadCatalog = loadIconCatalog,
 }: IconPickerProps) {
@@ -78,6 +81,7 @@ export function IconPicker({
     <div className={cn('flex flex-col gap-1 text-sm font-medium', className)}>
       <span className={variant === 'icon' ? 'sr-only' : undefined}>{label}</span>
       <Popover
+        portalContainer={portalContainer}
         open={open}
         onOpenChange={(next) => {
           setOpen(next)
