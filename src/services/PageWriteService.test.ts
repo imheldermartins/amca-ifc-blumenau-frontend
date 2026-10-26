@@ -286,6 +286,7 @@ describe('PageWriteService — views atômicas', () => {
         publicKey: { key: 'docente', aliases: ['professor'] },
       },
       columnWidths: { [columnId]: 320 },
+      gridPropertyIds: [columnId],
       dateColumnId: '01KXVZ0000COL000000000002',
       colorColumnId: null,
       calendarPropertyIds: [columnId],
@@ -295,6 +296,7 @@ describe('PageWriteService — views atômicas', () => {
     expect(api.patch).toHaveBeenCalledWith(`/pages/${pageId}/views/${viewId}`, {
       title: { key: 'title', column_name: 'Docente' },
       columnWidths: { [columnId]: 320 },
+      gridPropertyIds: [columnId],
       dateColumnId: '01KXVZ0000COL000000000002',
       colorColumnId: null,
       calendarPropertyIds: [columnId],

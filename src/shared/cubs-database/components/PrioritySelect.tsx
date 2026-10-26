@@ -216,7 +216,7 @@ export function PrioritySelect({
       <TextField
         type="search"
         size="sm"
-        surface="background"
+        surface={inline ? 'plain' : 'background'}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         aria-label={labels.search}
@@ -243,7 +243,7 @@ export function PrioritySelect({
                       option={rowOption}
                       checked={checked}
                       priority={checked ? priority : null}
-                      dragDisabled={!checked || Boolean(normalizedSearch)}
+                      dragDisabled={Boolean(rowOption.disabled) || !checked || Boolean(normalizedSearch)}
                       selectionDisabled={!allowSelection}
                       labels={labels}
                       onCheckedChange={(next) => {
@@ -258,11 +258,11 @@ export function PrioritySelect({
           </DndContext>
         )}
       </div>
-      {allowSelection ? <div className="mt-2 flex justify-end border-t border-divider pt-2">
+      {allowSelection ? <div className="mt-2 flex justify-end pt-2">
         <Button
           variant="text"
           color="from-theme"
-          disabled={activeValue.length === 0}
+          disabled={disabled || activeValue.length === 0}
           onClick={() => {
             if (inline) {
               onValueChange([])
@@ -283,7 +283,7 @@ export function PrioritySelect({
     </>
 
   if (inline) {
-    return <section aria-label={labels.trigger} aria-disabled={disabled} className={cn('rounded-lg border border-divider p-2', disabled && 'opacity-50', className)}>
+    return <section aria-label={labels.trigger} aria-disabled={disabled} className={cn('min-w-0', disabled && 'opacity-50', className)}>
       <div className="mb-2 flex items-center justify-between gap-2 px-1 text-sm font-medium">
         <span>{labels.trigger}</span>
         <span className="rounded-full bg-p-purple-500/15 px-1.5 text-xs font-semibold text-p-purple">{activeValue.length}</span>

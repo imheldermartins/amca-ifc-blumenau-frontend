@@ -217,6 +217,7 @@ export class PageWriteService {
     if (patch.orderedRows !== undefined) body.orderedRows = patch.orderedRows
     if (patch.columnWidths !== undefined) body.columnWidths = patch.columnWidths
     if (patch.tileSize !== undefined) body.tileSize = patch.tileSize
+    if (patch.gridPropertyIds !== undefined) body.gridPropertyIds = patch.gridPropertyIds
     if (patch.dateColumnId !== undefined) body.dateColumnId = patch.dateColumnId
     if (patch.colorColumnId !== undefined) body.colorColumnId = patch.colorColumnId
     if (patch.calendarPropertyIds !== undefined) body.calendarPropertyIds = patch.calendarPropertyIds
