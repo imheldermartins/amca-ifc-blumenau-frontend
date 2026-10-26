@@ -11,7 +11,7 @@ import {
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { Typography } from '@components/Typography'
 import { i18n } from '@/lib/i18n'
-import { MentionTextField, type MentionInputConfig } from 'cubs-components'
+import { MentionTextField, displayMentionText, type MentionInputConfig } from 'cubs-components'
 
 export interface PageShellHeaderProps {
   mentions?: MentionInputConfig
@@ -71,7 +71,7 @@ export function PageShellHeader({
     <header className="mb-8 flex flex-col-reverse">
       <Typography
         variant="h1"
-        className="w-full flex-1"
+        className="min-w-0 w-full flex-1 break-words [overflow-wrap:anywhere]"
         aria-busy={!failed && loading && title === null}
       >
         {failed ? (
@@ -82,22 +82,22 @@ export function PageShellHeader({
           title
         ) : editable && !readOnly ? (
           <MentionTextField
+            multiline
             mentions={mentions}
             value={draftTitle}
             readOnly={saving}
             aria-label={i18n('pages.app.pagina.title-label')}
             placeholder={i18n('pages.app.pagina.sem-titulo')}
-            className="w-full [font:inherit]"
-            renderInput={(control) => <input {...control}
-              readOnly={saving}
-              aria-label={i18n('pages.app.pagina.title-label')}
-              placeholder={i18n('pages.app.pagina.sem-titulo')}
-              className="min-h-[1.2em] w-full border-0 bg-transparent p-0 text-inherit shadow-none outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0"
-              style={{ font: 'inherit' }} />}
+            className="min-w-0 w-full [font:inherit]"
+            inputClassName="block min-h-[1.2em] min-w-0 w-full break-words border-0 bg-transparent p-0 text-inherit shadow-none outline-none ring-0 [font:inherit] focus:border-0 focus:outline-none focus:ring-0"
+            style={{ font: 'inherit' }}
             onValueChange={onDraftTitleChange}
             onBlur={onSaveTitle}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') event.currentTarget.blur()
+              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault()
+                event.currentTarget.blur()
+              }
               if (event.key === 'Escape') {
                 onCancelTitle(event.currentTarget === document.activeElement)
                 event.currentTarget.blur()
@@ -105,16 +105,16 @@ export function PageShellHeader({
             }}
           />
         ) : title === null ? (
-          <span className="block min-h-[1.2em] opacity-50">
+          <span className="block min-h-[1.2em] min-w-0 w-full whitespace-pre-wrap break-words opacity-50">
             {i18n('pages.app.pagina.sem-titulo')}
           </span>
         ) : (
-          <span className="flex items-center gap-2">
-            {mentions?.resolve(title) ?? title}
+          <span className="flex min-h-[1.2em] min-w-0 w-full items-center gap-2">
+            <span className="min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{displayMentionText(title, mentions?.resolve, mentions?.unavailable)}</span>
             {readOnly && (
               <Icon
                 icon="lucide:lock-keyhole"
-                className="size-4 opacity-45"
+                className="size-4 shrink-0 opacity-45"
                 aria-label={i18n('pages.app.pagina.title-locked')}
               />
             )}

@@ -462,7 +462,7 @@ export function CubsDatabase({
           : column.type === 'relation'
             ? {
                 ...column,
-                relationTargets: pagination?.projection?.relationTargets,
+                relationTargets: pagination?.projection?.relationTargets ?? column.relationTargets,
                 ...(column.relation && onLoadRelationOptions && {
                   loadRelationOptions: (input: { search?: string; cursor?: string; limit?: number }) => onLoadRelationOptions(column.relation!.targetDatabaseId, input),
                 }),
@@ -560,7 +560,7 @@ export function CubsDatabase({
   )
 
   return (
-    <DatabaseMentionColumnsProvider value={headerCols}>
+    <DatabaseMentionColumnsProvider value={viewHeaderCols}>
     <section className={cn('w-full', className)}>
       {pagination?.error && !pagination.projection ? <button type="button" className="w-full rounded-md border border-p-red/20 px-3 py-2 text-sm text-p-red" onClick={() => pagination.retry?.()}>Não foi possível carregar as páginas. Tentar novamente</button> : null}
       <ViewTabsBar

@@ -1,4 +1,5 @@
 import { usePageAccess } from '@/hooks/usePageAccess'
+import { displayMentionText } from 'cubs-components'
 import { can } from '@/services/AccessService'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -409,7 +410,7 @@ export function PageShell({
   return (
     <div className="mx-auto my-0 w-full max-w-6xl p-4">
       <PageShellHeader
-        actions={<PageFavoriteButton pageId={pageId} title={mentions?.resolve(displayedTitle ?? '') ?? displayedTitle} enabled={!pageLoading && !displayedFailed} />}
+        actions={<PageFavoriteButton pageId={pageId} title={displayMentionText(displayedTitle ?? '', mentions?.resolve, i18n('mentions.unavailable'))} enabled={!pageLoading && !displayedFailed} />}
         mentions={mentionInput}
         title={displayedTitle}
         draftTitle={draftTitle}

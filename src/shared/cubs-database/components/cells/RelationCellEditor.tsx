@@ -3,6 +3,7 @@ import { Popover, TextField, cn } from 'cubs-components'
 import { memo, useEffect, useRef, useState } from 'react'
 
 import type { CellEditorProps, HeaderCol, RelationTarget } from '../../types'
+import { DatabaseMentionText } from '../../mentions'
 
 const idsOf = (value: unknown): string[] => Array.isArray(value)
   ? value.filter((id): id is string => typeof id === 'string')
@@ -22,7 +23,7 @@ export function RelationChips({ column, value, compact = true }: { column: Heade
   const limit = compact ? 2 : ids.length
   return <span className="flex min-w-0 items-center gap-1 overflow-hidden">
     {ids.slice(0, limit).map((id) => <span key={id} className="max-w-32 truncate rounded-md bg-p-purple-500/10 px-1.5 py-0.5 text-xs text-p-purple-700 dark:text-p-purple-300">
-      {column.relationTargets?.[id] ? column.relationTargets[id].title || 'Sem título' : 'Carregando…'}
+      <DatabaseMentionText value={column.relationTargets?.[id] ? column.relationTargets[id].title || 'Sem título' : 'Carregando…'} />
     </span>)}
     {ids.length > limit ? <span className="shrink-0 text-xs opacity-60">+{ids.length - limit}</span> : null}
   </span>
@@ -127,7 +128,7 @@ export const RelationCellEditor = memo(function RelationCellEditor({ column, val
           const checked = selected.includes(target.id)
           return <button key={target.id} type="button" onClick={() => toggle(target)}
             className={cn('flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-active', checked && 'bg-p-purple-500/10')}>
-            <span className="truncate">{target.title || 'Sem título'}</span>
+            <span className="truncate"><DatabaseMentionText value={target.title || 'Sem título'} /></span>
             {checked ? <Icon icon="lucide:check" className="size-4 shrink-0 text-p-purple" /> : null}
           </button>
         })}

@@ -8,6 +8,7 @@ import type { AuthUser } from '@/services/AuthService'
 import type { ApiPageCollaborator } from '@/services/SharedPagesService'
 import { ModalProvider } from '@/contexts/ModalContext'
 import { PageShell } from './PageShell'
+import { MentionProvider } from '@/hooks/useMention'
 
 const render = (ui: ReactElement) => testingRender(ui, { wrapper: ModalProvider })
 
@@ -313,6 +314,38 @@ describe('PageShell — carregamento inicial', () => {
 })
 
 describe('PageShell — edição do título', () => {
+  it('selects the current page Lote property as a stable mention inside the multiline title', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    const id = `pages:${PAGE_ID}:columns.01M00000000000000000000015`, token = `@{${id}}`
+    const currentTitle = `pages:${PAGE_ID}:title`
+    render(<MentionProvider value={{ mentions: {}, addMentionsGroup: vi.fn(), register: vi.fn(), loading: false, scope: { pageId: PAGE_ID },
+      options: [{ id, label: 'Lote', value: '#0001', section: 'Página' }, { id: currentTitle, label: 'Título atual', value: 'Título inicial', section: 'Página' }],
+      values: { [id]: '#0001' }, resolve: (text) => text.replaceAll(token, '#0001') }}><PageShell pageId={PAGE_ID} /></MentionProvider>)
+    const input = await screen.findByLabelText('pages.app.pagina.title-label')
+    expect(input.tagName).toBe('TEXTAREA')
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: 'Lote @' } })
+    expect(screen.queryByRole('option', { name: 'Título atual Título inicial' })).toBeNull()
+    fireEvent.click(await screen.findByRole('option', { name: 'Lote #0001' }))
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('Lote #0001'))
+    fireEvent.blur(input)
+    await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledWith(PAGE_ID, `Lote ${token}`))
+  })
+  it('uses a multiline title with automatic height and word wrapping, without ellipsis', async () => {
+    dependencies.permissions = { read: ['view'], write: ['update'] }
+    render(<PageShell pageId={PAGE_ID} />)
+    const input = await screen.findByLabelText('pages.app.pagina.title-label')
+    expect(input.tagName).toBe('TEXTAREA')
+    expect(input.className).toContain('break-words')
+    expect(input.className).not.toContain('truncate')
+    const text = `Um título muito longo ${'palavra'.repeat(30)}\nSegunda linha`
+    fireEvent.change(input, { target: { value: text } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(dependencies.updateTitle).not.toHaveBeenCalled()
+    fireEvent.blur(input)
+    await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledWith(PAGE_ID, text))
+    expect((input as HTMLTextAreaElement).value).toBe(text)
+  })
   it('usa Sem Título como placeholder quando o título editável está vazio', async () => {
     dependencies.permissions = { read: ['view'], write: ['update'] }
     dependencies.getPage.mockResolvedValueOnce(page(null))
@@ -342,14 +375,14 @@ describe('PageShell — edição do título', () => {
     expect(dependencies.updateTitle).not.toHaveBeenCalled()
   })
 
-  it('salva com Enter e restaura o título confirmado se a escrita falhar', async () => {
+  it('salva com Ctrl+Enter e restaura o título confirmado se a escrita falhar', async () => {
     dependencies.permissions = { read: ['view'], write: ['update'] }
     dependencies.updateTitle.mockRejectedValueOnce(new Error('indisponível'))
     render(<PageShell pageId={PAGE_ID} />)
     const input = await screen.findByLabelText('pages.app.pagina.title-label') as HTMLInputElement
     input.focus()
     fireEvent.change(input, { target: { value: 'Título novo' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.keyDown(input, { key: 'Enter', ctrlKey: true })
     await waitFor(() => expect(dependencies.updateTitle).toHaveBeenCalledWith(PAGE_ID, 'Título novo'))
     await waitFor(() => expect(input.value).toBe('Título inicial'))
     expect(screen.getByRole('alert').textContent).toBe('pages.app.pagina.title-save-error')

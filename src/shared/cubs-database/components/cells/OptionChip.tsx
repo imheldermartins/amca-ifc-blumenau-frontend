@@ -2,6 +2,7 @@ import { cn } from 'cubs-components'
 
 import type { ColumnOption } from '../../types'
 import { OPTION_COLOR_CLASSES } from './optionColors'
+import { DatabaseMentionText } from '../../mentions'
 
 /**
  * Chip de uma option de select — o MESMO render nos dois modos da célula
@@ -19,7 +20,7 @@ export function OptionChip({ option, className }: { option: ColumnOption; classN
         className,
       )}
     >
-      {option.label}
+      <DatabaseMentionText value={option.label} />
     </span>
   )
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
-import type { MentionInputConfig } from 'cubs-components'
+import { displayMentionText, type MentionInputConfig } from 'cubs-components'
 import type { HeaderCol, RowData } from './types'
+import { databaseCardProperties } from './calendarItems'
 
 const DatabaseMentions = createContext<MentionInputConfig | undefined>(undefined)
 export const DatabaseMentionProvider = DatabaseMentions.Provider
@@ -52,7 +53,7 @@ export function PageMentionProvider({ page, children }: { page: PageMentionData;
         })
         return unavailable ? null : result
       }
-      return expand(text, new Set()) ?? parent.unavailable ?? ''
+      return displayMentionText(expand(text, new Set()) ?? parent.unavailable ?? '', parent.resolve, parent.unavailable)
     }
     return { ...parent,
       // A row replaces the containing database's page scope.
@@ -69,7 +70,11 @@ export function RowMentionProvider({ row, columns, children }: { row: RowData; c
   const page = useMemo<PageMentionData>(() => {
     const title = allColumns.find((column) => column.key === 'title' || column.id === 'page_title')
     return { id: row.id, title: String(row.cells[title?.id ?? 'page_title']?.value ?? ''), titleName: columns.find((column) => column.key === 'title')?.title ?? title?.title,
-      columns: allColumns.filter((column) => column !== title && ['text', 'numeric', 'checkbox', 'date', 'select'].includes(column.type ?? 'text')).map((column) => {
+      columns: allColumns.filter((column) => column !== title && column.type !== 'flow').map((column) => {
+        if (column.type === 'formula' || column.type === 'relation' || column.type === 'extract_as') {
+          const property = databaseCardProperties(row, [column], true)[0]
+          return { id: column.id, name: column.title, value: property?.value ?? '' }
+        }
         const raw = row.cells[column.id]?.value
         const value = column.type === 'select' ? column.options?.find((option) => option.id === raw)?.label : raw
         return { id: column.id, name: column.title, value: value == null ? '' : String(value) }
@@ -84,7 +89,7 @@ export function useDatabaseMentions(column?: HeaderCol) {
   const pageId = useContext(MentionPage)
   return useMemo(() => {
     if (!mentions || !column || !pageId) return mentions
-    const own = reference(pageId, column.key === 'title' ? 'title' : `columns.${column.id}`)
+    const own = reference(pageId, column.key === 'title' || column.id === 'page_title' ? 'title' : `columns.${column.id}`)
     return { ...mentions, options: mentions.options.filter((option) => option.id !== own) }
   }, [mentions, column, pageId])
 }
@@ -92,5 +97,5 @@ export function DatabaseMentionText({ value }: { value: string }) {
   const mentions = useDatabaseMentions()
   const track = mentions?.track
   useEffect(() => { track?.(value) }, [track, value])
-  return <>{mentions?.resolve(value) ?? value}</>
+  return <>{displayMentionText(value, mentions?.resolve, mentions?.unavailable)}</>
 }

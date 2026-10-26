@@ -1,7 +1,7 @@
 import { FormulaResult } from './FormulaResult'
 import { formulaText } from '../formulaValue'
 import { Icon } from '@iconify/react'
-import { cn, formatDatePickerValue } from 'cubs-components'
+import { cn, formatDatePickerValue, displayMentionText } from 'cubs-components'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
 import type { CellChange, CellEditConflict, HeaderCol, RowData } from '../types'
@@ -62,7 +62,7 @@ function GridTileContent({
   const previousTitle = row.cells[titleColumn?.id ?? 'page_title']?.value
   const title = typeof previousTitle === 'string' ? previousTitle : ''
   const hasTitle = !!title
-  const displayedTitle = hasTitle ? mentions?.resolve(title) ?? title : 'Sem Título'
+  const displayedTitle = hasTitle ? displayMentionText(title, mentions?.resolve, mentions?.unavailable) : 'Sem Título'
   const titleLocked = lockedColumnKeys?.has('title') || (titleColumn && lockedColumnKeys?.has(titleColumn.id))
   const titleError = titleColumn && cellErrors?.has(cellErrorKey(row.id, titleColumn.id))
   const propertyColumns = propertyIds === undefined
@@ -115,7 +115,7 @@ function GridTileContent({
             <dd className="min-w-0 max-w-[60%] overflow-hidden truncate text-right">
               {column.type === 'formula' ? <FormulaResult value={row.cells[column.id]?.value} /> : column.type === 'relation'
                 ? <RelationChips column={column} value={row.cells[column.id]?.value} />
-                : column.type === 'text' && value ? mentions?.resolve(value) ?? value : value}
+                : column.type === 'text' && value ? displayMentionText(value, mentions?.resolve, mentions?.unavailable) : value}
             </dd>
           </div>
         ))}

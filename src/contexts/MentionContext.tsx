@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { displayMentionText } from 'cubs-components'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import { useWorkspace } from './WorkspaceContext'
@@ -62,7 +63,10 @@ function ScopedMentions({ children, scope }: { children: ReactNode; scope: Menti
       return values
     }, refetchInterval: 30_000,
   })
-  const values = useMemo(() => ({ ...Object.fromEntries(options.map((option) => [option.id, option.value])), ...resolved.data }), [options, resolved.data])
+  const values = useMemo(() => {
+    const source = { ...Object.fromEntries(options.map((option) => [option.id, option.value])), ...resolved.data }
+    return Object.fromEntries(Object.entries(source).map(([id, text]) => [id, text === null ? null : displayMentionText(text, (token) => resolveMentionText(token, source, i18n('mentions.unavailable')), i18n('mentions.unavailable'))]))
+  }, [options, resolved.data])
   const register = useCallback((incoming: string[]) => setRegistered((current) => {
     const next = [...new Set([...current, ...incoming.filter((id) => parseMentionId(id))])].sort()
     return next.length === current.length ? current : next
@@ -73,8 +77,9 @@ function ScopedMentions({ children, scope }: { children: ReactNode; scope: Menti
     options.forEach((option) => { const kind = parseMentionId(option.id)!.kind; result[kind] = { ...result[kind], [option.id]: option.value } })
     return result
   }, [groups, options])
-  const resolve = useCallback((text: string) => resolveMentionText(text, values, i18n('mentions.unavailable')), [values])
-  const value = useMemo(() => ({ mentions, addMentionsGroup, options, values, scope, resolve, register, loading: catalog.isPending }), [mentions, addMentionsGroup, options, values, scope, resolve, register, catalog.isPending])
+  const resolve = useCallback((text: string) => displayMentionText(text, (token) => resolveMentionText(token, values, i18n('mentions.unavailable')), i18n('mentions.unavailable')), [values])
+  const visibleOptions = useMemo(() => options.map((option) => ({ ...option, label: resolve(option.label), value: resolve(option.value) })), [options, resolve])
+  const value = useMemo(() => ({ mentions, addMentionsGroup, options: visibleOptions, values, scope, resolve, register, loading: catalog.isPending }), [mentions, addMentionsGroup, visibleOptions, values, scope, resolve, register, catalog.isPending])
   return <MentionProvider value={value}>{children}</MentionProvider>
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent, WheelEvent } from 'react'
 import { Icon } from '@iconify/react'
 import { Button } from 'cubs-components'
+import { DatabaseMentionText } from '../mentions'
 
 import type { RowData } from '../types'
 import { stepGraphPhysics, type ForceGraphNode } from './graphPhysics'
@@ -100,7 +101,7 @@ export function GraphNode({
         fontSize={15}
         className="shrink-0"
       />
-      <span className="truncate">{point.title}</span>
+      <span className="truncate"><DatabaseMentionText value={point.title} /></span>
       {loading && <Icon icon="lucide:loader-circle" fontSize={14} className="shrink-0 animate-spin" />}
     </Button>
   )

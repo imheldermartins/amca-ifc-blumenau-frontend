@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { Icon } from '@iconify/react'
 import { useId, useMemo, useState } from 'react'
-import { cn } from 'cubs-components'
+import { cn, displayMentionText } from 'cubs-components'
 import { useAuth } from '@/contexts/AuthContext'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { useFavoriteMutation, usePageFavorites } from '@/hooks/usePageFavorites'
@@ -21,7 +21,7 @@ function FavoriteRow({ item, pending, onRemove }: { item: FavoritePage; pending:
     queryFn: () => mentionService.resolve({ pageId: item.pageId }, ids), enabled: ids.length > 0,
     staleTime: 30_000, refetchInterval: ids.length ? 30_000 : false, retry: false,
   })
-  const title = resolveMentionText(item.title || i18n('pages.app.pagina.sem-titulo'), variables.data ?? {}, i18n('mentions.unavailable'))
+  const title = displayMentionText(item.title || i18n('pages.app.pagina.sem-titulo'), (text) => resolveMentionText(text, variables.data ?? {}, i18n('mentions.unavailable')), i18n('mentions.unavailable'))
   return <li className="group flex min-w-0 items-center gap-1 rounded-lg hover:bg-active">
     <Link to="/$lang/page/$pageId" params={{ lang, pageId: item.pageId }} search={{}} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-p-purple/40"
       onClick={(event) => { if (user && item.workspaceId && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) currentWorkspaceSession.set(user.id, item.workspaceId) }}>
