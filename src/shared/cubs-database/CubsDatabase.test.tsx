@@ -9,6 +9,27 @@ const VIEW_ID = '01KXVZ0000VIEW00000000001'
 
 afterEach(() => cleanup())
 
+describe('CubsDatabase — modal creation registry', () => {
+  it('routes Calendar + and date selection through the same request, preserving the plain + elsewhere', () => {
+    const onAddRow = vi.fn(), onRequestCreateRow = vi.fn()
+    const settings = {
+      calendar: {view: 'calendar' as const, name: 'Calendário', orderedHeaderCols: [], dateColumnId: 'date', urlKey: {key: 'calendar', aliases: []}, filters: emptyViewFilters()},
+      table: {view: 'table' as const, name: 'Tabela', orderedHeaderCols: [], urlKey: {key: 'table', aliases: []}, filters: emptyViewFilters()},
+    }
+    render(<CubsDatabase settings={settings} headerCols={[{id: 'title', key: 'title', title: 'Título', type: 'text'}, {id: 'date', title: 'Data', type: 'date'}]} rows={[]} onAddRow={onAddRow} onRequestCreateRow={onRequestCreateRow} />)
+    fireEvent.click(screen.getByRole('button', {name: 'Criar'}))
+    expect(onRequestCreateRow).toHaveBeenCalledWith({viewType: 'calendar', viewId: 'calendar', dateColumnId: 'date'})
+    expect(onAddRow).not.toHaveBeenCalled()
+    const dayButton = screen.getAllByRole('button', {name: /^Criar página em /})[0]
+    fireEvent.click(dayButton)
+    expect(onRequestCreateRow).toHaveBeenLastCalledWith(expect.objectContaining({viewType: 'calendar', viewId: 'calendar', dateColumnId: 'date', selection: expect.objectContaining({allDay: true})}))
+    fireEvent.click(screen.getByText('Tabela', {exact: true}))
+    fireEvent.click(screen.getByRole('button', {name: 'Criar'}))
+    expect(onAddRow).toHaveBeenCalledOnce()
+    expect(onRequestCreateRow).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('CubsDatabase — lixeira das linhas selecionadas', () => {
   it('encaminha somente linhas visíveis após filtros e respeita envio em andamento', () => {
     const onDeleteRows = vi.fn()

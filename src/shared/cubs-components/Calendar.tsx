@@ -50,7 +50,7 @@ function EventBar<M extends object>({ item, renderers, onItemClick, style, class
   </button>
 }
 
-function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemClick, renderers, locale, labels, monthItemHeight = 20, dayCounts, renderDayOverflow }: CalendarProps<M> & { days: string[] }) {
+function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemClick, onCreate, renderers, locale, labels, monthItemHeight = 20, dayCounts, renderDayOverflow }: CalendarProps<M> & { days: string[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const [height, setHeight] = useState(126)
   useEffect(() => {
@@ -68,12 +68,14 @@ function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemCl
   return <div ref={ref} className="relative min-h-0 border-b border-divider last:border-b-0">
     <div className="absolute inset-0 grid grid-cols-7">
       {days.map((day) => <div key={day} data-calendar-today={day === today ? '' : undefined}
-        className={cn('min-w-0 border-r border-divider last:border-r-0',
+        data-calendar-day={day}
+        className={cn('relative min-w-0 border-r border-divider last:border-r-0',
           day === today && 'bg-p-purple/5 dark:bg-p-purple/10',
           day !== today && calendarDate(day).month() !== calendarDate(date).month() && 'bg-contrast/45')}>
+        {onCreate ? <button type="button" aria-label={`Criar página em ${formatCalendarDate(day, locale ?? 'pt-BR', { dateStyle: 'full' })}`} className="absolute inset-x-0 bottom-0 top-8 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple" onClick={() => onCreate({day, allDay: true})} /> : null}
         <button type="button" aria-label={formatCalendarDate(day, locale ?? 'pt-BR', { dateStyle: 'full' })}
           aria-pressed={day === date.slice(0, 10)}
-          onClick={() => onDateChange?.(day)}
+          onClick={() => { onDateChange?.(day); onCreate?.({day, allDay: true}) }}
           className={cn('m-1 flex size-6 items-center justify-center rounded-full text-xs tabular-nums outline-none hover:bg-active focus-visible:ring-2 focus-visible:ring-p-purple',
             day === today && 'bg-p-purple font-semibold text-white hover:bg-p-purple',
             day !== today && day === date.slice(0, 10) && 'bg-p-purple/10 font-semibold text-p-purple',
@@ -108,7 +110,7 @@ function MonthWeek<M extends object>({ days, date, items, onDateChange, onItemCl
 }
 
 function TimeGrid<M extends object>(props: CalendarProps<M> & { days: string[] }) {
-  const { days, items, locale = 'pt-BR', onDateChange, onItemClick, renderers, labels } = props
+  const { days, items, locale = 'pt-BR', onDateChange, onItemClick, onCreate, renderers, labels } = props
   const scroller = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = 7 * 60 }, [])
   const longItems = items.filter(isLongItem)
@@ -120,7 +122,7 @@ function TimeGrid<M extends object>(props: CalendarProps<M> & { days: string[] }
     <div className="sticky top-0 z-10 bg-background">
     <div className="grid shrink-0 border-b border-divider" style={{ gridTemplateColumns: columns }}>
       <span />
-      {days.map((day) => <button key={day} type="button" onClick={() => onDateChange?.(day)}
+      {days.map((day) => <button key={day} type="button" onClick={() => { onDateChange?.(day); onCreate?.({day, allDay: true}) }}
         className={cn('border-l border-divider py-2 text-center outline-none hover:bg-contrast focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple', day === today && 'bg-p-purple/5 dark:bg-p-purple/10')}
         aria-label={formatCalendarDate(day, locale, { dateStyle: 'full' })}>
         <span className="block text-[10px] uppercase opacity-55">{formatCalendarDate(day, locale, { weekday: 'narrow' })}</span>
@@ -129,9 +131,10 @@ function TimeGrid<M extends object>(props: CalendarProps<M> & { days: string[] }
     </div>
     <div className="flex max-h-32 shrink-0 overflow-y-auto border-b border-divider" data-calendar-scroll>
       <span className="w-12 shrink-0 px-1 py-2 text-center text-[9px] opacity-55">{labels?.allDay ?? defaultLabels.allDay}</span>
-      <div className="grid min-h-8 flex-1 gap-y-1 border-l border-divider py-1" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, gridAutoRows: 22 }}>
+      <div className="relative grid min-h-8 flex-1 gap-y-1 border-l border-divider py-1" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`, gridAutoRows: 22 }}>
+        {onCreate ? <div className="absolute inset-0 grid" style={{gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr))`}}>{days.map(day => <button key={day} type="button" aria-label={`Criar página no dia inteiro ${day}`} onClick={() => onCreate({day, allDay: true})} className="outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple" />)}</div> : null}
         {bars.map((bar) => <EventBar key={bar.item.id} item={bar.item} renderers={renderers} onItemClick={onItemClick}
-          className={cn('mx-0.5', bar.continuesBefore && 'rounded-l-none', bar.continuesAfter && 'rounded-r-none')}
+          className={cn('relative mx-0.5', bar.continuesBefore && 'rounded-l-none', bar.continuesAfter && 'rounded-r-none')}
           style={{ gridColumn: `${bar.column + 1} / span ${bar.span}`, gridRow: bar.lane + 1 }} />)}
       </div>
     </div>
@@ -142,7 +145,8 @@ function TimeGrid<M extends object>(props: CalendarProps<M> & { days: string[] }
         </div>
         {days.map((day) => <div key={day} data-calendar-today={day === today ? '' : undefined}
           className={cn('relative border-l border-divider', day === today && 'bg-p-purple/5 dark:bg-p-purple/10')}>
-          {Array.from({ length: 24 }, (_, hour) => <div key={hour} className="absolute inset-x-0 border-t border-divider" style={{ top: hour * 60 }}><div className="mt-[30px] border-t border-divider/40" /></div>)}
+          {Array.from({ length: 24 }, (_, hour) => <div key={hour} className="pointer-events-none absolute inset-x-0 border-t border-divider" style={{ top: hour * 60 }}><div className="mt-[30px] border-t border-divider/40" /></div>)}
+          {onCreate ? Array.from({length: 48}, (_, index) => <button key={index} type="button" data-calendar-slot={`${day}:${index * 30}`} aria-label={`Criar página em ${day} às ${String(Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`} onClick={() => onCreate({day, allDay: false, minute: index * 30})} className="absolute inset-x-0 h-[30px] outline-none hover:bg-p-purple/5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-p-purple" style={{top: index * 30}} />) : null}
           {layoutTimeSegments(timedItems, day).map((segment) => <EventBar key={segment.item.id}
             item={segment.item} renderers={renderers} onItemClick={onItemClick} className="absolute flex flex-col py-1 [&_[data-calendar-title]]:line-clamp-3 [&_[data-calendar-title]]:whitespace-normal [&_[data-calendar-title]]:break-words [&_[data-calendar-title]]:leading-tight"
             style={{ top: segment.startMinute, height: Math.max(18, segment.endMinute - segment.startMinute - 2), left: `calc(${segment.column / segment.columnCount * 100}% + 2px)`, width: `calc(${100 / segment.columnCount}% - 4px)` }} />)}

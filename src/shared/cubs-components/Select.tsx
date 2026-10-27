@@ -6,6 +6,7 @@ import { PALETTE } from './lib/palette'
 import { FLOATING_SURFACE_CLASSES, SOFT_SELECTION_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
 import { Tooltip } from './Tooltip'
+import {useFloatingPortal} from './lib/floatingPortal'
 
 export interface SelectOption {
   value: string
@@ -42,6 +43,7 @@ function SelectView({
   errorMessage,
   'aria-label': ariaLabel,
 }: SelectViewProps) {
+  const portalContainer = useFloatingPortal()
   const selectedOption = options.find((option) => option.value === value)
   const selectedLabel = selectedOption?.label
   const field = (
@@ -80,14 +82,14 @@ function SelectView({
         </RadixSelect.Trigger>
       </Tooltip>
 
-      <RadixSelect.Portal>
+      <RadixSelect.Portal container={portalContainer}>
         {/* Mesmo "glass" do ContextMenu — as duas superfícies flutuantes do
             projeto usam o mesmo tratamento. */}
         <RadixSelect.Content
           position="popper"
           sideOffset={4}
           className={cn(
-            'z-50 max-h-64 min-w-[var(--radix-select-trigger-width)] overflow-hidden',
+            'z-[90] max-h-64 min-w-[var(--radix-select-trigger-width)] overflow-hidden',
             FLOATING_SURFACE_CLASSES,
           )}
         >

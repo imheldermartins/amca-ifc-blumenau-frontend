@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import { FLOATING_SURFACE_CLASSES } from './menuStyles'
 import { cn } from './lib/utils'
+import {useFloatingPortal} from './lib/floatingPortal'
 
 export interface PopoverProps {
   /** Elemento que abre o popover — recebe os handlers via `asChild`. */
@@ -51,10 +52,11 @@ export function Popover({
   portalContainer,
   className,
 }: PopoverProps) {
+  const modalContainer = useFloatingPortal()
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
-      <RadixPopover.Portal container={portalContainer}>
+      <RadixPopover.Portal container={portalContainer ?? modalContainer}>
         <RadixPopover.Content
           side={side}
           align={align}

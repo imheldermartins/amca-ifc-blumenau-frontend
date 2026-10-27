@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import {useState, type ReactNode} from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Icon } from '@iconify/react'
-import { Button, cn } from 'cubs-components'
+import { Button, cn, FloatingPortalProvider } from 'cubs-components'
 
 import { i18n } from '@/lib/i18n'
 
@@ -54,6 +54,7 @@ export function Modal({
   className,
   children,
 }: ModalProps) {
+  const [portalContainer, setPortalContainer] = useState<HTMLDivElement | null>(null)
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -69,6 +70,7 @@ export function Modal({
         />
 
         <Dialog.Content
+          ref={setPortalContainer}
           aria-describedby={undefined}
           onEscapeKeyDown={(event) => { if (!dismissible) event.preventDefault() }}
           onPointerDownOutside={(event) => { if (!dismissible) event.preventDefault() }}
@@ -99,7 +101,9 @@ export function Modal({
             </Dialog.Close>
           </header>
 
-          <div className={cn('min-h-0 flex-1 overflow-auto p-3.5', className)}>{children}</div>
+          <FloatingPortalProvider container={portalContainer}>
+            <div className={cn('min-h-0 flex-1 overflow-auto p-3.5', className)}>{children}</div>
+          </FloatingPortalProvider>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

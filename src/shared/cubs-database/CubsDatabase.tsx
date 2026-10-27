@@ -46,6 +46,7 @@ import type {
 } from './types'
 import { reorderByIds } from './utils'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from './viewKinds'
+import {MODAL_CREATE_VIEW_TYPES, type DatabaseCreateRequest} from './creation'
 import { viewFiltersSemanticSignature } from './viewFilterUrl'
 import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
 import type { DatabasePagination, DatabaseRowMove } from './pagination'
@@ -279,6 +280,8 @@ export interface CubsDatabaseProps {
   }
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
+  onRequestCreateRow?: (request: DatabaseCreateRequest) => void
+  onCalendarEditRow?: (row: RowData, dateColumnId?: string, viewId?: string) => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
   onAddColumn?: (type: ColumnDataType) => void
   addingColumn?: boolean
@@ -323,6 +326,8 @@ export function CubsDatabase({
   onCellEditConflict,
   onColumnOptionsChange,
   onAddRow,
+  onRequestCreateRow,
+  onCalendarEditRow,
   onAddColumn,
   addingColumn,
   onRowOrderChange,
@@ -613,7 +618,7 @@ export function CubsDatabase({
         canManageColumnLocks={canManageColumnLocks}
         currentUserId={currentUserId}
         onColumnLockChange={onColumnLockChange}
-        onAddRow={currentView.view === 'board' ? onBoardCreateRow ? () => setBoardCreateRequest((value) => value + 1) : undefined : onAddRow}
+        onAddRow={MODAL_CREATE_VIEW_TYPES[currentView.view] && onRequestCreateRow ? () => onRequestCreateRow({viewType: currentView.view, viewId: currentViewId, dateColumnId: currentView.dateColumnId}) : currentView.view === 'board' ? onBoardCreateRow ? () => setBoardCreateRequest((value) => value + 1) : undefined : onAddRow}
         onViewKindChange={
           onViewKindChange
             ? (view) => onViewKindChange(currentViewId, view)
@@ -712,6 +717,8 @@ export function CubsDatabase({
           <CalendarView key={currentViewId} columns={orderedColumns} rows={filteredRows}
             pagination={pagination}
             dateColumnId={currentView.dateColumnId} colorColumnId={currentView.colorColumnId}
+            onCreate={onRequestCreateRow ? selection => onRequestCreateRow({viewType: 'calendar', viewId: currentViewId, dateColumnId: currentView.dateColumnId, selection}) : undefined}
+            onEditRow={onCalendarEditRow ? (row, dateColumnId) => onCalendarEditRow(row, dateColumnId, currentViewId) : undefined}
             calendarPropertyIds={stableCalendarPropertyIds}
             showPropertyLabels={currentView.calendarShowPropertyLabels !== false}
             onOpenRow={onOpenRow} pinnedPageIds={pinnedCalendarPageIds}

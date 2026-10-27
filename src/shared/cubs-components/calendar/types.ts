@@ -3,6 +3,13 @@ import type { OptionColor } from '../lib/optionColors'
 
 export type CalendarMode = 'month' | 'week' | 'day'
 
+export interface CalendarCreateSelection {
+  day: string
+  allDay: boolean
+  /** Minutes since midnight in the calendar's existing civil/UTC convention. */
+  minute?: number
+}
+
 export interface CalendarProperty {
   id: string
   label: string
@@ -54,6 +61,7 @@ export interface CalendarProps<M extends object = mappedItemsTypes> {
   renderers?: CalendarRenderers<M>
   onDateChange?: (date: string) => void
   onItemClick?: (item: CalendarItem<M>) => void
+  onCreate?: (selection: CalendarCreateSelection) => void
   /** Altura dos charts no mês. Mantém o default compacto para consumidores existentes. */
   monthItemHeight?: number
   /** Authorized totals supplied independently from capped previews. */

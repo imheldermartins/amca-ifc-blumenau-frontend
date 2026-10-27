@@ -11,7 +11,8 @@ import {
 import { PageTitleSkeleton } from '@components/PageTitleSkeleton'
 import { Typography } from '@components/Typography'
 import { i18n } from '@/lib/i18n'
-import { MentionTextField, displayMentionText, type MentionInputConfig } from 'cubs-components'
+import { displayMentionText, type MentionInputConfig } from 'cubs-components'
+import {PageTitleInput} from './PageTitleInput'
 
 export interface PageShellHeaderProps {
   mentions?: MentionInputConfig
@@ -81,16 +82,10 @@ export function PageShellHeader({
         ) : loading ? (
           title
         ) : editable && !readOnly ? (
-          <MentionTextField
-            multiline
+          <PageTitleInput
             mentions={mentions}
             value={draftTitle}
             readOnly={saving}
-            aria-label={i18n('pages.app.pagina.title-label')}
-            placeholder={i18n('pages.app.pagina.sem-titulo')}
-            className="min-w-0 w-full [font:inherit]"
-            inputClassName="block min-h-[1.2em] min-w-0 w-full break-words border-0 bg-transparent p-0 text-inherit shadow-none outline-none ring-0 [font:inherit] focus:border-0 focus:outline-none focus:ring-0"
-            style={{ font: 'inherit' }}
             onValueChange={onDraftTitleChange}
             onBlur={onSaveTitle}
             onKeyDown={(event) => {

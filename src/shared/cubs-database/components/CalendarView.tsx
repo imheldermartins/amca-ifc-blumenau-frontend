@@ -12,6 +12,8 @@ import {
   shiftCalendarDate,
   calendarDays,
   type CalendarItem,
+  type CalendarMode,
+  type CalendarCreateSelection,
   type CalendarRenderers,
 } from 'cubs-components'
 
@@ -51,6 +53,8 @@ export interface CalendarViewProps {
   calendarPropertyIds?: string[]
   showPropertyLabels?: boolean
   onOpenRow?: (row: RowData) => void
+  onCreate?: (selection: CalendarCreateSelection) => void
+  onEditRow?: (row: RowData, dateColumnId?: string) => void
   pinnedPageIds?: ReadonlySet<string>
   pendingPageId?: string | null
   onPin?: (input: CalendarPinInput) => void | boolean | Promise<boolean>
@@ -65,14 +69,15 @@ const iconButtonClass = 'flex size-8 shrink-0 items-center justify-center rounde
 const EMPTY_ROWS: RowData[] = []
 
 /** Monthly database projection. Agenda persistence is injected by the host. */
-export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, pinnedPageIds, pendingPageId, onPin, onUnpin, onRequestPin, sourceTitle, locale = 'pt-BR', labels, pagination }: CalendarViewProps) {
+export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calendarPropertyIds, showPropertyLabels = true, onOpenRow, onCreate, onEditRow, pinnedPageIds, pendingPageId, onPin, onUnpin, onRequestPin, sourceTitle, locale = 'pt-BR', labels, pagination }: CalendarViewProps) {
+  const [mode, setMode] = useState<CalendarMode>('month')
   const dateColumn = dateColumnId ? columns.find((column) => column.id === dateColumnId && column.type === 'date') : columns.find((column) => column.type === 'date')
   const defaultColorColumn = colorColumnId ? columns.find((column) => column.id === colorColumnId && column.type === 'select') : columns.find((column) => column.type === 'select')
   const [requestedDate, setRequestedDate] = useState(() => pagination?.projection?.initialDate ?? databaseCalendarItems(rows, columns, dateColumn?.id, colorColumnId, calendarPropertyIds)[0]?.start.slice(0, 10) ?? new Date().toLocaleDateString('en-CA'))
   const [dateTouched, setDateTouched] = useState(false)
   const date = !dateTouched && pagination?.projection?.initialDate ? pagination.projection.initialDate : requestedDate
   const setDate = (next: string) => { setDateTouched(true); setRequestedDate(next) }
-  const days = useMemo(() => calendarDays(date, 'month'), [date])
+  const days = useMemo(() => calendarDays(date, mode), [date, mode])
   const period = useMemo<PageViewQueryScope>(() => ({ type: 'calendar', from: days[0], to: days.at(-1)! }), [days])
   const projectionReady = Boolean(pagination?.projection)
   const setScope = pagination?.setScope
@@ -121,23 +126,25 @@ export function CalendarView({ rows, columns, dateColumnId, colorColumnId, calen
     <header className="flex shrink-0 flex-wrap items-center gap-1 border-y border-divider px-3 py-2">
       <h2 className="mr-1 text-lg font-bold capitalize tracking-tight" aria-live="polite">{formatCalendarDate(date, locale, { month: 'long' })}</h2>
       <CalendarYearPicker year={Number(date.slice(0, 4))} onChange={(year) => setDate(setCalendarYear(date, year))} chooseLabel={labels?.chooseYear ?? 'Selecionar ano'} yearLabel={labels?.year ?? 'Ano'} />
-      <button type="button" className={iconButtonClass} aria-label={labels?.previous ?? 'Mês anterior'} title={labels?.previous ?? 'Mês anterior'} onClick={() => setDate(shiftCalendarDate(date, -1, 'month'))}><Icon icon="lucide:chevron-left" className="size-4" /></button>
-      <button type="button" className={iconButtonClass} aria-label={labels?.next ?? 'Próximo mês'} title={labels?.next ?? 'Próximo mês'} onClick={() => setDate(shiftCalendarDate(date, 1, 'month'))}><Icon icon="lucide:chevron-right" className="size-4" /></button>
+      <button type="button" className={iconButtonClass} aria-label={labels?.previous ?? (mode === 'month' ? 'Mês anterior' : 'Período anterior')} onClick={() => setDate(shiftCalendarDate(date, -1, mode))}><Icon icon="lucide:chevron-left" className="size-4" /></button>
+      <button type="button" className={iconButtonClass} aria-label={labels?.next ?? (mode === 'month' ? 'Próximo mês' : 'Próximo período')} onClick={() => setDate(shiftCalendarDate(date, 1, mode))}><Icon icon="lucide:chevron-right" className="size-4" /></button>
       <button type="button" onClick={() => setDate(currentDate)} className="ml-1 rounded-md border border-divider px-2.5 py-1 text-xs font-medium hover:bg-contrast">{labels?.today ?? 'Hoje'}</button>
+      <div role="group" aria-label="Período" className="ml-auto flex gap-1">{(['month', 'week', 'day'] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} onClick={() => setMode(value)} className={cn('rounded-md px-2 py-1 text-xs hover:bg-contrast', mode === value && 'bg-p-purple/10 text-p-purple')}>{({month: 'Mês', week: 'Semana', day: 'Dia'})[value]}</button>)}</div>
       {pagination?.loading ? <span role="status" className="ml-auto flex items-center gap-1 text-xs opacity-60"><Icon icon="lucide:loader-circle" className="size-4 animate-spin" />Carregando páginas</span> : null}
     </header>
     <div className="relative min-h-0 flex-1 border-b border-divider">
-      <Calendar items={items} date={date} locale={locale} monthItemHeight={64} onDateChange={setDate} renderers={renderers}
+      <Calendar items={items} date={date} mode={mode} locale={locale} monthItemHeight={64} onDateChange={setDate} renderers={renderers} onCreate={dateColumn ? onCreate : undefined}
         dayCounts={pagination?.projection?.days}
         renderDayOverflow={pagination && dateColumn ? (day) => <CalendarDayPages day={day} period={period} columns={columns} dateColumnId={dateColumn.id}
           colorColumnId={colorColumnId} propertyIds={calendarPropertyIds} showLabels={showPropertyLabels} pagination={pagination}
-          onSelect={(item) => { setSelected(item); setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId); setConfirmingUnpin(false) }} /> : undefined}
+          onSelect={(item) => { if (onEditRow) {onEditRow(rows.find(row => row.id === item.id) ?? {id: item.id, cells: {}}, dateColumn?.id); return} setSelected(item); setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId); setConfirmingUnpin(false) }} /> : undefined}
         labels={{ calendar: labels?.calendar ?? 'Calendário' }} onItemClick={(item) => {
+        if (onEditRow) { onEditRow(rows.find(row => row.id === item.id) ?? {id: item.id, cells: {}}, dateColumn?.id); return }
         setSelected(item)
         setSelectedColorColumnId(defaultColorColumn?.id ?? colorColumnId)
         setConfirmingUnpin(false)
       }} />
-      {!dateColumn ? <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/85 p-6 text-center text-sm text-dark-100 dark:text-light-900"><p className="max-w-sm">{labels?.emptyDate ?? 'Adicione uma propriedade de data ou selecione uma nas configurações desta view.'}</p></div> : null}
+      {!dateColumn ? <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/85 p-6 text-center text-sm text-dark-100 dark:text-light-900"><p className="max-w-sm">{labels?.emptyDate ?? 'Adicione uma propriedade de data ou selecione uma nas configurações desta view.'}</p></div> : null}
     </div>
     <CalendarDetailsDialog item={selected} onOpenChange={(open) => { if (!open) { setSelected(null); setConfirmingUnpin(false) } }} locale={locale} source={sourceTitle} renderers={renderers} labels={{ close: labels?.close ?? 'Fechar detalhes', description: labels?.details ?? 'Detalhes da página', source: labels?.source ?? 'Origem' }}
       renderDetails={(item) => <>

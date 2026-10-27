@@ -109,6 +109,8 @@ export interface UsePageDatabaseResult {
   cellErrors: Set<string>
   /** Handlers prontos para a `<CubsDatabase />`. */
   handlers: {
+    onCreatedRow: (row: RowData) => void
+    onViewSaved: (viewId: string, view: DataViewType) => void
     onBoardConfigChange: (viewId: string, patch: BoardViewConfig) => void
     onBoardMove: (viewId: string, input: BoardMoveInput) => Promise<void>
     onBoardCreateRow: (input: BoardCreateInput) => Promise<RowData | undefined>
@@ -1010,6 +1012,13 @@ export function usePageDatabase(pageId: string | undefined, paginationBridge?: R
       if (!paginationBridge && hasCalculatedColumns(databaseRef.current)) reload()
       return row
     }, [pageId, mutateCell, handleWriteError, paginationBridge, reload]),
+    onViewSaved: useCallback((viewId: string, view: DataViewType) => rememberView(viewId, view, true), [rememberView]),
+    onCreatedRow: useCallback((row: RowData) => {
+      if (!pageId || currentPageIdRef.current !== pageId) return
+      if (paginationBridge?.current) {paginationBridge.current.onCreatedRow(row); return}
+      updateDatabase(current => current ? ({...current, rows: [...current.rows.filter(candidate => candidate.id !== row.id), row]}) : current)
+      if (databaseRef.current && hasCalculatedColumns(databaseRef.current)) reload()
+    }, [pageId, paginationBridge, updateDatabase, reload]),
     onAddRow: useCallback(() => {
       if (!pageId) return
 

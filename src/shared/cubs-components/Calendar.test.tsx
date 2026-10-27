@@ -7,6 +7,23 @@ import type { CalendarItem } from './calendar/types'
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('calendar interaction', () => {
+  it('creates a full day from empty monthly space while an existing event only opens itself', () => {
+    const onCreate = vi.fn(), onItemClick = vi.fn()
+    render(<Calendar date="2026-10-27" onCreate={onCreate} onItemClick={onItemClick} items={[{id: 'event', type: 'page', title: 'Existing', start: '2026-10-27T00:00:00.000Z', allDay: true, data: {page: {id: 'event', title: 'Existing'}}}]} />)
+    fireEvent.click(screen.getByRole('button', {name: 'Criar página em terça-feira, 27 de outubro de 2026'}))
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith({day: '2026-10-27', allDay: true})
+    fireEvent.click(screen.getByRole('button', {name: 'Existing'}))
+    expect(onCreate).toHaveBeenCalledOnce()
+    expect(onItemClick).toHaveBeenCalledOnce()
+  })
+  it.each(['week', 'day'] as const)('captures the actual half-hour in %s mode', mode => {
+    const onCreate = vi.fn()
+    render(<Calendar date="2026-10-27" mode={mode} onCreate={onCreate} items={[]} />)
+    fireEvent.click(screen.getByRole('button', {name: 'Criar página em 2026-10-27 às 09:30'}))
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith({day: '2026-10-27', allDay: false, minute: 570})
+    fireEvent.click(screen.getByRole('button', {name: 'Criar página no dia inteiro 2026-10-27'}))
+    expect(onCreate).toHaveBeenLastCalledWith({day: '2026-10-27', allDay: true})
+  })
   it('provides a controlled, accessible details dialog without app dependencies', () => {
     const onOpenChange = vi.fn()
     const item: CalendarItem = { id: 'page-1', type: 'page', title: 'Entrega', start: '2026-09-28', allDay: true, data: { page: { id: 'page-1', title: 'Entrega' }, properties: [{ id: 'status', label: 'Status', value: 'Em andamento' }] } }

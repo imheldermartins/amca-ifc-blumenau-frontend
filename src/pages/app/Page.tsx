@@ -20,6 +20,8 @@ import type {
 import { databaseCalendarItems } from 'cubs-database'
 
 import { PageShell } from '@components/PageShell'
+import {useCalendarPageModal} from '@/hooks/useCalendarPageModal'
+import type {DatabaseCreateRequest} from 'cubs-database'
 import { SchedulePinRequestDialog, type SchedulePinRequestTarget } from '@/components/SchedulePinRequestDialog'
 import type { PageContentView } from '@components/PageContentViewSwitcher'
 import { ReplaceViewFiltersContent } from '@components/ReplaceViewFiltersModal'
@@ -76,6 +78,7 @@ export function Page({ pageId, initialTitle }: PageProps) {
 }
 
 function PageContent({ pageId, initialTitle }: PageProps) {
+  const openCalendarPage = useCalendarPageModal()
   const queryClient = useQueryClient()
   const mention = useMention()
   const trackMentionText = useCallback((text: string) => mention.register(mentionIds(text)), [mention.register])
@@ -613,6 +616,8 @@ function PageContent({ pageId, initialTitle }: PageProps) {
               deletingRows={deletingRows}
               addingColumn={addingColumn}
               onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
+              onRequestCreateRow={pageId && !broken && can(permissions.data, 'write', 'create') ? (request: DatabaseCreateRequest) => openCalendarPage({parentPageId: pageId, destinationLabel: database?.pageTitle || 'Base atual', dateColumnId: request.dateColumnId, viewId: request.viewId, onViewOrderSaved: handlers.onViewSaved, selection: request.selection, initialValues: request.initialValues, onCreated: handlers.onCreatedRow, onDateColumn: dateColumnId => handlers.onCalendarConfigChange(request.viewId, {dateColumnId})}) : undefined}
+              onCalendarEditRow={(row, dateColumnId, viewId) => openCalendarPage({parentPageId: pageId, rowId: row.id, dateColumnId, viewId, onViewOrderSaved: handlers.onViewSaved, destinationLabel: database?.pageTitle || 'Base atual', calendarActions: workspaceId ? {pinned: pinnedCalendarPageIds.has(row.id), onPin: handleCalendarPin, onUnpin: schedule.unpin, onRequestPin: handleCalendarRequestPin} : undefined})}
               onBoardCreateRow={pageId && !broken && !columnLocks.isPending && !columnLocks.isError && can(permissions.data, 'write', 'create') ? handlers.onBoardCreateRow : undefined}
               onViewChange={handleViewChange}
               onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}

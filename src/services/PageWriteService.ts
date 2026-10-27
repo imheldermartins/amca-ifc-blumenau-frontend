@@ -34,6 +34,10 @@ export interface DeleteRowsResult {
  * somente exclusões confirmadas e exibir um aviso agregado.
  */
 export class PageWriteService {
+  /** Only Agenda establishes a default event property; database views keep dateColumnId. */
+  ensureScheduleDateColumn(parentId: string): Promise<ApiPageColumn> {
+    return apiService.post(`/pages/parent/${parentId}/calendar-date-column`, {})
+  }
   moveRow(pageId: string, viewId: string, input: PageViewRowMoveInput): Promise<PageViewRowMoveResult> {
     return apiService.post(`/pages/${pageId}/views/${viewId}/rows/${input.rowId}/move`, input)
   }
@@ -75,8 +79,8 @@ export class PageWriteService {
   }
 
   /** Cria somente a página-filha e sua aresta com a parent; células nascem ausentes. */
-  createRow(parentId: string): Promise<ApiPage> {
-    return apiService.post<ApiPage>(`/pages/${parentId}/page`, {})
+  createRow(parentId: string, input?: {title?: string | null; values?: Record<string, unknown>}): Promise<ApiPage> {
+    return apiService.post<ApiPage>(`/pages/${parentId}/page`, input ?? {})
   }
 
   /** Cria apenas a definição da coluna; células EAV continuam ausentes. */

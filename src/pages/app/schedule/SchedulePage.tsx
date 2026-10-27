@@ -15,6 +15,7 @@ import {
   setCalendarYear,
   shiftCalendarDate,
   type CalendarMode,
+  type CalendarCreateSelection,
   type CalendarProperty,
   type CalendarRenderers,
 } from 'cubs-components'
@@ -28,6 +29,7 @@ import { createPageNavigationState } from '@/lib/pageNavigation'
 import { THEME } from '@/lib/theme'
 import { createScheduleMock, scheduleItemColor } from './mockData'
 import { pinnedPageToCalendarItem, type ScheduleItem, type ScheduleItemTypes } from './types'
+import {useCalendarPageModal} from '@/hooks/useCalendarPageModal'
 
 const t = (key: string) => i18n(`pages.app.schedule.${key}`)
 const modes: CalendarMode[] = ['month', 'week', 'day']
@@ -60,9 +62,11 @@ interface ScheduleSurfaceProps {
   onPin: (item: Extract<ScheduleItem, { type: 'page' }>, colorColumnId?: string | null) => void | boolean | Promise<boolean>
   onUnpin: (item: Extract<ScheduleItem, { type: 'page' }>) => void | boolean | Promise<boolean>
   onOpenPage?: (item: Extract<ScheduleItem, { type: 'page' }>) => void
+  onCreate?: (selection: CalendarCreateSelection) => void
+  onEditPage?: (item: Extract<ScheduleItem, {type: 'page'}>) => void
 }
 
-export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpin, onOpenPage }: ScheduleSurfaceProps) {
+export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpin, onOpenPage, onCreate, onEditPage }: ScheduleSurfaceProps) {
   const { locale } = useLanguage()
   const [date, setDate] = useState(() => dayjs().format('YYYY-MM-DD'))
   const [mode, setMode] = useState<CalendarMode>('month')
@@ -114,7 +118,7 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
     </header>
     <div className="relative flex min-h-0 flex-1">
       <div id="schedule-calendar" role="tabpanel" aria-labelledby={`schedule-tab-${mode}`} className="min-h-0 min-w-0 flex-1">
-        <Calendar<ScheduleItemTypes> items={allItems.filter((item) => item.type !== 'page' || pinnedIds.has(item.id))} date={date} mode={mode} locale={locale} renderers={calendarRenderers} onDateChange={setDate} onItemClick={setSelected} labels={{ calendar: t('title'), allDay: t('allDay'), more: (count) => i18n('pages.app.schedule.more', { count }) }} />
+        <Calendar<ScheduleItemTypes> items={allItems.filter((item) => item.type !== 'page' || pinnedIds.has(item.id))} date={date} mode={mode} locale={locale} renderers={calendarRenderers} onDateChange={setDate} onCreate={onCreate} onItemClick={item => {if (item.type === 'page' && onEditPage) onEditPage(item); else setSelected(item)}} labels={{ calendar: t('title'), allDay: t('allDay'), more: (count) => i18n('pages.app.schedule.more', { count }) }} />
       </div>
       {sidebarOpen && <aside aria-label={t('pinnedPages')} className="absolute inset-y-0 right-0 z-10 flex w-72 shrink-0 flex-col overflow-y-auto border-l border-divider bg-background shadow-lg @min-[960px]/schedule:static @min-[960px]/schedule:shadow-none">
         <h2 className="flex min-h-11 items-center gap-1 px-3 text-xs font-semibold">{t('pinnedPages')} <span className="font-normal opacity-40">{pinnedPages.length}</span></h2>
@@ -122,7 +126,7 @@ export function ScheduleSurface({ items, pinnedIds, pendingPageId, onPin, onUnpi
           {pinnedPages.sort((left, right) => left.start.localeCompare(right.start) || left.title.localeCompare(right.title)).map((item) => {
             const status = item.data.properties.find((property) => property.type === 'select')
             return <article key={item.id} data-pinned-page-card={item.id} className="relative min-w-0 rounded-lg border border-divider bg-background p-3 shadow-sm transition-colors hover:border-p-purple/30 hover:bg-contrast/40">
-              <button type="button" onClick={() => { setDate(item.start.slice(0, 10)); setSelected(item) }} className="block w-full min-w-0 pr-8 text-left outline-none focus-visible:ring-2 focus-visible:ring-p-purple">
+              <button type="button" onClick={() => { setDate(item.start.slice(0, 10)); if (onEditPage) onEditPage(item); else setSelected(item) }} className="block w-full min-w-0 pr-8 text-left outline-none focus-visible:ring-2 focus-visible:ring-p-purple">
                 <span className="block truncate text-xs font-semibold">{item.title}</span>
                 <span className={cn('mt-1 block text-[11px]', THEME.textMuted)}>{formatCalendarDate(item.start, locale, { day: 'numeric', month: 'short', ...(!item.allDay && { hour: '2-digit', minute: '2-digit' }) })}</span>
                 {status && <span className={cn('mt-2 flex min-w-0 items-center gap-1.5 text-[10px]', THEME.textMuted)}><span className={cn('size-1.5 shrink-0 rounded-full', OPTION_COLOR_SWATCH[item.color ?? 'purple'])} aria-hidden="true" /><span className="truncate">{status.value}</span></span>}
@@ -180,13 +184,17 @@ function UnpinConfirmation({ item, onClose, onUnpin }: {
 }
 
 export function SchedulePage() {
-  const { workspaceId } = useWorkspace()
+  const { workspaceId, workspace } = useWorkspace()
+  const openCalendarPage = useCalendarPageModal()
   const { slug: lang } = useLanguage()
   const navigate = useNavigate()
   const schedule = useSchedule(workspaceId)
   const items = useMemo(() => schedule.pins.map(pinnedPageToCalendarItem), [schedule.pins])
   const pinnedIds = useMemo(() => new Set(schedule.pins.map((pin) => pin.pageId)), [schedule.pins])
-  return <ScheduleSurface items={items} pinnedIds={pinnedIds} pendingPageId={schedule.mutating ? schedule.pendingPageId : null} onPin={(item, colorColumnId) => schedule.pin({ pageId: item.id, dateColumnId: item.data.dateColumnId, colorColumnId })} onUnpin={(item) => schedule.unpin(item.id)} onOpenPage={(item) => navigate({ to: '/$lang/page/$pageId', params: { lang, pageId: item.id }, search: {}, state: createPageNavigationState(item.id, item.title) })} />
+  return <ScheduleSurface items={items} pinnedIds={pinnedIds} pendingPageId={schedule.mutating ? schedule.pendingPageId : null}
+    onCreate={workspaceId ? selection => openCalendarPage({workspaceId, destinationLabel: workspace?.name || 'Espaço de trabalho', selection, pinOnCreate: true}) : undefined}
+    onEditPage={item => openCalendarPage({parentPageId: item.data.sourcePageId, rowId: item.id, dateColumnId: item.data.dateColumnId, destinationLabel: item.data.sourceTitle || workspace?.name || 'Espaço de trabalho', calendarActions: {pinned: pinnedIds.has(item.id), colorColumnId: item.data.colorColumnId, onPin: input => schedule.pin(input), onUnpin: schedule.unpin}})}
+    onPin={(item, colorColumnId) => schedule.pin({ pageId: item.id, dateColumnId: item.data.dateColumnId, colorColumnId })} onUnpin={(item) => schedule.unpin(item.id)} onOpenPage={(item) => navigate({ to: '/$lang/page/$pageId', params: { lang, pageId: item.id }, search: {}, state: createPageNavigationState(item.id, item.title) })} />
 }
 
 export function SchedulePreviewPage() {
