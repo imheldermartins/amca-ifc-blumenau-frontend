@@ -48,7 +48,7 @@ describe('dateValue — wire da API', () => {
       start: { date: '04/09/2026', time: '00:00', hasTime: false },
       end: { date: '10/09/2026', time: '18:30', hasTime: true },
     })
-    expect(formatDatePickerValue(range)).toBe('04/09/2026 – 10/09/2026 18:30')
+    expect(formatDatePickerValue(range)).toBe('04/09/2026 → 10/09/2026 18:30')
     expect(formatDatePickerValue(null)).toBe('—')
   })
 })

@@ -163,5 +163,5 @@ export function formatDatePickerValue(value: unknown, empty = '—'): string {
   const parsed = parseDatePickerValue(value)
   if (!parsed) return empty
   const start = formatPart(parsed.start)
-  return parsed.end ? `${start} – ${formatPart(parsed.end)}` : start
+  return parsed.end ? `${start} → ${formatPart(parsed.end)}` : start
 }
