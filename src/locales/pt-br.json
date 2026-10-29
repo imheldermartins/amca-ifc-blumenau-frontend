@@ -1,4 +1,11 @@
 {
+  "route-error": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um erro ao exibir esta tela. Você pode tentar novamente ou recarregar a página.",
+    "log": "Log do erro",
+    "retry": "Tentar novamente",
+    "reload": "Recarregar página"
+  },
   "favorites": {
     "title": "Favoritos", "add-named": "Adicionar {{title}} aos favoritos", "remove-named": "Remover {{title}} dos favoritos",
     "remove": "Remover dos favoritos", "empty": "Use a estrela no cabeçalho de uma página para adicioná-la aqui.",
