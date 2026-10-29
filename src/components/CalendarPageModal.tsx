@@ -20,7 +20,7 @@ import {createPageNavigationState} from '@/lib/pageNavigation'
 export function CalendarPageModalContent({request, controls}: {request: CalendarPageRequest; controls: ModalControls}) {
   const {user} = useAuth()
   const {socket} = useSocket()
-  const query = useQuery({queryKey: ['calendar-page-modal', user?.id, request.parentPageId, request.workspaceId, request.rowId, request.dateColumnId, request.viewId],
+  const query = useQuery({queryKey: ['calendar-page-modal', user?.id, request.parentPageId, request.workspaceId, request.rowId, request.dateColumnId, request.viewId, request.viewType],
     queryFn: () => loadCalendarPage(request, user!.id), enabled: Boolean(user), staleTime: 0})
   const refetch = query.refetch
   const parentId = query.data?.parentId

@@ -1,8 +1,8 @@
 import type {CalendarCreateSelection} from 'cubs-components'
 import type {DataViewKind} from './types'
 
-/** Hosts can opt additional view types into the same modal without changing +. */
-export const MODAL_CREATE_VIEW_TYPES: Readonly<Partial<Record<DataViewKind, true>>> = {calendar: true}
+/** Calendar and Timeline use the shared page modal. */
+export const MODAL_CREATE_VIEW_TYPES: Readonly<Partial<Record<DataViewKind, true>>> = {timeline: true, calendar: true}
 
 export interface DatabaseCreateRequest {
   viewType: DataViewKind
@@ -10,6 +10,16 @@ export interface DatabaseCreateRequest {
   dateColumnId?: string
   initialValues?: Record<string, unknown>
   selection?: CalendarCreateSelection
+}
+
+/** Page clicks share a modal host and carry their actual parent database. */
+export interface DatabaseEditRequest {
+  viewType: 'graph' | 'timeline' | 'calendar'
+  viewId?: string
+  rowId: string
+  parentPageId: string
+  destinationLabel?: string
+  dateColumnId?: string
 }
 
 export function calendarSelectionValue(selection: CalendarCreateSelection): string {

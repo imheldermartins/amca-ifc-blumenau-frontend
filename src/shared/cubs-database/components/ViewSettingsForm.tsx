@@ -182,6 +182,16 @@ export function ViewSettingsForm({
           onChange={onBoardChange ? (propertyIds) => onBoardChange({ propertyIds }) : undefined} disabled={!onBoardChange}
           labels={calendarPropertyLabels ?? { trigger: 'Propriedades visíveis', search: 'Buscar propriedade', empty: 'Nenhuma propriedade', drag: 'Reordenar propriedade', select: 'Mostrar propriedade', priority: 'Posição', clear: 'Ocultar todas' }} />
       </> : null}
+      {type === 'timeline' ? <>
+        <Select label="Propriedade de data" aria-label="Propriedade de data" disabled={!onCalendarChange}
+          value={calendar?.dateColumnId ?? dateColumns[0]?.id ?? ''}
+          options={dateColumns.map(column => ({value: column.id, label: column.title}))}
+          onValueChange={dateColumnId => onCalendarChange?.({dateColumnId})} />
+        <Select label="Propriedade de cor" aria-label="Propriedade de cor" disabled={!onCalendarChange}
+          value={calendar?.colorColumnId ?? '__default__'}
+          options={[{value: '__default__', label: 'Cor padrão'}, ...colorColumns.map(column => ({value: column.id, label: column.title}))]}
+          onValueChange={value => onCalendarChange?.({colorColumnId: value === '__default__' ? null : value})} />
+      </> : null}
       {type === 'calendar' ? <>
         <Select label={calendarLabels?.dateProperty ?? 'Propriedade de data'} aria-label={calendarLabels?.dateProperty ?? 'Propriedade de data'}
           value={calendar?.dateColumnId ?? dateColumns[0]?.id ?? ''}

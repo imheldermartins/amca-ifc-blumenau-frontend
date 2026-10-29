@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {calendarSelectionValue, MODAL_CREATE_VIEW_TYPES} from './creation'
 
 describe('calendar creation context', () => {
-  it('only opts Calendar into modal creation', () => {expect(MODAL_CREATE_VIEW_TYPES).toEqual({calendar: true})})
+  it('opts Calendar and Timeline into modal creation', () => {expect(MODAL_CREATE_VIEW_TYPES).toEqual({timeline: true, calendar: true})})
   it('preserves a civil day without browser timezone conversion', () => {
     expect(calendarSelectionValue({day: '2026-10-27', allDay: true})).toBe('2026-10-27T00:00:00.000Z')
   })

@@ -470,7 +470,7 @@ export interface DataViewType {
   tileSize?: 'small' | 'medium' | 'large'
   /** Propriedades exibidas nos cards da Grade, já na ordem escolhida. Ausente = todas. */
   gridPropertyIds?: string[]
-  /** Coluna `date` usada pela projeção Calendar. Ausente = primeira disponível. */
+  /** Coluna `date` usada por Calendar e Timeline. Ausente = primeira disponível. */
   dateColumnId?: string
   /** Coluna `select` usada como cor. `null` força o roxo padrão. */
   colorColumnId?: string | null

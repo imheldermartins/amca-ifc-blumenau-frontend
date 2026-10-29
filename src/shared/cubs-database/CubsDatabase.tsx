@@ -1,3 +1,4 @@
+import { TimelineView } from './components/TimelineView'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { DatabaseMentionColumnsProvider } from './mentions'
 import { Icon } from '@iconify/react'
@@ -46,7 +47,7 @@ import type {
 } from './types'
 import { reorderByIds } from './utils'
 import { DATA_VIEW_KINDS, VIEW_KIND_ICON } from './viewKinds'
-import {MODAL_CREATE_VIEW_TYPES, type DatabaseCreateRequest} from './creation'
+import {MODAL_CREATE_VIEW_TYPES, type DatabaseCreateRequest, type DatabaseEditRequest} from './creation'
 import { viewFiltersSemanticSignature } from './viewFilterUrl'
 import { applyViewFilters, emptyViewFilters, parseViewFilters } from './viewFilters'
 import type { DatabasePagination, DatabaseRowMove } from './pagination'
@@ -281,6 +282,7 @@ export interface CubsDatabaseProps {
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
   onRequestCreateRow?: (request: DatabaseCreateRequest) => void
+  onRequestEditRow?: (request: DatabaseEditRequest) => void
   onCalendarEditRow?: (row: RowData, dateColumnId?: string, viewId?: string) => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
   onAddColumn?: (type: ColumnDataType) => void
@@ -327,6 +329,7 @@ export function CubsDatabase({
   onColumnOptionsChange,
   onAddRow,
   onRequestCreateRow,
+  onRequestEditRow,
   onCalendarEditRow,
   onAddColumn,
   addingColumn,
@@ -728,6 +731,10 @@ export function CubsDatabase({
         ) : currentView.view === 'heatmap' ? (
           <HeatmapView key={currentViewId} config={currentView.heatmap} pagination={pagination}
             columns={orderedColumns} onOpenRow={onOpenRow} />
+        ) : currentView.view === 'timeline' ? (
+          <TimelineView key={currentViewId} rows={filteredRows} columns={orderedColumns} pagination={pagination}
+            dateColumnId={currentView.dateColumnId} colorColumnId={currentView.colorColumnId} onOpenRow={onOpenRow}
+            onEditRow={onRequestEditRow ? (row, dateColumnId) => onRequestEditRow({viewType: 'timeline', viewId: currentViewId, rowId: row.id, parentPageId: pageId ?? currentViewId, dateColumnId}) : undefined} />
         ) : currentView.view === 'graph' ? (
           <GraphView
             key={`${pageId ?? ''}:${currentViewId}`}

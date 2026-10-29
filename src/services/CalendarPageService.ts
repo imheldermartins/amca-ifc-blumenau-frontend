@@ -1,5 +1,5 @@
 import type {CalendarCreateSelection} from 'cubs-components'
-import type {CalendarPinInput, RowData, DataViewType} from 'cubs-database'
+import type {CalendarPinInput, RowData, DataViewType, DataViewKind} from 'cubs-database'
 import {reorderByIds} from '@/shared/cubs-database/utils'
 import {databaseService} from './DatabaseService'
 import {accessService, can} from './AccessService'
@@ -13,6 +13,7 @@ export interface CalendarPageRequest {
   destinationLabel: string
   dateColumnId?: string
   viewId?: string
+  viewType?: DataViewKind
   selection?: CalendarCreateSelection
   initialValues?: Record<string, unknown>
   rowId?: string
@@ -77,8 +78,8 @@ export async function loadCalendarPage(request: CalendarPageRequest, userId: str
   const entries = Object.entries(views)
   const selected = request.viewId && request.viewId !== FALLBACK_VIEW_ID
     ? entries.find(([id]) => id === request.viewId)
-    : entries.find(([, view]) => view.view === 'calendar' && view.dateColumnId === dateColumn?.id)
-      ?? entries.find(([, view]) => view.view === 'calendar') ?? entries[0]
+    : entries.find(([, view]) => view.view === (request.viewType ?? 'calendar') && view.dateColumnId === dateColumn?.id)
+      ?? entries.find(([, view]) => view.view === (request.viewType ?? 'calendar')) ?? entries[0]
   const [viewId, view] = selected ?? []
   return {parentId, columns: reorderByIds(headers, view?.orderedHeaderCols ?? []), viewId, view, dateColumnId: dateColumn?.id, row, page, lockedKeys,
     canCreate: can(permission, 'write', 'create'), canConfigure: can(permission, 'write', 'update'),

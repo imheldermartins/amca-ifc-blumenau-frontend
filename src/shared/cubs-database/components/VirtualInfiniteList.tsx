@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEventHandler, type ReactNode } from 'react'
 import { defaultRangeExtractor, useVirtualizer, useWindowVirtualizer, type Range } from '@tanstack/react-virtual'
 import { Icon } from '@iconify/react'
 import { cn } from 'cubs-components'
@@ -20,11 +20,13 @@ export interface VirtualInfiniteListProps<T> {
   itemClassName?: string
   disabled?: boolean
   scrollMode?: 'internal' | 'page'
+  contentWidth?: number
+  onScroll?: UIEventHandler<HTMLDivElement>
 }
 
 /** Keeps only the viewport mounted; evicted query windows retain their space. */
 export function VirtualInfiniteList<T>({ items, itemKey, itemIds, renderItem, pagination, scope, stream,
-  estimateSize = 80, gap = 0, pinnedIds = [], className, itemClassName, disabled = false, scrollMode = 'internal' }: VirtualInfiniteListProps<T>) {
+  estimateSize = 80, gap = 0, pinnedIds = [], className, itemClassName, disabled = false, scrollMode = 'internal', contentWidth, onScroll }: VirtualInfiniteListProps<T>) {
   const viewport = useRef<HTMLDivElement>(null)
   const pageScroll = scrollMode === 'page'
   const [scrollTarget, setScrollTarget] = useState<HTMLElement | Window | null>(null)
@@ -140,12 +142,12 @@ export function VirtualInfiniteList<T>({ items, itemKey, itemIds, renderItem, pa
   }, [focusedId, pinRow, onInteractionChange])
 
   return <div ref={viewport} data-infinite-list={scopeKey} className={cn('relative min-h-16', !pageScroll && 'max-h-[65dvh] overflow-y-auto overscroll-contain', className)}
-    onScroll={pageScroll ? undefined : () => { hasScrolled.current = true; load() }}
+    onScroll={pageScroll ? onScroll : (event) => { onScroll?.(event); hasScrolled.current = true; load() }}
     onWheel={pageScroll ? undefined : () => { hasScrolled.current = true; load() }}
     onTouchMove={pageScroll ? undefined : () => { hasScrolled.current = true; load() }}
     onFocusCapture={(event) => setFocusedId((event.target as HTMLElement).closest<HTMLElement>('[data-list-row]')?.dataset.listRow ?? null)}
     onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedId(null) }}>
-    <div className="relative w-full" style={{ height: Math.max(1, totalHeight) }}>
+    <div className="relative w-full" style={{ height: Math.max(1, totalHeight), minWidth: contentWidth }}>
       {visible.map((entry) => <div key={entry.key} ref={virtualizer.measureElement} data-index={entry.index} data-list-row={itemKey(items[entry.index])}
         className={cn('absolute left-0 top-0 w-full', itemClassName)} style={{ transform: `translateY(${entry.start - options.scrollMargin}px)` }}>
         {renderItem(items[entry.index], entry.index)}

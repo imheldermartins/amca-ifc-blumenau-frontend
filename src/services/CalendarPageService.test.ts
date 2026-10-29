@@ -20,6 +20,16 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 describe('calendar page destination and hydration', () => {
+  it.each(['timeline'] as const)('uses the %s property order without requiring a date or selecting the Calendar view', async viewType => {
+    const view: DataViewType = {view: viewType, name: viewType, urlKey: {key: viewType, aliases: []}, filters: emptyViewFilters(), orderedHeaderCols: ['description', 'page_title']}
+    vi.mocked(databaseService.getPage).mockResolvedValue({...page, data: {calendar: {...view, view: 'calendar', orderedHeaderCols: ['page_title', 'description']}, selected: view}})
+    vi.mocked(databaseService.getColumns).mockResolvedValue([{id: 'description', name: 'Descrição', type: 'text', parent_id: page.id, data: null}])
+    const data = await loadCalendarPage({parentPageId: page.id, viewType, destinationLabel: 'Base'}, 'user')
+    expect(data.viewId).toBe('selected')
+    expect(data.columns.map(column => column.id)).toEqual(['description', 'page_title'])
+    expect(data.dateColumnId).toBeUndefined()
+    expect(pageWriteService.ensureScheduleDateColumn).not.toHaveBeenCalled()
+  })
   it('resolves the authenticated member root and requires the scheduled key in Agenda', async () => {
     vi.mocked(databaseService.getColumns).mockResolvedValue([{...date, id: 'other-date', data: {publicKey: {key: 'outra_data', aliases: []}}}])
     const data = await loadCalendarPage({workspaceId: 'workspace', pinOnCreate: true, destinationLabel: 'Workspace'}, 'user')
