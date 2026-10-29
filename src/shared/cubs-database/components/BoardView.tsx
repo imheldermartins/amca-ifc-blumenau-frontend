@@ -20,7 +20,7 @@ import { FlowEditorDialog } from './FlowEditorDialog'
 import { rowMoveAnchor, type DatabasePagination } from '../pagination'
 import { pageViewScopeKey, type PageViewQueryScope } from '../pageViewQueryContract'
 import { VirtualInfiniteList } from './VirtualInfiniteList'
-import { cardTopCollisions } from '../../dnd/dragAnchor'
+import { cardTopCollisions } from '../lib/dragAnchor'
 
 const BACKGROUNDS: Record<OptionColor, string> = {
   red: 'bg-p-red-500/10', pink: 'bg-p-pink-500/10', orange: 'bg-p-orange-500/10', yellow: 'bg-p-yellow-500/10',
