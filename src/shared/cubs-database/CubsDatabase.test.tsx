@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { cleanup } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,10 +10,12 @@ const VIEW_ID = '01KXVZ0000VIEW00000000001'
 afterEach(() => cleanup())
 
 describe('CubsDatabase — modal creation registry', () => {
-  it('routes Calendar + and date selection through the same request, preserving the plain + elsewhere', () => {
+  it('routes Graph, Timeline and Calendar + through the same controller, preserving date selection and the plain + elsewhere', () => {
     const onAddRow = vi.fn(), onRequestCreateRow = vi.fn()
     const settings = {
       calendar: {view: 'calendar' as const, name: 'Calendário', orderedHeaderCols: [], dateColumnId: 'date', urlKey: {key: 'calendar', aliases: []}, filters: emptyViewFilters()},
+      graph: {view: 'graph' as const, name: 'Grafo', orderedHeaderCols: [], urlKey: {key: 'graph', aliases: []}, filters: emptyViewFilters()},
+      timeline: {view: 'timeline' as const, name: 'Cronograma', orderedHeaderCols: [], dateColumnId: 'date', urlKey: {key: 'timeline', aliases: []}, filters: emptyViewFilters()},
       table: {view: 'table' as const, name: 'Tabela', orderedHeaderCols: [], urlKey: {key: 'table', aliases: []}, filters: emptyViewFilters()},
     }
     render(<CubsDatabase settings={settings} headerCols={[{id: 'title', key: 'title', title: 'Título', type: 'text'}, {id: 'date', title: 'Data', type: 'date'}]} rows={[]} onAddRow={onAddRow} onRequestCreateRow={onRequestCreateRow} />)
@@ -23,10 +25,43 @@ describe('CubsDatabase — modal creation registry', () => {
     const dayButton = screen.getAllByRole('button', {name: /^Criar página em /})[0]
     fireEvent.click(dayButton)
     expect(onRequestCreateRow).toHaveBeenLastCalledWith(expect.objectContaining({viewType: 'calendar', viewId: 'calendar', dateColumnId: 'date', selection: expect.objectContaining({allDay: true})}))
+    fireEvent.click(screen.getByText('Grafo', {exact: true}))
+    fireEvent.click(screen.getByRole('button', {name: 'Criar'}))
+    expect(onRequestCreateRow).toHaveBeenLastCalledWith({viewType: 'graph', viewId: 'graph', dateColumnId: undefined})
+    fireEvent.click(screen.getByRole('button', {name: 'Cronograma'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Criar'}))
+    expect(onRequestCreateRow).toHaveBeenLastCalledWith({viewType: 'timeline', viewId: 'timeline', dateColumnId: 'date'})
+    expect(onAddRow).not.toHaveBeenCalled()
     fireEvent.click(screen.getByText('Tabela', {exact: true}))
     fireEvent.click(screen.getByRole('button', {name: 'Criar'}))
     expect(onAddRow).toHaveBeenCalledOnce()
-    expect(onRequestCreateRow).toHaveBeenCalledTimes(2)
+    expect(onRequestCreateRow).toHaveBeenCalledTimes(4)
+  })
+
+  it('opens Calendar directly and Graph through its Grid card with the correct parent and view', async () => {
+    const onRequestEditRow = vi.fn(), onOpenRow = vi.fn(), onCalendarEditRow = vi.fn()
+    const row = {id: 'child', cells: {page_title: {value: 'Entrega'}, date: {value: new Date().toISOString()}}}
+    const onLoadGraphChildren = vi.fn().mockResolvedValue([{id: 'grandchild', cells: {page_title: {value: 'Subtarefa'}}}])
+    render(<CubsDatabase pageId="root" pageTitle="Base" settings={{
+      calendar: {view: 'calendar', name: 'Calendário', orderedHeaderCols: [], dateColumnId: 'date', urlKey: {key: 'calendar', aliases: []}, filters: emptyViewFilters()},
+      graph: {view: 'graph', name: 'Grafo', orderedHeaderCols: [], urlKey: {key: 'graph', aliases: []}, filters: emptyViewFilters()},
+    }} headerCols={[{id: 'page_title', key: 'title', title: 'Título', type: 'text'}, {id: 'date', title: 'Data', type: 'date'}]}
+      rows={[row]} onRequestEditRow={onRequestEditRow} onCalendarEditRow={onCalendarEditRow} onOpenRow={onOpenRow} onLoadGraphChildren={onLoadGraphChildren} />)
+    fireEvent.click(screen.getByRole('button', {name: 'Entrega'}))
+    expect(onRequestEditRow).toHaveBeenLastCalledWith({viewType: 'calendar', viewId: 'calendar', rowId: 'child', parentPageId: 'root', dateColumnId: 'date'})
+    expect(onCalendarEditRow).not.toHaveBeenCalled()
+    expect(onOpenRow).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: 'Grafo'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Entrega'}))
+    expect(onRequestEditRow).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', {name: 'Abrir Entrega'}))
+    expect(onRequestEditRow).toHaveBeenLastCalledWith({viewType: 'graph', viewId: 'graph', rowId: 'child', parentPageId: 'root', destinationLabel: 'Base'})
+    await waitFor(() => expect(screen.getByRole('button', {name: 'Subtarefa'})).toBeTruthy())
+    await act(async () => {fireEvent.click(screen.getByRole('button', {name: 'Subtarefa'}))})
+    fireEvent.click(screen.getByRole('button', {name: 'Abrir Subtarefa'}))
+    expect(onRequestEditRow).toHaveBeenLastCalledWith({viewType: 'graph', viewId: undefined, rowId: 'grandchild', parentPageId: 'child', destinationLabel: 'Entrega'})
+    expect(onRequestEditRow).toHaveBeenCalledTimes(3)
   })
 })
 

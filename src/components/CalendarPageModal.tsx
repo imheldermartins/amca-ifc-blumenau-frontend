@@ -24,6 +24,7 @@ export function CalendarPageModalContent({request, controls}: {request: Calendar
     queryFn: () => loadCalendarPage(request, user!.id), enabled: Boolean(user), staleTime: 0})
   const refetch = query.refetch
   const parentId = query.data?.parentId
+  usePageRealtime(request.subscribeToParent ? parentId : undefined, {onResync: () => {void refetch()}, onAccessDenied: controls.closeModal})
   useEffect(() => {
     if (!socket || !request.rowId) return
     const refresh = (event: {pageId: string}) => {if (event.pageId === parentId) void refetch()}

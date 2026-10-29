@@ -1,18 +1,21 @@
 import type {CalendarCreateSelection} from 'cubs-components'
 import type {DataViewKind} from './types'
 
-/** Calendar and Timeline use the shared page modal. */
-export const MODAL_CREATE_VIEW_TYPES: Readonly<Partial<Record<DataViewKind, true>>> = {timeline: true, calendar: true}
+/** Graph, Timeline and Calendar share the modal creation controller. */
+export const MODAL_CREATE_VIEW_TYPES: Readonly<Partial<Record<DataViewKind, true>>> = {graph: true, timeline: true, calendar: true}
 
 export interface DatabaseCreateRequest {
   viewType: DataViewKind
   viewId: string
+  /** Graph's inline + creates inside this node instead of the outer database. */
+  parentPageId?: string
+  destinationLabel?: string
   dateColumnId?: string
   initialValues?: Record<string, unknown>
   selection?: CalendarCreateSelection
 }
 
-/** Page clicks share a modal host and carry their actual parent database. */
+/** Page clicks share a modal host; Graph supplies each node's immediate parent. */
 export interface DatabaseEditRequest {
   viewType: 'graph' | 'timeline' | 'calendar'
   viewId?: string

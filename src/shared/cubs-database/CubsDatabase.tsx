@@ -161,6 +161,7 @@ export interface CubsDatabaseProps {
   pageTitle?: string
   /** Carrega filhos de um nó somente após foco ou ativação explícita. */
   onLoadGraphChildren?: (pageId: string) => Promise<RowData[]>
+  onLoadGraphColumns?: (parentId: string) => Promise<HeaderCol[]>
   /**
    * Uma célula foi editada e confirmada. A PRESENÇA desta prop é o que liga o
    * modo editável (despacho pelo cellMap de `components/cells`); sem ela a
@@ -282,6 +283,7 @@ export interface CubsDatabaseProps {
   /** Clique no controle guiado para adicionar uma linha (UI nesta etapa). */
   onAddRow?: () => void
   onRequestCreateRow?: (request: DatabaseCreateRequest) => void
+  /** Shared page modal for Graph, Calendar and the future Timeline view. */
   onRequestEditRow?: (request: DatabaseEditRequest) => void
   onCalendarEditRow?: (row: RowData, dateColumnId?: string, viewId?: string) => void
   /** Clique no controle guiado para adicionar uma coluna (UI nesta etapa). */
@@ -323,6 +325,7 @@ export function CubsDatabase({
   pageId,
   pageTitle,
   onLoadGraphChildren,
+  onLoadGraphColumns,
   onCellChange,
   onLoadRelationOptions,
   onCellEditConflict,
@@ -721,7 +724,7 @@ export function CubsDatabase({
             pagination={pagination}
             dateColumnId={currentView.dateColumnId} colorColumnId={currentView.colorColumnId}
             onCreate={onRequestCreateRow ? selection => onRequestCreateRow({viewType: 'calendar', viewId: currentViewId, dateColumnId: currentView.dateColumnId, selection}) : undefined}
-            onEditRow={onCalendarEditRow ? (row, dateColumnId) => onCalendarEditRow(row, dateColumnId, currentViewId) : undefined}
+            onEditRow={onRequestEditRow ? (row, dateColumnId) => onRequestEditRow({viewType: 'calendar', viewId: currentViewId, rowId: row.id, parentPageId: pageId ?? currentViewId, dateColumnId}) : onCalendarEditRow ? (row, dateColumnId) => onCalendarEditRow(row, dateColumnId, currentViewId) : undefined}
             calendarPropertyIds={stableCalendarPropertyIds}
             showPropertyLabels={currentView.calendarShowPropertyLabels !== false}
             onOpenRow={onOpenRow} pinnedPageIds={pinnedCalendarPageIds}
@@ -744,6 +747,10 @@ export function CubsDatabase({
             pagination={pagination}
             loadSubItems={mockSettings.loadSubItems}
             onLoadChildren={onLoadGraphChildren}
+            columns={orderedColumns}
+            onLoadColumns={onLoadGraphColumns}
+            onCreateChild={onRequestCreateRow ? (parentPageId, destinationLabel) => onRequestCreateRow({viewType: 'graph', viewId: currentViewId, parentPageId, destinationLabel}) : undefined}
+            onEditRow={onRequestEditRow ? (rowId, parentPageId, destinationLabel) => onRequestEditRow({viewType: 'graph', viewId: parentPageId === (pageId ?? currentViewId) ? currentViewId : undefined, rowId, parentPageId, destinationLabel}) : undefined}
           />
         ) : currentView.view === 'form' ? (
           <FormView

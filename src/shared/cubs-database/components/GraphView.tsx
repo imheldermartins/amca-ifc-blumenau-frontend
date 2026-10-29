@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent, WheelEvent } from 'react'
+import type { PointerEvent, WheelEvent, ReactNode } from 'react'
 import { Icon } from '@iconify/react'
 import { Button } from 'cubs-components'
 import { DatabaseMentionText } from '../mentions'
 
-import type { RowData } from '../types'
+import type { HeaderCol, RowData } from '../types'
+import { GridTile } from './GridView'
 import { stepGraphPhysics, type ForceGraphNode } from './graphPhysics'
 import type { DatabasePagination } from '../pagination'
 import { pageViewScopeKey } from '../pageViewQueryContract'
@@ -73,28 +74,33 @@ export function GraphNode({
   dragging,
   loading,
   onFocus,
+  onCreateChild,
 }: {
   point: GraphPoint
   focused: boolean
   dragging: boolean
   loading: boolean
   onFocus: () => void
+  onCreateChild?: () => void
 }) {
   const pointerFocus = useRef(false)
   return (
+    <div
+      data-graph-node={point.id}
+      style={{ left: `calc(50% + ${point.x}px)`, top: `calc(50% + ${point.y}px)` }}
+      className={`absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center rounded-full border shadow-sm ${focused ? 'border-p-purple bg-p-purple text-white' : 'border-divider bg-background'}`}
+    >
     <Button
       type="button"
       variant="text"
       color="from-theme"
-      data-graph-node={point.id}
       aria-pressed={focused}
       onClick={onFocus}
       onPointerDownCapture={() => { pointerFocus.current = true }}
       onPointerUpCapture={() => { pointerFocus.current = false }}
       onBlur={() => { pointerFocus.current = false }}
       onFocus={point.continuationParentId ? () => { if (!pointerFocus.current) onFocus() } : undefined}
-      style={{ left: `calc(50% + ${point.x}px)`, top: `calc(50% + ${point.y}px)` }}
-      className={`absolute z-10 flex max-w-40 -translate-x-1/2 -translate-y-1/2 select-none items-center justify-start gap-2 rounded-full border px-3 py-2 text-left text-sm font-normal shadow-sm transition-colors active:translate-y-[-50%] ${dragging ? 'cursor-grabbing' : 'cursor-grab'} ${focused ? 'border-p-purple bg-p-purple text-white hover:bg-p-purple' : 'border-divider bg-background hover:border-p-purple hover:bg-background'}`}
+      className={`flex max-w-40 select-none items-center justify-start gap-2 rounded-full px-3 py-2 text-left text-sm font-normal transition-colors ${dragging ? 'cursor-grabbing' : 'cursor-grab'} ${focused ? 'bg-p-purple text-white hover:bg-p-purple' : 'hover:bg-active'}`}
     >
       <Icon
         icon={point.depth === 0 ? 'lucide:circle-dot-dashed' : 'lucide:file-text'}
@@ -104,6 +110,15 @@ export function GraphNode({
       <span className="truncate"><DatabaseMentionText value={point.title} /></span>
       {loading && <Icon icon="lucide:loader-circle" fontSize={14} className="shrink-0 animate-spin" />}
     </Button>
+    {onCreateChild && !point.continuationParentId && <Button type="button" variant="text" color="from-theme"
+      aria-label={`Adicionar filho em ${point.title}`}
+      className={`mr-1 shrink-0 rounded-full p-1 ${focused ? 'text-white hover:bg-p-purple' : ''}`}
+      onPointerDown={event => event.stopPropagation()}
+      onPointerUp={event => event.stopPropagation()}
+      onClick={event => { event.stopPropagation(); onCreateChild() }}>
+      <Icon icon="lucide:plus" fontSize={16} />
+    </Button>}
+    </div>
   )
 }
 
@@ -127,12 +142,16 @@ export function GraphCanvas({
   loadingIds,
   onFocus,
   onDragChange,
+  onCreateChild,
+  children,
 }: {
   points: GraphPoint[]
   focusedId: string
   loadingIds: Set<string>
   onFocus: (point: GraphPoint) => void
   onDragChange?: (rowId: string | null) => void
+  onCreateChild?: (point: GraphPoint) => void
+  children?: ReactNode
 }) {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
@@ -288,10 +307,12 @@ export function GraphCanvas({
               dragging={point.id === draggingId}
               loading={loadingIds.has(point.id)}
               onFocus={() => focusPoint(point)}
+              onCreateChild={onCreateChild ? () => onCreateChild(point) : undefined}
             />
           </div>
         ))}
       </div>
+      {children}
       <div className="absolute bottom-4 right-4 z-20 flex gap-1 rounded-lg border border-divider bg-background p-1 shadow-sm">
         <button type="button" aria-label="Diminuir zoom" onClick={() => setZoom((value) => Math.max(0.5, value - 0.2))} className="rounded p-2 hover:bg-active"><Icon icon="lucide:minus" /></button>
         <button type="button" aria-label="Centralizar grafo" onClick={() => {
@@ -308,6 +329,34 @@ export function GraphCanvas({
   )
 }
 
+const TITLE_COLUMNS: HeaderCol[] = [{ id: 'page_title', key: 'title', title: 'Título', type: 'text' }]
+
+function GraphDetails({ row, parentId, rootId, columns, onLoadColumns, onOpen }: {
+  row: RowData; parentId?: string; rootId: string; columns: HeaderCol[]
+  onLoadColumns?: (parentId: string) => Promise<HeaderCol[]>
+  onOpen?: () => void
+}) {
+  const [nestedColumns, setNestedColumns] = useState<HeaderCol[]>()
+  const [error, setError] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    setNestedColumns(undefined)
+    setError(false)
+    if (parentId && parentId !== rootId && onLoadColumns) {
+      void onLoadColumns(parentId).then(value => { if (!cancelled) setNestedColumns(value) }, () => { if (!cancelled) setError(true) })
+    }
+    return () => { cancelled = true }
+  }, [parentId, rootId, onLoadColumns])
+  const resolvedColumns = parentId === rootId ? columns : nestedColumns ?? TITLE_COLUMNS
+  return <aside aria-label="Detalhes da página" className="absolute right-3 top-3 z-30 max-h-[calc(100%-5rem)] w-80 max-w-[calc(100%-1.5rem)] overflow-auto rounded-xl bg-background shadow-lg"
+    onPointerDown={event => event.stopPropagation()} onPointerUp={event => event.stopPropagation()}
+    onClick={event => event.stopPropagation()} onWheel={event => event.stopPropagation()}>
+    <GridTile row={row} columns={resolvedColumns} onOpen={onOpen} />
+    {parentId && parentId !== rootId && onLoadColumns && !nestedColumns && !error && <p role="status" className="p-3 text-xs">Carregando propriedades…</p>}
+    {error && <p role="alert" className="p-3 text-xs">Não foi possível carregar as propriedades.</p>}
+  </aside>
+}
+
 export function GraphView({
   rootId,
   rootTitle,
@@ -315,6 +364,10 @@ export function GraphView({
   loadSubItems,
   onLoadChildren,
   pagination,
+  onEditRow,
+  columns = TITLE_COLUMNS,
+  onLoadColumns,
+  onCreateChild,
 }: {
   rootId: string
   rootTitle: string
@@ -322,9 +375,15 @@ export function GraphView({
   loadSubItems: boolean
   onLoadChildren?: (pageId: string) => Promise<RowData[]>
   pagination?: DatabasePagination
+  onEditRow?: (rowId: string, parentId: string, parentTitle: string) => void
+  columns?: HeaderCol[]
+  onLoadColumns?: (parentId: string) => Promise<HeaderCol[]>
+  onCreateChild?: (parentId: string, parentTitle: string) => void
 }) {
   const [childrenByParent, setChildrenByParent] = useState<Record<string, RowData[]>>({})
   const [focusedId, setFocusedId] = useState(rootId)
+  const [selectedId, setSelectedId] = useState(rootId)
+  const automaticRequests = useRef(new Set<string>())
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
   const inFlightRef = useRef(new Set<string>())
   const loadedRef = useRef(new Set<string>())
@@ -351,6 +410,8 @@ export function GraphView({
   useEffect(() => {
     setChildrenByParent({})
     setFocusedId(rootId)
+    setSelectedId(rootId)
+    automaticRequests.current.clear()
     setLoadingIds(new Set())
     inFlightRef.current.clear()
     loadedRef.current.clear()
@@ -376,7 +437,16 @@ export function GraphView({
   }, [onLoadChildren, isPaginated, ensureScope])
 
   useEffect(() => {
-    if (!loadSubItems || isPaginated) return
+    if (!loadSubItems) return
+    if (isPaginated) {
+      const visibleRows = streams?.[pageViewScopeKey({ type: 'graph', parentId: rootId })]?.rows ?? streams?.root?.rows ?? rows
+      for (const row of visibleRows) {
+        if (automaticRequests.current.has(row.id)) continue
+        automaticRequests.current.add(row.id)
+        void loadChildren(row.id)
+      }
+      return
+    }
     let cancelled = false
     let nextIndex = 0
     const worker = async () => {
@@ -389,7 +459,7 @@ export function GraphView({
     // Um grafo grande não dispara uma request por nó de uma vez.
     for (let index = 0; index < Math.min(4, rows.length); index += 1) void worker()
     return () => { cancelled = true }
-  }, [loadChildren, loadSubItems, rows, isPaginated])
+  }, [loadChildren, loadSubItems, rows, isPaginated, streams, rootId])
 
   const points = useMemo(() => {
     if (!streams) return layoutGraph(rootId, rootTitle, { ...childrenByParent, [rootId]: rows })
@@ -413,6 +483,11 @@ export function GraphView({
   }, [childrenByParent, rootId, rootTitle, rows, streams, navigation])
   const pagedLoadingIds = useMemo(() => streams ? new Set(Object.values(streams).filter((stream) => stream.isFetching)
     .flatMap((stream) => stream.scope.type === 'graph' ? [stream.scope.parentId, `continuation:${stream.scope.parentId}`] : [rootId, `continuation:${rootId}`])) : loadingIds, [streams, loadingIds, rootId])
+  const selectedPoint = points.find(point => point.id === selectedId) ?? points[0]
+  const selectedRow = selectedPoint && (selectedPoint.id === rootId
+    ? { id: rootId, cells: { page_title: { value: rootTitle } } }
+    : [...rows, ...Object.values(childrenByParent).flat(), ...Object.values(streams ?? {}).flatMap(stream => stream.rows)].find(row => row.id === selectedPoint.id)
+      ?? { id: selectedPoint.id, cells: { page_title: { value: selectedPoint.title } } })
   return (
     <div className="px-4">
       {pagination?.loading ? <p role="status" className="py-2 text-xs opacity-60">Carregando páginas</p> : null}
@@ -421,15 +496,26 @@ export function GraphView({
         focusedId={focusedId}
         loadingIds={pagedLoadingIds}
         onDragChange={onDragChange}
+        onCreateChild={onCreateChild ? point => {
+          if (point.id !== rootId) void loadChildren(point.id)
+          onCreateChild(point.id, point.title)
+        } : undefined}
         onFocus={(point) => {
           setFocusedId(point.id)
           if (point.continuationParentId && pagination) {
             const parentId = point.continuationParentId
             const scope = pagination.streams[pageViewScopeKey({ type: 'graph', parentId })]?.scope ?? (parentId === rootId ? pagination.streams.root?.scope : undefined)
             pagination.loadNext(scope ?? { type: 'graph', parentId })
-          } else if (point.id !== rootId) void loadChildren(point.id)
+          } else {
+            setSelectedId(point.id)
+            if (point.id !== rootId) void loadChildren(point.id)
+          }
         }}
-      />
+      >
+        {selectedRow && selectedPoint && <GraphDetails row={selectedRow} parentId={selectedPoint.parentId} rootId={rootId}
+          columns={columns} onLoadColumns={onLoadColumns}
+          onOpen={selectedPoint.parentId && onEditRow ? () => onEditRow(selectedPoint.id, selectedPoint.parentId!, points.find(parent => parent.id === selectedPoint.parentId)?.title ?? rootTitle) : undefined} />}
+      </GraphCanvas>
       {loadError && <p role="alert" className="mt-2 text-sm text-p-red">Não foi possível carregar os subitens.</p>}
     </div>
   )

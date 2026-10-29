@@ -95,7 +95,7 @@ function GridTileContent({
                 displayValue: displayedTitle,
               })}
             />
-          ) : displayedTitle}
+          ) : <span className="line-clamp-2" title={displayedTitle}>{displayedTitle}</span>}
         </h3>
         {onOpen && (
           <button

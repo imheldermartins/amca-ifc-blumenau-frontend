@@ -14,6 +14,8 @@ export interface CalendarPageRequest {
   dateColumnId?: string
   viewId?: string
   viewType?: DataViewKind
+  /** Nested Graph nodes have a parent that the outer page has not joined. */
+  subscribeToParent?: boolean
   selection?: CalendarCreateSelection
   initialValues?: Record<string, unknown>
   rowId?: string

@@ -150,7 +150,8 @@ describe('Graph mock', () => {
     const canvas = screen.getByRole('application', { name: 'Grafo de páginas' })
     const rootNode = screen.getByRole('button', { name: 'Raiz' })
     const childNode = screen.getByRole('button', { name: 'Filha' })
-    const childBeforeDrag = childNode.style.left
+    const childPosition = childNode.closest<HTMLElement>('[data-graph-node]')!
+    const childBeforeDrag = childPosition.style.left
 
     fireEvent(rootNode, new MouseEvent('pointerdown', { bubbles: true, clientX: 500, clientY: 400 }))
     expect(frames.size).toBe(1)
@@ -161,15 +162,15 @@ describe('Graph mock', () => {
       expect(frames.size).toBe(1)
       runNextFrame()
     }
-    expect(childNode.style.left).not.toBe(childBeforeDrag)
+    expect(childPosition.style.left).not.toBe(childBeforeDrag)
 
     fireEvent(canvas, new MouseEvent('pointerup', { bubbles: true, clientX: 660, clientY: 470 }))
     expect(onFocus).not.toHaveBeenCalled()
-    const childAtRelease = childNode.style.left
+    const childAtRelease = childPosition.style.left
     expect(frames.size).toBe(1)
     runUntilIdle()
     expect(frames.size).toBe(0)
-    expect(childNode.style.left).not.toBe(childAtRelease)
+    expect(childPosition.style.left).not.toBe(childAtRelease)
     expect(rootNode.className).toContain('cursor-grab')
   })
 

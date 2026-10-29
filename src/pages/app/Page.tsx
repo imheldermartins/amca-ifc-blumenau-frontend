@@ -38,6 +38,8 @@ import { usePageDatabase } from '@/hooks/usePageDatabase'
 import { useDatabasePagination, type DatabaseProjectionBridge } from '@/hooks/useDatabasePagination'
 import { useSchedule } from '@/hooks/useSchedule'
 import { i18n } from '@/lib/i18n'
+import { parseHeaderCols } from '@/lib/databaseParser'
+import { databaseService } from '@/services/DatabaseService'
 import { createPageNavigationState, readRowPageTitle } from '@/lib/pageNavigation'
 import { useModal, type ModalHandle } from '@/hooks/useModal'
 
@@ -58,6 +60,7 @@ export interface PageProps {
  */
 const EMPTY_SETTINGS: DataViewSettings = {}
 const EMPTY_COLUMNS: HeaderCol[] = []
+const loadGraphColumns = async (parentId: string) => parseHeaderCols(await databaseService.getColumns(parentId), i18n('pages.app.cubs-database.coluna-titulo'))
 const EMPTY_ROWS: RowData[] = []
 
 /**
@@ -616,9 +619,30 @@ function PageContent({ pageId, initialTitle }: PageProps) {
               deletingRows={deletingRows}
               addingColumn={addingColumn}
               onAddRow={pageId && !broken && can(permissions.data, 'write', 'create') ? handlers.onAddRow : undefined}
-              onRequestCreateRow={pageId && !broken && can(permissions.data, 'write', 'create') ? (request: DatabaseCreateRequest) => openCalendarPage({parentPageId: pageId, destinationLabel: database?.pageTitle || 'Base atual', dateColumnId: request.dateColumnId, viewId: request.viewId, viewType: request.viewType, onViewOrderSaved: handlers.onViewSaved, selection: request.selection, initialValues: request.initialValues, onCreated: handlers.onCreatedRow, onDateColumn: dateColumnId => handlers.onCalendarConfigChange(request.viewId, {dateColumnId})}) : undefined}
-              onRequestEditRow={request => openCalendarPage({parentPageId: request.parentPageId, rowId: request.rowId, dateColumnId: request.dateColumnId, viewId: request.viewId, viewType: request.viewType, onViewOrderSaved: handlers.onViewSaved, destinationLabel: database?.pageTitle || 'Base atual', calendarActions: workspaceId ? {pinned: pinnedCalendarPageIds.has(request.rowId), onPin: handleCalendarPin, onUnpin: schedule.unpin, onRequestPin: handleCalendarRequestPin} : undefined})}
-              onCalendarEditRow={(row, dateColumnId, viewId) => openCalendarPage({parentPageId: pageId, rowId: row.id, dateColumnId, viewId, onViewOrderSaved: handlers.onViewSaved, destinationLabel: database?.pageTitle || 'Base atual', calendarActions: workspaceId ? {pinned: pinnedCalendarPageIds.has(row.id), onPin: handleCalendarPin, onUnpin: schedule.unpin, onRequestPin: handleCalendarRequestPin} : undefined})}
+              onLoadGraphColumns={loadGraphColumns}
+              onRequestCreateRow={pageId && !broken && can(permissions.data, 'write', 'create') ? (request: DatabaseCreateRequest) => {
+                const parentPageId = request.parentPageId ?? pageId
+                const nested = parentPageId !== pageId
+                openCalendarPage({parentPageId, destinationLabel: request.destinationLabel || database?.pageTitle || 'Base atual',
+                  dateColumnId: request.dateColumnId, viewId: nested ? undefined : request.viewId, viewType: request.viewType,
+                  subscribeToParent: nested, onViewOrderSaved: nested ? undefined : handlers.onViewSaved,
+                  selection: request.selection, initialValues: request.initialValues,
+                  onCreated: nested ? () => paged.bridge.onResync() : handlers.onCreatedRow,
+                  onDateColumn: nested ? undefined : dateColumnId => handlers.onCalendarConfigChange(request.viewId, {dateColumnId})})
+              } : undefined}
+              onRequestEditRow={request => openCalendarPage({
+                parentPageId: request.parentPageId,
+                rowId: request.rowId,
+                dateColumnId: request.dateColumnId,
+                viewId: request.viewId,
+                viewType: request.viewType,
+                subscribeToParent: request.parentPageId !== pageId,
+                onViewOrderSaved: request.parentPageId === pageId ? handlers.onViewSaved : undefined,
+                destinationLabel: request.destinationLabel || database?.pageTitle || 'Base atual',
+                calendarActions: workspaceId && request.viewType !== 'graph'
+                  ? {pinned: pinnedCalendarPageIds.has(request.rowId), onPin: handleCalendarPin, onUnpin: schedule.unpin, onRequestPin: handleCalendarRequestPin}
+                  : undefined,
+              })}
               onBoardCreateRow={pageId && !broken && !columnLocks.isPending && !columnLocks.isError && can(permissions.data, 'write', 'create') ? handlers.onBoardCreateRow : undefined}
               onViewChange={handleViewChange}
               onAddView={pageId && !broken && mayEdit ? handleAddView : undefined}

@@ -20,7 +20,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 describe('calendar page destination and hydration', () => {
-  it.each(['timeline'] as const)('uses the %s property order without requiring a date or selecting the Calendar view', async viewType => {
+  it.each(['graph', 'timeline'] as const)('uses the %s property order without requiring a date or selecting the Calendar view', async viewType => {
     const view: DataViewType = {view: viewType, name: viewType, urlKey: {key: viewType, aliases: []}, filters: emptyViewFilters(), orderedHeaderCols: ['description', 'page_title']}
     vi.mocked(databaseService.getPage).mockResolvedValue({...page, data: {calendar: {...view, view: 'calendar', orderedHeaderCols: ['page_title', 'description']}, selected: view}})
     vi.mocked(databaseService.getColumns).mockResolvedValue([{id: 'description', name: 'Descrição', type: 'text', parent_id: page.id, data: null}])

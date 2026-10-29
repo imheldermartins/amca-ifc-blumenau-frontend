@@ -137,17 +137,44 @@ describe('paginated renderers', () => {
     expect([...container.querySelectorAll('[data-list-row]')].map((node) => node.getAttribute('data-list-row'))).toEqual(['row-9', 'row-2'])
   })
 
-  it('loads graph branches on demand even when the legacy automatic option is enabled', () => {
+  it('loads graph branches on demand with automatic loading disabled and opens details before editing', () => {
     const bridge = pagination('graph')
     bridge.streams.root.rows = rows.slice(0, 2)
     const legacyLoad = vi.fn()
-    render(<GraphView rootId="root" rootTitle="Raiz" rows={rows.slice(0, 2)} loadSubItems onLoadChildren={legacyLoad} pagination={bridge} />)
+    const onEditRow = vi.fn()
+    render(<GraphView rootId="root" rootTitle="Raiz" rows={rows.slice(0, 2)} loadSubItems={false} onLoadChildren={legacyLoad} pagination={bridge} onEditRow={onEditRow} />)
     expect(bridge.ensureScope).not.toHaveBeenCalled()
     expect(legacyLoad).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Página 0' }))
     expect(bridge.ensureScope).toHaveBeenCalledWith({ type: 'graph', parentId: 'row-0' })
+    expect(screen.getByRole('complementary', { name: 'Detalhes da página' })).toBeTruthy()
+    expect(onEditRow).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Página 0' }))
+    expect(onEditRow).toHaveBeenCalledExactlyOnceWith('row-0', 'root', 'Raiz')
     fireEvent.click(screen.getByRole('button', { name: 'Mais 9998 páginas' }))
     expect(bridge.loadNext).toHaveBeenCalledWith({ type: 'root' })
+    expect(onEditRow).toHaveBeenCalledOnce()
+  })
+
+  it('automatically loads one level of visible branches without refetch loops or recursive expansion', () => {
+    const bridge = pagination('graph')
+    bridge.streams.root.rows = rows.slice(0, 2)
+    const props = { rootId: 'root', rootTitle: 'Raiz', rows: rows.slice(0, 2), pagination: bridge }
+    const { rerender } = render(<GraphView {...props} loadSubItems={false} />)
+    expect(bridge.ensureScope).not.toHaveBeenCalled()
+    rerender(<GraphView {...props} loadSubItems />)
+    expect(bridge.ensureScope).toHaveBeenCalledTimes(2)
+    expect(bridge.ensureScope).toHaveBeenCalledWith({ type: 'graph', parentId: 'row-0' })
+    bridge.streams = { ...bridge.streams, 'graph:row-0': { ...bridge.streams.root, scope: { type: 'graph', parentId: 'row-0' }, rows: [rows[9]] } }
+    rerender(<GraphView {...props} loadSubItems />)
+    expect(screen.getByRole('button', { name: 'Página 9' })).toBeTruthy()
+    expect(bridge.ensureScope).toHaveBeenCalledTimes(2)
+    bridge.streams = { ...bridge.streams, root: { ...bridge.streams.root, rows: rows.slice(0, 3) } }
+    rerender(<GraphView {...props} loadSubItems={false} />)
+    expect(bridge.ensureScope).toHaveBeenCalledTimes(2)
+    rerender(<GraphView {...props} loadSubItems />)
+    expect(bridge.ensureScope).toHaveBeenCalledTimes(3)
+    expect(bridge.ensureScope).toHaveBeenLastCalledWith({ type: 'graph', parentId: 'row-2' })
   })
   it('keeps an evicted Graph ancestor reachable and loads continuation when keyboard focused', () => {
     const bridge = pagination('graph')
